@@ -13,9 +13,9 @@ Establish a comprehensive Python-based testing framework to validate the system'
 ## Deliverables
 - `tests/requirements.txt`: Python dependencies.
 - `tests/conftest.py`: Shared fixtures (e.g., mock shared FS paths, environment variables).
-- `tests/test_task_0.py`: Basic connectivity and environment check.
+- `tests/test_task_1.py`: Basic connectivity and environment check.
 - Placeholder scripts for `tests/test_task_N.py`.
-- `tests/test_whole.py`: Skeleton for full system flow (Main -> Proc -> FS).
+- `tests/test_whole.py`: Test the whole functionallity, so authentication, Is it possible to Subscribe to the main without the right key, filling the database, updating the database, getting from the database, the speed of the database and behaivour of the database as whole.
 
 ## Logic
 1. **Environment Setup**: Ensure the Python environment can reach the Go binaries once they are built.

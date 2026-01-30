@@ -59,3 +59,4 @@ To maintain consistency and performance, use the following libraries:
 - **No Plaintext Keys**: Encryption keys must never be stored on disk. Use volatile memory only.
 - **Redaction**: Ensure logs never leak decrypted JSON or key material.
 - **Fail Closed**: If encryption or validation fails, the system must reject the write/read and log a security event.
+- **Tests**: To the existing python tests ad go tests that test each component seperatly.
