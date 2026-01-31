@@ -14,6 +14,11 @@ Implement the server-side logic for Processing Worker registration and key deliv
 - Builds on: [Task 4](task_4_agent.md).
 - Validated by: `tests/test_task_5.py` (Mock Proc-Worker subscribing).
 
+## Functional Tests
+- [tests/test_authentication.py](../tests/test_authentication.py)
+- [tests/test_security.py](../tests/test_security.py)
+- [tests/test_apis.py](../tests/test_apis.py)
+
 ## Deliverables
 - `internal/auth/` for token management.
 - Initial Main Worker implementation in `cmd/main-worker/`.

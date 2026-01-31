@@ -14,6 +14,11 @@ Implement the initial startup phase of the Processing Worker.
 - Builds on: [Task 6](task_6_agent.md).
 - Validated by: `tests/test_task_7.py`.
 
+## Functional Tests
+- [tests/test_authentication.py](../tests/test_authentication.py)
+- [tests/test_apis.py](../tests/test_apis.py)
+- [tests/test_whole.py](../tests/test_whole.py)
+
 ## Deliverables
 - `cmd/proc-worker/main.go` logic for handshake.
 - Integration test checking if Proc Worker becomes "Available" in Main Worker's registry.

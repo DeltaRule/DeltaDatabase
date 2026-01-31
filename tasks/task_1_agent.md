@@ -15,6 +15,10 @@ Initialize the Go project and define the communication contracts between all com
 - Builds on: [Task 0](task_0_agent.md) (Testing foundation).
 - Validated by: `tests/test_task_1.py`.
 
+## Functional Tests
+- [tests/test_apis.py](../tests/test_apis.py)
+- [tests/test_authentication.py](../tests/test_authentication.py)
+
 ## Deliverables
 - `go.mod` and `go.sum`.
 - `api/proto/worker.proto`.

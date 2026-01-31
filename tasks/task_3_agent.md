@@ -16,6 +16,11 @@ Enable persistent storage of encrypted JSON blobs with metadata and concurrency 
 - Builds on: [Task 2](task_2_agent.md).
 - Validated by: `tests/test_task_3.py`.
 
+## Functional Tests
+- [tests/test_data_integrity.py](../tests/test_data_integrity.py)
+- [tests/test_concurrency.py](../tests/test_concurrency.py)
+- [tests/test_security.py](../tests/test_security.py)
+
 ## Deliverables
 - `pkg/fs/` source files.
 - Manual verification of file layout on disk.

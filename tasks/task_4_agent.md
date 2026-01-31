@@ -14,6 +14,10 @@ Provide schema validation to ensure data integrity before any write operation.
 - Builds on: [Task 3](task_3_agent.md).
 - Validated by: `tests/test_task_4.py`.
 
+## Functional Tests
+- [tests/test_data_integrity.py](../tests/test_data_integrity.py)
+- [tests/test_whole.py](../tests/test_whole.py)
+
 ## Deliverables
 - `pkg/schema/` source files.
 - Basic schema templates in `shared/db/templates/`.

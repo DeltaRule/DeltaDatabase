@@ -1,23 +1,27 @@
-# Task 0: Test Suite Foundation (Python)
+# Task 0: Intense Test Framework Creation (Python)
 
 ## Objective
-Establish a comprehensive Python-based testing framework to validate the system's behavior at every stage of development.
+Before any code implementation begins, establish an exhaustive, intense Python-based testing framework that defines and validates every aspect of the system's behavior through functional testing. Analyze all tasks (1-11) to identify core functionalities (e.g., authentication, encryption, caching, APIs), then define specific, cumulative tests for each functional area, covering features, edge cases, and end-to-end scenarios. Functional tests group related behaviors across tasks, ensuring comprehensive validation of system operations like auth flows, data processing, and security. The framework must be "very intense and very big," testing everything: authentication, authorization, subscription flows, encryption/decryption, caching coherence, concurrency, performance benchmarks, security vulnerabilities, error handling, data integrity, filesystem interactions, API responses, gRPC/REST behaviors, key management, schema validation, and massive integration scenarios. Tests will determine task completion—no code is implemented until tests are written, and each task's code must pass its relevant functional tests to be considered complete. Use mocks, stubs, and simulated environments initially to allow testing before Go binaries exist.
 
 ## Requirements
-- Use `pytest` for the testing framework.
-- Use `requests` for REST API testing.
-- Use `grpcio` and `grpcio-tools` for gRPC client implementations in tests.
-- Implement specialized test scripts for each upcoming task (`test_task_1.py` through `test_task_11.py`).
-- Implement `test_whole.py` for end-to-end integration testing.
+- Use `pytest` for the testing framework, with fixtures for setup/teardown, parametrization for edge cases, and plugins like `pytest-benchmark` for performance testing.
+- Use `requests` for REST API testing (mock servers initially).
+- Use `grpcio` and `grpcio-tools` for gRPC client implementations in tests (with mock gRPC servers).
+- Implement intense, detailed functional test scripts: `tests/test_authentication.py` (covering auth, authorization, subscription), `tests/test_encryption.py` (encryption/decryption, key management), `tests/test_caching.py` (cache coherence, LRU/TTL), `tests/test_apis.py` (gRPC/REST endpoints, routing), `tests/test_concurrency.py` (file locking, races), `tests/test_security.py` (tampering, key leakage), and `tests/test_data_integrity.py` (schema validation, filesystem ops). Each script covers functionalities from relevant tasks, with cumulative coverage (e.g., test_authentication.py includes auth tests from all tasks requiring it).
+- Implement `tests/test_whole.py` for massive end-to-end integration testing, covering the entire system: authentication failures/successes, subscription attempts (with/without correct keys), database filling/updating/getting, performance under load, cache behavior, concurrency races, security audits (e.g., key leakage, tampering detection), and overall system reliability.
+- Tests must be intense: include thousands of test cases, fuzzing, stress testing, negative testing (e.g., invalid inputs, network failures), boundary conditions, and real-world simulations. Verify encrypted blobs via filesystem inspection, simulate shared FS with local dirs, and benchmark speeds (e.g., cache hit ratios, encryption times).
+- Functional Logic: Identify functionalities by reviewing all tasks 1-11, grouping requirements into functional areas. Each functional test file validates its area across tasks, ensuring inherited behaviors are tested cumulatively (e.g., encryption tests include key rotation from tasks that mention it).
+- No Code Implementation: Task 0 is purely about test creation. After Task 0, implement code for tasks, running functional tests; if passing, proceed. Tests must fail initially (due to no code) and guide development.
 
 ## Deliverables
-- `tests/requirements.txt`: Python dependencies.
-- `tests/conftest.py`: Shared fixtures (e.g., mock shared FS paths, environment variables).
-- `tests/test_task_1.py`: Basic connectivity and environment check.
-- Placeholder scripts for `tests/test_task_N.py`.
-- `tests/test_whole.py`: Test the whole functionallity, so authentication, Is it possible to Subscribe to the main without the right key, filling the database, updating the database, getting from the database, the speed of the database and behaivour of the database as whole.
+- `tests/requirements.txt`: Python dependencies (include `pytest`, `requests`, `grpcio`, `grpcio-tools`, `pytest-benchmark`, `cryptography` for blob verification, etc.).
+- Functional test files: `tests/test_authentication.py`, `tests/test_encryption.py`, `tests/test_caching.py`, `tests/test_apis.py`, `tests/test_concurrency.py`, `tests/test_security.py`, `tests/test_data_integrity.py`. Each contains intense tests for its functional area, with cumulative coverage from relevant tasks.
+- `tests/test_whole.py`: Massive integration test suite covering the whole system, including authentication, subscription security, database operations, performance, and behavior under stress.
+- Updated task descriptions in `tasks/task_N_agent.md` files (if needed) to explicitly list relevant functional tests (e.g., "Task 3 must pass tests from test_authentication.py and test_encryption.py").
 
 ## Logic
-1. **Environment Setup**: Ensure the Python environment can reach the Go binaries once they are built.
-2. **Mocking**: Provide utilities to inspect the `/shared/db/files/` directory to verify encrypted blobs independently of the Go code.
-3. **Validation**: Tests should check status codes, JSON response bodies, and gRPC status codes.
+1. **Functional Analysis**: Review tasks 1-11 to extract functionalities (e.g., auth from multiple tasks, encryption from others). Group into the listed test files, defining intense tests (unit, integration, performance, security) for each.
+2. **Test Intensity**: Make tests exhaustive—e.g., for authentication, test valid/invalid tokens, mTLS failures, key wrapping across tasks; for caching, test LRU eviction, TTL expiry, coherence on version mismatches; for encryption, test AEAD integrity, key rotation, tampering detection via HMAC.
+3. **Environment Setup**: Ensure tests can run in isolation, mocking Go binaries initially. Use local dirs for shared FS simulation.
+4. **Validation**: Tests check everything—status codes, JSON bodies, gRPC statuses, filesystem states, performance metrics, security logs (redacted).
+5. **Completion Gate**: Each task's code implementation is blocked until its relevant functional test suites pass. Task 0 completes when all test files are written and can run (even if failing due to no code).

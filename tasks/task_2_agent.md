@@ -15,6 +15,10 @@ Implement the core encryption and key management logic used for persisting data 
 - Builds on: [Task 1](task_1_agent.md).
 - Validated by: `tests/test_task_2.py` (Unit tests for crypto).
 
+## Functional Tests
+- [tests/test_encryption.py](../tests/test_encryption.py)
+- [tests/test_security.py](../tests/test_security.py)
+
 ## Deliverables
 - `pkg/crypto/` source files.
 - Unit tests in `pkg/crypto/*_test.go`.

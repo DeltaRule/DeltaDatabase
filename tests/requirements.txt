@@ -1,0 +1,8 @@
+pytest==8.3.4
+pytest-benchmark==4.0.0
+requests==2.32.3
+grpcio==1.67.1
+grpcio-tools==1.67.1
+cryptography==43.0.3
+jsonschema==4.23.0
+hypothesis==6.108.4

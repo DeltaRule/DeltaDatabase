@@ -17,6 +17,11 @@ Implement the logic to create or update data entities with validation and encryp
 - Builds on: [Task 8](task_8_agent.md).
 - Validated by: `tests/test_task_9.py`.
 
+## Functional Tests
+- [tests/test_data_integrity.py](../tests/test_data_integrity.py)
+- [tests/test_encryption.py](../tests/test_encryption.py)
+- [tests/test_concurrency.py](../tests/test_concurrency.py)
+
 ## Deliverables
 - `PUT` logic in Processing Worker.
 - FS exclusive locking integration.

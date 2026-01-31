@@ -15,6 +15,11 @@ Expose the system to external clients through a secure REST gateway.
 - Builds on: [Task 9](task_9_agent.md).
 - Validated by: `tests/test_task_10.py` (REST client simulation).
 
+## Functional Tests
+- [tests/test_apis.py](../tests/test_apis.py)
+- [tests/test_authentication.py](../tests/test_authentication.py)
+- [tests/test_whole.py](../tests/test_whole.py)
+
 ## Deliverables
 - `api/rest/` handlers.
 - Main Worker routing logic (Round Robin or Random).

@@ -31,6 +31,7 @@ The project follows a standard Go layout:
 │   ├── db/
 │   │   ├── files/          # Encrypted blobs
 │   │   └── templates/      # JSON Schema templates
+├── tests/                  # Python test suite for integration and end-to-end testing
 ├── Agents.md               # Core design document
 └── Guideline.md            # This document
 ```
@@ -59,4 +60,8 @@ To maintain consistency and performance, use the following libraries:
 - **No Plaintext Keys**: Encryption keys must never be stored on disk. Use volatile memory only.
 - **Redaction**: Ensure logs never leak decrypted JSON or key material.
 - **Fail Closed**: If encryption or validation fails, the system must reject the write/read and log a security event.
-- **Tests**: To the existing python tests ad go tests that test each component seperatly.
+
+## 6. Testing Guidelines
+- **Go Unit Tests**: Each `pkg/` module must have 100% unit test coverage using `github.com/stretchr/testify`.
+- **Python Integration Tests**: Use the `tests/` directory for end-to-end testing with `pytest`.
+- **Whole Product Test**: Run `tests/test_whole.py` to validate the complete system behavior, including authentication, subscription, database operations, performance, and concurrency.

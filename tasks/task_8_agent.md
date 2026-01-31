@@ -17,6 +17,11 @@ Implement the logic to retrieve and decrypt data entities.
 - Builds on: [Task 7](task_7_agent.md).
 - Validated by: `tests/test_task_8.py`.
 
+## Functional Tests
+- [tests/test_apis.py](../tests/test_apis.py)
+- [tests/test_caching.py](../tests/test_caching.py)
+- [tests/test_data_integrity.py](../tests/test_data_integrity.py)
+
 ## Deliverables
 - `GET` logic in Processing Worker.
 - FS shared locking integration.

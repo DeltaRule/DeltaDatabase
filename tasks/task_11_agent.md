@@ -13,6 +13,11 @@ Finalize the system with robust error handling and concurrent load management.
 - Builds on: [Task 10](task_10_agent.md).
 - Validated by: `tests/test_whole.py`.
 
+## Functional Tests
+- [tests/test_whole.py](../tests/test_whole.py)
+- [tests/test_concurrency.py](../tests/test_concurrency.py)
+- [tests/test_security.py](../tests/test_security.py)
+
 ## Deliverables
 - Hardened worker logic.
 - Final passing result for the full Python test suite.
