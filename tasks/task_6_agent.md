@@ -11,8 +11,7 @@ Implement a high-performance LRU cache to minimize disk I/O and decryption overh
 - Structure entry: `Data`, `Version`, `Expiry`.
 
 ## Dependencies
-- Builds on: [Task 5](task_5_agent.md).
-- Validated by: `tests/test_task_6.py`.
+- Builds on: [Task 5](task_5_agent.md)..
 
 ## Functional Tests
 - [tests/test_caching.py](../tests/test_caching.py)
