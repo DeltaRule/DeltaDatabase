@@ -14,7 +14,6 @@ Enable persistent storage of encrypted JSON blobs with metadata and concurrency 
 
 ## Dependencies
 - Builds on: [Task 2](task_2_agent.md).
-- Validated by: `tests/test_task_3.py`.
 
 ## Functional Tests
 - [tests/test_data_integrity.py](../tests/test_data_integrity.py)
