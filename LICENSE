@@ -1,0 +1,298 @@
+DeltaDatabase Software License
+Version 1.0, February 2026
+
+Copyright (c) 2026 DeltaRule and Contributors
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PREAMBLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This License governs the use, reproduction, modification, distribution, and
+sublicensing of the DeltaDatabase software and any derivative works thereof
+(collectively, "the Software"). It is designed to promote commercial adoption
+while upholding ethical responsibilities around human rights and global
+solidarity. By using, copying, modifying, or distributing the Software you
+agree to be bound by this License.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — DEFINITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.1 "Software" means the DeltaDatabase source code, compiled binaries,
+    documentation, schemas, configuration files, and any other materials
+    distributed under this License.
+
+1.2 "Derivative Work" means any work that is based on or derived from the
+    Software, including modifications, adaptations, translations, ports,
+    forks, or any other form of transformation that incorporates all or a
+    substantial portion of the Software.
+
+1.3 "Licensee" means any individual or legal entity exercising rights granted
+    by this License.
+
+1.4 "Commercial Use" means use of the Software in connection with a business
+    activity, including internal operations, provision of services to third
+    parties, or integration into commercial products, regardless of whether
+    direct revenue is generated from the Software itself.
+
+1.5 "Qualifying Charity" means any registered, tax-exempt, non-profit
+    organization whose primary mission is the support of one or more of the
+    following causes:
+    (a) Palestinian humanitarian aid or civil rights;
+    (b) Transgender rights or gender-affirming care;
+    (c) LGBTQ+ rights, equality, or welfare;
+    (d) Ukrainian humanitarian aid, reconstruction, or civil rights.
+
+1.6 "Restricted Government or Funding Source" means:
+    (a) The government of the State of Israel;
+    (b) The government of the Russian Federation;
+    (c) Any state-owned enterprise, sovereign wealth fund, or governmental
+        investment vehicle of either country listed above;
+    (d) Any entity in which either government listed above holds, directly
+        or indirectly, a controlling ownership interest (greater than 25%
+        of voting shares or equivalent governance rights).
+
+1.7 "License Version" means the specific numbered version of this License
+    (e.g., "Version 1.0") under which a particular version of the Software
+    was released.
+
+1.8 "Covered Source" means any particular tagged release or published
+    version of the Software together with the License Version under which
+    it was published.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — GRANT OF RIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject to the conditions and limitations set forth in this License, the
+copyright holders hereby grant to any Licensee who satisfies all eligibility
+requirements (Section 4) a worldwide, royalty-free, non-exclusive license to:
+
+2.1 Use — Run, execute, and operate the Software for any purpose, including
+    Commercial Use.
+
+2.2 Study — Access, read, and examine the source code of the Software.
+
+2.3 Modify — Prepare Derivative Works based on the Software.
+
+2.4 Distribute — Reproduce and distribute copies of the Software or
+    Derivative Works in source or binary form.
+
+2.5 Sublicense — Grant these same rights to third parties, subject to the
+    conditions of this License.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — CONDITIONS AND OBLIGATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3.1 License Persistence in Forks and Derivative Works.
+
+    (a) Any Derivative Work that you distribute, publish, or otherwise make
+        available to third parties MUST be distributed under this License,
+        in its entirety and without modification.
+
+    (b) You may NOT remove, replace, relicense, or sublicense Derivative
+        Works under any other license, including more permissive or more
+        restrictive open-source licenses, proprietary licenses, or any
+        license that does not incorporate all conditions of this License.
+
+    (c) Any attempt to distribute a Derivative Work under a different license
+        automatically terminates all rights granted to you under this License.
+
+    (d) You must retain, in all copies and substantial portions of the
+        Software or Derivative Works, the complete and unmodified text of
+        this License, together with a prominent notice that the Software is
+        governed by this License.
+
+3.2 Attribution.
+
+    All copies of the Software or Derivative Works must include:
+    (a) The original copyright notice;
+    (b) A reference to the canonical location of this License
+        (https://github.com/DeltaRule/DeltaDatabase/blob/main/LICENSE); and
+    (c) A clear statement of any modifications made relative to the
+        original Software.
+
+3.3 No Misrepresentation.
+
+    You may not claim that a Derivative Work is the original Software or
+    that it was created by the original authors.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — ELIGIBILITY REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The rights granted in Section 2 are available ONLY to Licensees who satisfy
+ALL of the following eligibility requirements. An individual who is not acting
+on behalf of a legal entity (i.e., personal, non-commercial use) is exempt
+from requirements 4.2 and 4.3.
+
+4.1 Absence of Restricted Funding.
+
+    (a) The Licensee must not be a Restricted Government or Funding Source
+        as defined in Section 1.6.
+
+    (b) The Licensee must not have received, in the twelve (12) months
+        immediately preceding the date of first use of the Software, more
+        than twenty-five percent (25%) of its total operating funding,
+        equity investment, grant funding, or any other form of financial
+        support from any Restricted Government or Funding Source.
+
+    (c) Any Licensee that becomes ineligible under this section after
+        commencing use of the Software must cease all use, distribution,
+        and modification of the Software and any Derivative Works within
+        ninety (90) days of becoming ineligible.
+
+4.2 Charitable Contribution Requirement.
+
+    (a) To use the Software for any Commercial Use, the Licensee (or its
+        parent or controlling entity) must have made a cumulative donation
+        of no less than five hundred United States dollars (USD $500) — or
+        the equivalent in another currency at the time of donation — to
+        one or more Qualifying Charities.
+
+    (b) Such donation(s) must have been made within the thirty-six (36)
+        months preceding the date on which the Licensee first makes
+        Commercial Use of the Software.
+
+    (c) The Licensee must retain documentary evidence of the qualifying
+        donation(s) (e.g., a charitable receipt, bank transfer record, or
+        equivalent) and must provide such evidence to the copyright holders
+        upon reasonable written request.
+
+    (d) A single donation satisfies this requirement for all Commercial Use
+        within the validity window defined in subsection (b). Subsequent
+        uses that fall outside the validity window require a new qualifying
+        donation.
+
+4.3 Self-Certification.
+
+    By exercising any right granted under this License for Commercial Use,
+    the Licensee certifies that:
+    (i)  it meets the eligibility requirements of Section 4.1; and
+    (ii) it meets the eligibility requirements of Section 4.2.
+
+    Providing false certification is a material breach of this License and
+    results in immediate termination of all rights granted herein.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — NON-RETROACTIVITY OF LICENSE AMENDMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5.1 Versioned Releases.
+
+    Each publicly tagged or released version of the Software is permanently
+    associated with the License Version under which it was released
+    ("Covered Source"). The terms governing that Covered Source are fixed
+    at the time of release.
+
+5.2 Future License Versions.
+
+    The copyright holders may publish revised or updated versions of this
+    License in the future. Such revisions will carry a new version number
+    (e.g., "Version 1.1", "Version 2.0").
+
+5.3 Non-Retroactive Effect.
+
+    A new or amended License Version applies only to versions of the
+    Software released after the date on which the new License Version is
+    published. No amendment to this License shall:
+    (a) Retroactively alter the rights or obligations of any Licensee with
+        respect to a Covered Source released under a prior License Version;
+    (b) Invalidate or restrict any previously granted permission to use,
+        modify, or distribute a Covered Source; or
+    (c) Convert a past release from one License Version to another.
+
+5.4 Licensee's Option on Future Releases.
+
+    When a new License Version is published, a Licensee who has already
+    accepted this License may elect to continue using any particular
+    Covered Source under the License Version under which that Covered
+    Source was released, or may choose to use future releases under the
+    then-current License Version.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — DISCLAIMER OF WARRANTIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, ACCURACY, OR RELIABILITY.
+THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH
+THE LICENSEE. SHOULD THE SOFTWARE PROVE DEFECTIVE, THE LICENSEE ASSUMES
+THE COST OF ALL NECESSARY SERVICING, REPAIR, OR CORRECTION.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — LIMITATION OF LIABILITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, LOSS OF DATA, LOSS OF PROFITS, BUSINESS
+INTERRUPTION, OR COST OF SUBSTITUTE GOODS OR SERVICES) ARISING OUT OF THE
+USE OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+OF SUCH DAMAGES. THIS LIMITATION APPLIES TO ALL CAUSES OF ACTION, INCLUDING
+NEGLIGENCE, TORT, CONTRACT, STRICT LIABILITY, AND ANY STATUTORY CAUSE.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — TERMINATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8.1 Automatic Termination.
+
+    Any breach of the conditions in Sections 3 or 4 immediately and
+    automatically terminates all rights granted to the breaching Licensee
+    under this License, without notice and without any requirement for
+    action by the copyright holders.
+
+8.2 Cure Period.
+
+    If a Licensee becomes aware of an unintentional breach of Section 3
+    (e.g., a distribution inadvertently missing the required license text),
+    rights are not automatically terminated, provided the Licensee cures
+    the breach within thirty (30) days of becoming aware of it.
+
+8.3 Effect of Termination.
+
+    Upon termination, the Licensee must immediately cease all use,
+    reproduction, modification, and distribution of the Software and any
+    Derivative Works. Sections 6, 7, and 9 survive termination.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 9 — GENERAL PROVISIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9.1 Entire Agreement.
+
+    This License constitutes the entire agreement between the parties with
+    respect to the Software and supersedes all prior agreements, proposals,
+    or understandings.
+
+9.2 Severability.
+
+    If any provision of this License is held invalid or unenforceable, the
+    remaining provisions shall continue in full force and effect.
+
+9.3 Governing Law.
+
+    This License shall be governed by and construed in accordance with the
+    laws of a neutral jurisdiction agreed upon by the parties in writing,
+    or, in the absence of such agreement, by the principles of international
+    contract law.
+
+9.4 Contributions.
+
+    Unless you explicitly state otherwise, any contribution intentionally
+    submitted by you to the Software for inclusion shall be under this
+    License, without any additional terms or conditions.
+
+9.5 Trademarks.
+
+    This License does not grant permission to use the trade names,
+    trademarks, service marks, or product names of the copyright holders,
+    except as required for reasonable and customary use in describing the
+    origin of the Software.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+END OF LICENSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
