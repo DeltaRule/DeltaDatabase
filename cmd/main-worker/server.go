@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"delta-db/internal/routing"
 	"delta-db/pkg/cache"
 	"delta-db/pkg/crypto"
+	"delta-db/pkg/metrics"
 	"delta-db/pkg/schema"
 
 	"google.golang.org/grpc"
@@ -51,6 +53,15 @@ type MainWorkerServer struct {
 
 	// Configuration
 	config *Config
+
+	// Prometheus metrics (nil-safe — no-op when nil)
+	metrics *metrics.MainWorkerMetrics
+
+	// lastCacheStats tracks the previous cache stats snapshot so we can
+	// increment Prometheus counters by the delta on each update.
+	lastCacheHits   int64
+	lastCacheMisses int64
+	lastCacheEvicts int64
 }
 
 // Config holds the Main Worker configuration.
@@ -75,6 +86,10 @@ type Config struct {
 	// EntityCacheSize is the maximum number of entities held in the
 	// in-memory LRU store.  Defaults to 1024 when zero or negative.
 	EntityCacheSize int
+
+	// MetricsAddr is the address for the Prometheus /metrics HTTP endpoint
+	// (e.g. ":9090").  An empty string disables the metrics server.
+	MetricsAddr string
 }
 
 // NewMainWorkerServer creates a new Main Worker server instance.
@@ -130,6 +145,7 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 		masterKey:     config.MasterKey,
 		masterKeyID:   config.KeyID,
 		config:        config,
+		metrics:       metrics.NewMainWorkerMetrics(),
 	}
 
 	// Initialize schema validator (non-fatal: schema endpoints disabled if it fails).
@@ -147,12 +163,17 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 
 // Subscribe implements the Subscribe RPC for Processing Worker registration.
 func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRequest) (*proto.SubscribeResponse, error) {
+	start := time.Now()
 	// Validate request
 	if req.GetWorkerId() == "" {
+		s.metrics.SubscribeRequestsTotal.WithLabelValues("error").Inc()
+		s.metrics.SubscribeDurationSeconds.WithLabelValues("error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.InvalidArgument, "worker_id is required")
 	}
 	
 	if len(req.GetPubkey()) == 0 {
+		s.metrics.SubscribeRequestsTotal.WithLabelValues("error").Inc()
+		s.metrics.SubscribeDurationSeconds.WithLabelValues("error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.InvalidArgument, "pubkey is required")
 	}
 	
@@ -162,6 +183,8 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 	pubkey, err := crypto.ParsePublicKeyFromPEM(req.GetPubkey())
 	if err != nil {
 		log.Printf("Failed to parse worker public key: %v", err)
+		s.metrics.SubscribeRequestsTotal.WithLabelValues("error").Inc()
+		s.metrics.SubscribeDurationSeconds.WithLabelValues("error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.InvalidArgument, "invalid public key format")
 	}
 	
@@ -186,6 +209,8 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 	wrappedKey, err := crypto.WrapKey(pubkey, s.masterKey)
 	if err != nil {
 		log.Printf("Failed to wrap key for worker %s: %v", workerID, err)
+		s.metrics.SubscribeRequestsTotal.WithLabelValues("error").Inc()
+		s.metrics.SubscribeDurationSeconds.WithLabelValues("error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.Internal, "failed to wrap encryption key")
 	}
 	
@@ -193,6 +218,8 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 	token, err := s.tokenManager.GenerateWorkerToken(workerID, s.masterKeyID, req.GetTags())
 	if err != nil {
 		log.Printf("Failed to generate token for worker %s: %v", workerID, err)
+		s.metrics.SubscribeRequestsTotal.WithLabelValues("error").Inc()
+		s.metrics.SubscribeDurationSeconds.WithLabelValues("error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.Internal, "failed to generate token")
 	}
 	
@@ -203,6 +230,12 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 	if err := s.registry.Register(workerID, s.masterKeyID, req.GetTags()); err != nil {
 		log.Printf("Warning: failed to register worker %s in registry: %v", workerID, err)
 	}
+
+	s.metrics.SubscribeRequestsTotal.WithLabelValues("success").Inc()
+	s.metrics.SubscribeDurationSeconds.WithLabelValues("success").Observe(time.Since(start).Seconds())
+	s.metrics.RegisteredWorkers.Set(float64(len(s.workerAuth.ListWorkers())))
+	s.metrics.AvailableWorkers.Set(float64(len(s.registry.ListAvailableWorkers())))
+	s.metrics.ActiveWorkerTokens.Set(float64(s.tokenManager.GetWorkerTokenCount()))
 	
 	// Return the subscription response
 	return &proto.SubscribeResponse{
@@ -217,8 +250,13 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 // PUT requests are cached immediately in the LRU entity store (full
 // encrypted persistence is handled by a Processing Worker).
 func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
+	start := time.Now()
+	op := req.GetOperation()
+
 	// Validate token
 	if req.GetToken() == "" {
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.Unauthenticated, "token is required")
 	}
 
@@ -226,17 +264,28 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 	_, err := s.tokenManager.ValidateWorkerToken(req.GetToken())
 	if err != nil {
 		log.Printf("Invalid token in Process request: %v", err)
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
 	}
 
 	// Validate operation
-	op := req.GetOperation()
 	if op != "GET" && op != "PUT" {
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
 		return nil, status.Error(codes.InvalidArgument, "operation must be GET or PUT")
 	}
 
 	if op == "GET" {
-		return s.routeGETToProcWorker(ctx, req)
+		resp, err := s.routeGETToProcWorker(ctx, req)
+		statusLabel := "success"
+		if err != nil {
+			statusLabel = "error"
+		}
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, statusLabel).Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, statusLabel).Observe(time.Since(start).Seconds())
+		s.updateCacheMetrics()
+		return resp, err
 	}
 
 	// PUT: cache immediately (LRU evicts the least-recently-used entry if full).
@@ -244,10 +293,32 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 	storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
 	s.entityStore.Set(storeKey, req.GetPayload(), "1")
 
+	s.metrics.ProcessRequestsTotal.WithLabelValues(op, "success").Inc()
+	s.metrics.ProcessDurationSeconds.WithLabelValues(op, "success").Observe(time.Since(start).Seconds())
+	s.updateCacheMetrics()
+
 	return &proto.ProcessResponse{
 		Status:  "OK",
 		Version: "1",
 	}, nil
+}
+
+// updateCacheMetrics refreshes the entity cache gauge metrics from live stats.
+func (s *MainWorkerServer) updateCacheMetrics() {
+	cs := s.entityStore.Stats()
+	s.metrics.EntityCacheSize.Set(float64(cs.Size))
+	if delta := cs.Hits - s.lastCacheHits; delta > 0 {
+		s.metrics.EntityCacheHitsTotal.Add(float64(delta))
+		s.lastCacheHits = cs.Hits
+	}
+	if delta := cs.Misses - s.lastCacheMisses; delta > 0 {
+		s.metrics.EntityCacheMissesTotal.Add(float64(delta))
+		s.lastCacheMisses = cs.Misses
+	}
+	if delta := cs.Evicts - s.lastCacheEvicts; delta > 0 {
+		s.metrics.EntityCacheEvictionsTotal.Add(float64(delta))
+		s.lastCacheEvicts = cs.Evicts
+	}
 }
 
 // routeGETToProcWorker forwards a GET Process request to a Processing Worker
@@ -338,10 +409,15 @@ func (s *MainWorkerServer) Run() error {
 		mux.HandleFunc("/entity/", s.handleEntity)
 
 		log.Printf("Main Worker REST server listening on %s", s.config.RESTAddr)
-		if err := http.ListenAndServe(s.config.RESTAddr, mux); err != nil && err != http.ErrServerClosed {
+		if err := http.ListenAndServe(s.config.RESTAddr, s.instrumentHTTP(mux)); err != nil && err != http.ErrServerClosed {
 			log.Printf("REST server error: %v", err)
 		}
 	}()
+
+	// Start Prometheus metrics server if configured.
+	if s.config.MetricsAddr != "" {
+		go s.metrics.Serve(s.config.MetricsAddr)
+	}
 
 	// Create gRPC server.
 	grpcServer := grpc.NewServer()
@@ -364,6 +440,49 @@ func (s *MainWorkerServer) Run() error {
 	}
 
 	return nil
+}
+
+// instrumentHTTP wraps the given handler to record HTTP request counts and durations.
+func (s *MainWorkerServer) instrumentHTTP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &responseWriter{ResponseWriter: w, code: http.StatusOK}
+		next.ServeHTTP(rw, r)
+		// Normalise path to avoid high-cardinality labels (strip query string,
+		// collapse per-entity / per-schema paths to their prefix).
+		path := normalisePath(r.URL.Path)
+		s.metrics.HTTPRequestsTotal.WithLabelValues(r.Method, path, strconv.Itoa(rw.code)).Inc()
+		s.metrics.HTTPDurationSeconds.WithLabelValues(r.Method, path).Observe(time.Since(start).Seconds())
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code.
+type responseWriter struct {
+	http.ResponseWriter
+	code int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.code = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// normalisePath collapses high-cardinality URL paths into labelled prefixes.
+func normalisePath(p string) string {
+	switch {
+	case p == "/health":
+		return "/health"
+	case p == "/admin/workers":
+		return "/admin/workers"
+	case p == "/admin/schemas":
+		return "/admin/schemas"
+	case strings.HasPrefix(p, "/schema/"):
+		return "/schema/:id"
+	case strings.HasPrefix(p, "/entity/"):
+		return "/entity/:db"
+	default:
+		return p
+	}
 }
 
 // Shutdown gracefully shuts down the server.

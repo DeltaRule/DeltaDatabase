@@ -19,6 +19,7 @@ func main() {
 	workerID  := flag.String("worker-id",  "",                "Unique ID for this Processing Worker")
 	sharedFS  := flag.String("shared-fs",  "./shared/db",     "Shared filesystem path (ignored when -s3-endpoint is set)")
 	grpcAddr  := flag.String("grpc-addr",  "127.0.0.1:0",     "Processing Worker gRPC listen address (host:port)")
+	metricsAddr := flag.String("metrics-addr", "",            "Prometheus metrics server address (e.g. :9091); empty = disabled")
 	cacheSize := flag.Int("cache-size",    256,               "Maximum number of entries in the in-memory cache")
 	cacheTTL  := flag.Duration("cache-ttl", 0,                "TTL for cached entries (0 = LRU-only eviction, no time-based expiry)")
 
@@ -109,6 +110,7 @@ func main() {
 		MainAddr:     *mainAddr,
 		WorkerID:     *workerID,
 		SharedFSPath: *sharedFS,
+		MetricsAddr:  *metricsAddr,
 		Tags:         map[string]string{"grpc_addr": *grpcAddr},
 	}
 
@@ -137,7 +139,7 @@ func main() {
 
 	// Start the Processing Worker gRPC server.
 	go func() {
-		if err := srv.Serve(*grpcAddr); err != nil {
+		if err := srv.Serve(*grpcAddr, *metricsAddr); err != nil {
 			log.Printf("[%s] gRPC server exited: %v", config.WorkerID, err)
 		}
 	}()

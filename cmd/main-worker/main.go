@@ -18,6 +18,7 @@ func main() {
 	// Command line flags
 	grpcAddr := flag.String("grpc-addr", "127.0.0.1:50051", "gRPC server address")
 	restAddr := flag.String("rest-addr", "127.0.0.1:8080", "REST API server address")
+	metricsAddr := flag.String("metrics-addr", "", "Prometheus metrics server address (e.g. :9090); empty = disabled")
 	sharedFS := flag.String("shared-fs", "./shared/db", "Shared filesystem path (ignored when -s3-endpoint is set)")
 	masterKeyHex := flag.String("master-key", "", "Master encryption key (hex-encoded 32 bytes)")
 	keyID := flag.String("key-id", "main-key-v1", "Master key ID")
@@ -106,6 +107,7 @@ func main() {
 	config := &Config{
 		GRPCAddr:        *grpcAddr,
 		RESTAddr:        *restAddr,
+		MetricsAddr:     *metricsAddr,
 		SharedFSPath:    templatesDir,
 		MasterKey:       masterKey,
 		KeyID:           *keyID,

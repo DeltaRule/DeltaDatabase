@@ -52,6 +52,10 @@ type ProcConfig struct {
 
 	// Tags are optional metadata labels sent during subscription.
 	Tags map[string]string
+
+	// MetricsAddr is the address for the Prometheus /metrics HTTP endpoint
+	// (e.g. ":9091").  An empty string disables the metrics server.
+	MetricsAddr string
 }
 
 // NewProcWorker creates a new ProcWorker instance and generates an RSA key pair

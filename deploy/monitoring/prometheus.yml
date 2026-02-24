@@ -1,0 +1,31 @@
+# Prometheus configuration for DeltaDatabase monitoring.
+#
+# Scrapes the Main Worker (:9090/metrics) and all Processing Workers (:9091/metrics).
+# Adjust the static_configs targets to match your deployment.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  # ── Main Worker ────────────────────────────────────────────────────────────
+  - job_name: deltadatabase_main
+    static_configs:
+      - targets:
+          - main-worker:9090
+    relabel_configs:
+      - target_label: worker_type
+        replacement: main
+
+  # ── Processing Workers ─────────────────────────────────────────────────────
+  # Add one entry per proc-worker instance (or use service discovery for k8s).
+  - job_name: deltadatabase_proc
+    static_configs:
+      - targets:
+          - proc-worker-1:9091
+          - proc-worker-2:9091
+          - proc-worker-3:9091
+    relabel_configs:
+      - target_label: worker_type
+        replacement: proc
