@@ -32,14 +32,15 @@ type CacheEntry struct {
 The main cache structure with configuration:
 ```go
 type Cache struct {
-    cache      *lru.Cache[string, *CacheEntry] // Underlying LRU cache
-    maxSize    int                             // Maximum number of entries
-    defaultTTL time.Duration                   // Default time-to-live for entries
-    mu         sync.RWMutex                    // Protects concurrent access
-    hits       int64                           // Cache hit counter
-    misses     int64                           // Cache miss counter
-    evicts     int64                           // Eviction counter
-    stopCleanup chan struct{}                  // Signal to stop cleanup goroutine
+    cache           *lru.Cache[string, *CacheEntry] // Underlying LRU cache
+    maxSize         int                             // Maximum number of entries
+    defaultTTL      time.Duration                   // Default time-to-live for entries
+    cleanupInterval time.Duration                   // Background cleanup ticker interval
+    mu              sync.RWMutex                    // Protects concurrent access
+    hits            int64                           // Cache hit counter
+    misses          int64                           // Cache miss counter
+    evicts          int64                           // Eviction counter
+    stopCleanup     chan struct{}                    // Signal to stop cleanup goroutine
 }
 ```
 
@@ -158,8 +159,9 @@ c.ResetStats()
 ### CacheConfig
 ```go
 type CacheConfig struct {
-    MaxSize    int           // Maximum number of entries (required, must be > 0)
-    DefaultTTL time.Duration // Default TTL (optional, defaults to 5 minutes)
+    MaxSize         int           // Maximum number of entries (required, must be > 0)
+    DefaultTTL      time.Duration // Default TTL (optional, defaults to 5 minutes)
+    CleanupInterval time.Duration // Background cleanup interval (optional, defaults to 1 minute)
 }
 ```
 
@@ -236,7 +238,7 @@ if cachedEntry.Version != metaFromDisk.Version {
 ```
 
 ## Testing
-Comprehensive test coverage (98.1%):
+Comprehensive test coverage (99.1%):
 ```bash
 go test ./pkg/cache -v -cover
 ```
