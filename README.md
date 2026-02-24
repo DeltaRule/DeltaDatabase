@@ -96,7 +96,8 @@ browse and manage databases without any external tooling.
 ```
 
 **Main Worker** — single entry-point for all clients. Handles authentication,
-token issuance, key distribution, and load-balancing across Processing Workers.
+token issuance, key distribution, and cache-aware + least-loaded routing across
+Processing Workers.
 
 **Processing Worker** — the data plane. Subscribes to the Main Worker to
 receive the AES master key (wrapped in the worker's RSA public key), then
@@ -984,7 +985,10 @@ pointing at the same Main Worker and the same shared filesystem directory:
   -shared-fs=./shared/db
 ```
 
-The Main Worker round-robins GET requests across all available workers. File-
+The Main Worker routes requests using a **cache-aware + least-loaded** strategy: it
+first tries to send each request to the worker that most recently served that
+entity (to maximise LRU cache hits), and falls back to the worker with the
+fewest active requests when no preferred worker is available. File-
 level advisory locks (`flock`-style) ensure that concurrent writes from
 different workers never corrupt an entity.  Each write also uses an explicit
 `fdatasync` before the atomic rename, guaranteeing that no data is lost even if
@@ -993,7 +997,10 @@ a worker crashes between the rename and a kernel writeback flush.
 View the registered workers at any time:
 
 ```bash
-curl -s http://127.0.0.1:8080/admin/workers | jq .
+TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"client_id":"myapp"}' | jq -r .token)
+curl -s -H "Authorization: Bearer ${TOKEN}" http://127.0.0.1:8080/admin/workers | jq .
 ```
 
 ---
@@ -1107,14 +1114,14 @@ Real hardware will be faster.
 
 | Benchmark | Mean latency | Throughput |
 |-----------|-------------|------------|
-| REST PUT (sequential, warm) | ~25 ms | ~40 ops/s |
-| REST GET (warm cache, sequential) | ~8 ms | ~125 ops/s |
-| REST PUT→GET round-trip | ~35 ms | ~29 ops/s |
-| gRPC PUT (proc-worker direct) | ~12 ms | ~80 ops/s |
-| gRPC GET (warm cache, proc-worker) | ~4 ms | ~250 ops/s |
-| Concurrent PUT (32 threads × 20 each) | — | ~120 ops/s total |
-| Concurrent GET (32 threads × 25 each) | — | ~350 ops/s total |
-| Bulk write 1000 entities | ~28 s total | ~36 ops/s |
+| REST PUT (sequential, warm) | ~1 ms | ~1,000 ops/s |
+| REST GET (warm cache, sequential) | ~1 ms | ~1,000 ops/s |
+| REST PUT→GET round-trip | ~2 ms | ~520 ops/s |
+| gRPC PUT (proc-worker direct) | ~0.6 ms | ~1,700 ops/s |
+| gRPC GET (warm cache, proc-worker) | ~0.3 ms | ~3,500 ops/s |
+| Concurrent PUT (32 threads × 20 each) | — | ~910 ops/s total |
+| Concurrent GET (32 threads × 25 each) | — | ~970 ops/s total |
+| Bulk write 1000 entities | ~1 s total | ~1,000 ops/s |
 
 > Benchmarks are run with `pytest tests/test_benchmarks.py -v --benchmark-sort=mean`.
 > Use `pytest-benchmark compare` to track regressions across runs.
