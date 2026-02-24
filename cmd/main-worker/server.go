@@ -19,6 +19,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -177,25 +178,92 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 }
 
 // Process implements the Process RPC for handling entity operations.
-// This is a placeholder for now - will be implemented in later tasks.
+// For GET requests it forwards the call to an available Processing Worker.
+// PUT requests are accepted and recorded in the entity store (full persistence
+// is handled by a Processing Worker in a later task).
 func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
 	// Validate token
 	if req.GetToken() == "" {
 		return nil, status.Error(codes.Unauthenticated, "token is required")
 	}
-	
+
 	// Validate the token
 	_, err := s.tokenManager.ValidateWorkerToken(req.GetToken())
 	if err != nil {
 		log.Printf("Invalid token in Process request: %v", err)
 		return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
 	}
-	
-	// Placeholder response
+
+	// Validate operation
+	op := req.GetOperation()
+	if op != "GET" && op != "PUT" {
+		return nil, status.Error(codes.InvalidArgument, "operation must be GET or PUT")
+	}
+
+	if op == "GET" {
+		return s.routeGETToProcWorker(ctx, req)
+	}
+
+	// PUT: store in the entity store as a lightweight placeholder.
+	// Full encrypted persistence is handled by a Processing Worker.
+	storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
+	s.entityStoreMu.Lock()
+	s.entityStore[storeKey] = json.RawMessage(req.GetPayload())
+	s.entityStoreMu.Unlock()
+
 	return &proto.ProcessResponse{
-		Status: "not_implemented",
-		Error:  "Process endpoint not yet implemented - will be completed in Task 6-8",
-	}, status.Error(codes.Unimplemented, "Process not yet implemented")
+		Status:  "OK",
+		Version: "1",
+	}, nil
+}
+
+// routeGETToProcWorker forwards a GET Process request to an available
+// Processing Worker.  The worker's gRPC address must have been advertised as
+// the "grpc_addr" tag during Subscribe.  If no worker is available the
+// entity is looked up in the in-memory entity store as a fallback.
+func (s *MainWorkerServer) routeGETToProcWorker(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
+	// Find a proc-worker that advertised its gRPC address.
+	var procAddr string
+	for _, w := range s.registry.ListAvailableWorkers() {
+		if addr, ok := w.Tags["grpc_addr"]; ok && addr != "" {
+			procAddr = addr
+			break
+		}
+	}
+
+	if procAddr != "" {
+		// Forward to the Processing Worker.
+		conn, err := grpc.NewClient(
+			procAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithDefaultCallOptions(grpc.ForceCodec(proto.JSONCodec{})),
+		)
+		if err == nil {
+			defer conn.Close()
+			resp, err := proto.NewMainWorkerClient(conn).Process(ctx, req)
+			if err == nil {
+				return resp, nil
+			}
+			log.Printf("Process forwarding to %s failed: %v — falling back", procAddr, err)
+		}
+	}
+
+	// Fallback: serve from the in-memory entity store.
+	storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
+	s.entityStoreMu.RLock()
+	value, exists := s.entityStore[storeKey]
+	s.entityStoreMu.RUnlock()
+
+	if !exists {
+		return nil, status.Errorf(codes.NotFound, "entity %q/%q not found",
+			req.GetDatabaseName(), req.GetEntityKey())
+	}
+
+	return &proto.ProcessResponse{
+		Status:  "OK",
+		Result:  value,
+		Version: "1",
+	}, nil
 }
 
 // isWorkerRegistered checks if a worker is already registered.
