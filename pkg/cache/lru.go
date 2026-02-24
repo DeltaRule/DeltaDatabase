@@ -38,24 +38,33 @@ func (e *CacheEntry) IsExpired() bool {
 type Cache struct {
 	cache *lru.Cache[string, *CacheEntry]
 	mu    sync.RWMutex
-	
+
 	// Configuration
-	maxSize    int
-	defaultTTL time.Duration
-	
+	maxSize         int
+	defaultTTL      time.Duration
+	cleanupInterval time.Duration
+
 	// Statistics
 	hits   int64
 	misses int64
 	evicts int64
+
+	// stopCleanup signals the background cleanup goroutine to stop
+	stopCleanup chan struct{}
+	closeOnce   sync.Once
 }
 
 // CacheConfig holds configuration for the cache.
 type CacheConfig struct {
 	// MaxSize is the maximum number of entries in the cache
 	MaxSize int
-	
+
 	// DefaultTTL is the default time-to-live for cache entries
 	DefaultTTL time.Duration
+
+	// CleanupInterval is how often the background goroutine removes expired
+	// entries. Defaults to 1 minute when zero or negative.
+	CleanupInterval time.Duration
 }
 
 // NewCache creates a new LRU cache with the given configuration.
@@ -63,11 +72,15 @@ func NewCache(config CacheConfig) (*Cache, error) {
 	if config.MaxSize <= 0 {
 		return nil, fmt.Errorf("max size must be positive, got %d", config.MaxSize)
 	}
-	
+
 	if config.DefaultTTL <= 0 {
 		config.DefaultTTL = 5 * time.Minute // Default: 5 minutes
 	}
-	
+
+	if config.CleanupInterval <= 0 {
+		config.CleanupInterval = 1 * time.Minute // Default: 1 minute
+	}
+
 	// Create LRU cache with eviction callback
 	lruCache, err := lru.NewWithEvict(config.MaxSize, func(key string, value *CacheEntry) {
 		// Eviction callback (for statistics)
@@ -75,16 +88,18 @@ func NewCache(config CacheConfig) (*Cache, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
 	}
-	
+
 	c := &Cache{
-		cache:      lruCache,
-		maxSize:    config.MaxSize,
-		defaultTTL: config.DefaultTTL,
+		cache:           lruCache,
+		maxSize:         config.MaxSize,
+		defaultTTL:      config.DefaultTTL,
+		cleanupInterval: config.CleanupInterval,
+		stopCleanup:     make(chan struct{}),
 	}
-	
+
 	// Start background cleanup goroutine
 	go c.cleanupExpired()
-	
+
 	return c, nil
 }
 
@@ -221,13 +236,26 @@ type CacheStats struct {
 	HitRate  float64 `json:"hit_rate"`
 }
 
+// Close stops the background cleanup goroutine. It should be called when the
+// cache is no longer needed to avoid goroutine leaks. Safe to call multiple times.
+func (c *Cache) Close() {
+	c.closeOnce.Do(func() {
+		close(c.stopCleanup)
+	})
+}
+
 // cleanupExpired periodically removes expired entries.
 func (c *Cache) cleanupExpired() {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(c.cleanupInterval)
 	defer ticker.Stop()
-	
-	for range ticker.C {
-		c.removeExpiredEntries()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.removeExpiredEntries()
+		case <-c.stopCleanup:
+			return
+		}
 	}
 }
 

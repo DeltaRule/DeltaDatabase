@@ -626,7 +626,46 @@ func TestCacheExpiredCleanup(t *testing.T) {
 	})
 }
 
-// Benchmark tests
+func TestCacheClose(t *testing.T) {
+	t.Run("stops background cleanup goroutine", func(t *testing.T) {
+		cache, err := NewCache(CacheConfig{
+			MaxSize:    10,
+			DefaultTTL: 1 * time.Hour,
+		})
+		require.NoError(t, err)
+
+		// Close should not panic
+		cache.Close()
+
+		// Calling Close again should not panic (sync.Once protects against double-close)
+		assert.NotPanics(t, func() { cache.Close() })
+	})
+
+	t.Run("background ticker triggers cleanup", func(t *testing.T) {
+		cache, err := NewCache(CacheConfig{
+			MaxSize:         10,
+			DefaultTTL:      1 * time.Hour,
+			CleanupInterval: 50 * time.Millisecond,
+		})
+		require.NoError(t, err)
+		defer cache.Close()
+
+		// Add a short-lived entry
+		cache.SetWithTTL("temp", []byte("data"), "v1", 30*time.Millisecond)
+		assert.Equal(t, 1, cache.Len())
+
+		// Verify entry is present immediately
+		_, found := cache.Get("temp")
+		assert.True(t, found)
+
+		// Wait for the entry to expire and the ticker to fire cleanup
+		time.Sleep(200 * time.Millisecond)
+
+		// Background cleanup should have removed the expired entry
+		assert.Equal(t, 0, cache.Len())
+	})
+}
+
 func BenchmarkCacheSet(b *testing.B) {
 	cache, _ := NewCache(CacheConfig{
 		MaxSize:    10000,
