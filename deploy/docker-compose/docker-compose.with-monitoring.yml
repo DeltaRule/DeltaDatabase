@@ -10,7 +10,7 @@
 # Access:
 #   REST API:  http://localhost:8080
 #   Grafana:   http://localhost:3000  (admin / admin — change on first login)
-#   Prometheus:http://localhost:9090
+#   Prometheus: http://localhost:9095  (host port; Grafana reaches Prometheus via http://prometheus:9090 internally)
 
 services:
 
