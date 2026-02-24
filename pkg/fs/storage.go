@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -19,6 +20,19 @@ var (
 	// ErrReadFailed is returned when file read operation fails
 	ErrReadFailed = errors.New("read operation failed")
 )
+
+// isValidEntityID returns true when id is safe to use as a filename component.
+// It rejects empty strings, path separators (/ and \), and any component
+// containing ".." to prevent directory-traversal attacks.
+func isValidEntityID(id string) bool {
+	if id == "" {
+		return false
+	}
+	if strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+		return false
+	}
+	return true
+}
 
 // FileMetadata represents the metadata stored alongside encrypted files
 type FileMetadata struct {
@@ -98,7 +112,7 @@ func (s *Storage) GetTemplatesDir() string {
 //   - No temporary files are left on disk after completion
 //   - Caller should hold an exclusive lock before calling this function
 func (s *Storage) WriteFile(id string, data []byte, metadata FileMetadata) error {
-	if id == "" {
+	if !isValidEntityID(id) {
 		return ErrInvalidID
 	}
 
@@ -159,7 +173,7 @@ func (s *Storage) WriteFile(id string, data []byte, metadata FileMetadata) error
 //   - Caller should hold at least a shared lock before calling this function
 //   - Returns ErrFileNotFound if the file doesn't exist
 func (s *Storage) ReadFile(id string) (*FileData, error) {
-	if id == "" {
+	if !isValidEntityID(id) {
 		return nil, ErrInvalidID
 	}
 
@@ -203,7 +217,7 @@ func (s *Storage) ReadFile(id string) (*FileData, error) {
 
 // FileExists checks if a file with the given ID exists on disk
 func (s *Storage) FileExists(id string) bool {
-	if id == "" {
+	if !isValidEntityID(id) {
 		return false
 	}
 
@@ -227,7 +241,7 @@ func (s *Storage) FileExists(id string) bool {
 // Security notes:
 //   - Caller should hold an exclusive lock before calling this function
 func (s *Storage) DeleteFile(id string) error {
-	if id == "" {
+	if !isValidEntityID(id) {
 		return ErrInvalidID
 	}
 
@@ -302,8 +316,8 @@ func (s *Storage) GetMetaPath(id string) string {
 
 // WriteTemplate writes a JSON schema template to the templates directory
 func (s *Storage) WriteTemplate(schemaID string, schemaData []byte) error {
-	if schemaID == "" {
-		return fmt.Errorf("schema ID cannot be empty")
+	if !isValidEntityID(schemaID) {
+		return fmt.Errorf("invalid schema ID")
 	}
 
 	templatesDir := s.GetTemplatesDir()
@@ -318,8 +332,8 @@ func (s *Storage) WriteTemplate(schemaID string, schemaData []byte) error {
 
 // ReadTemplate reads a JSON schema template from the templates directory
 func (s *Storage) ReadTemplate(schemaID string) ([]byte, error) {
-	if schemaID == "" {
-		return nil, fmt.Errorf("schema ID cannot be empty")
+	if !isValidEntityID(schemaID) {
+		return nil, fmt.Errorf("invalid schema ID")
 	}
 
 	templatesDir := s.GetTemplatesDir()

@@ -38,7 +38,7 @@ func TestNewCache(t *testing.T) {
 		assert.Contains(t, err.Error(), "must be positive")
 	})
 	
-	t.Run("uses default TTL when zero", func(t *testing.T) {
+	t.Run("TTL zero means LRU-only eviction (no time-based expiry)", func(t *testing.T) {
 		config := CacheConfig{
 			MaxSize:    100,
 			DefaultTTL: 0,
@@ -47,7 +47,14 @@ func TestNewCache(t *testing.T) {
 		cache, err := NewCache(config)
 		
 		assert.NoError(t, err)
-		assert.Equal(t, 5*time.Minute, cache.defaultTTL)
+		// DefaultTTL of 0 is preserved — entries never expire by time.
+		assert.Equal(t, time.Duration(0), cache.defaultTTL)
+
+		// Verify that an entry with TTL=0 is never reported as expired.
+		cache.Set("lru-only", []byte("data"), "v1")
+		entry, found := cache.Get("lru-only")
+		assert.True(t, found)
+		assert.False(t, entry.IsExpired(), "entry with zero TTL must never be considered expired")
 	})
 }
 

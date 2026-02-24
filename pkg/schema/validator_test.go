@@ -145,7 +145,7 @@ func TestLoadTemplate(t *testing.T) {
 
 		err := validator.LoadTemplate("")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot be empty")
+		assert.Contains(t, err.Error(), "invalid schema ID")
 	})
 
 	t.Run("returns error for invalid JSON in template", func(t *testing.T) {

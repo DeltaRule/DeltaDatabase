@@ -87,10 +87,18 @@ def test_grpc_rejects_invalid_operation(grpc_stub, grpc_token):
 
 def test_admin_workers_endpoint(settings):
     url = _rest_url(settings, "/admin/workers")
+    # Requires a valid Bearer token since we added authentication.
     response = requests.get(url, headers=_auth_header(settings["token"]), timeout=2)
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
+
+
+def test_admin_workers_requires_auth(settings):
+    """GET /admin/workers without a token must return 401."""
+    url = _rest_url(settings, "/admin/workers")
+    response = requests.get(url, timeout=2)
+    assert response.status_code in {401, 403}
 
 
 def test_health_endpoint(settings):

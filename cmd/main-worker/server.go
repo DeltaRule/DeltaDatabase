@@ -10,12 +10,12 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"delta-db/api/proto"
 	"delta-db/internal/auth"
 	"delta-db/internal/routing"
+	"delta-db/pkg/cache"
 	"delta-db/pkg/crypto"
 	"delta-db/pkg/schema"
 
@@ -36,9 +36,11 @@ type MainWorkerServer struct {
 	// Worker registry tracks Processing Worker status.
 	registry *routing.WorkerRegistry
 
-	// entityStore provides an in-memory entity store for REST clients.
-	entityStore   map[string]json.RawMessage
-	entityStoreMu sync.RWMutex
+	// entityStore is an LRU-bounded in-memory store for REST/gRPC entity data.
+	// Entries are cached on every write and served directly on reads; the LRU
+	// algorithm evicts the least-recently-used entry when the cache is full.
+	// No time-based TTL is applied — data stays in memory until evicted.
+	entityStore *cache.Cache
 
 	// Schema validator for managing JSON Schema templates.
 	validator *schema.Validator
@@ -69,6 +71,10 @@ type Config struct {
 	// Master encryption key (32 bytes for AES-256)
 	MasterKey []byte
 	KeyID     string
+
+	// EntityCacheSize is the maximum number of entities held in the
+	// in-memory LRU store.  Defaults to 1024 when zero or negative.
+	EntityCacheSize int
 }
 
 // NewMainWorkerServer creates a new Main Worker server instance.
@@ -95,18 +101,32 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 	if config.KeyID == "" {
 		config.KeyID = "main-key-v1"
 	}
+
+	if config.EntityCacheSize <= 0 {
+		config.EntityCacheSize = 1024
+	}
 	
 	// Initialize token manager
 	tokenManager := auth.NewTokenManager(config.WorkerTokenTTL, config.ClientTokenTTL)
 	
 	// Initialize worker authenticator
 	workerAuth := auth.NewWorkerAuthenticator()
+
+	// Initialise LRU entity store.
+	// TTL = 0: entries are kept until LRU eviction — no time-based expiry.
+	entityStore, err := cache.NewCache(cache.CacheConfig{
+		MaxSize:    config.EntityCacheSize,
+		DefaultTTL: 0,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create entity store: %w", err)
+	}
 	
 	server := &MainWorkerServer{
 		tokenManager:  tokenManager,
 		workerAuth:    workerAuth,
 		registry:      routing.NewWorkerRegistry(),
-		entityStore:   make(map[string]json.RawMessage),
+		entityStore:   entityStore,
 		masterKey:     config.MasterKey,
 		masterKeyID:   config.KeyID,
 		config:        config,
@@ -194,8 +214,8 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 
 // Process implements the Process RPC for handling entity operations.
 // For GET requests it forwards the call to an available Processing Worker.
-// PUT requests are accepted and recorded in the entity store (full persistence
-// is handled by a Processing Worker in a later task).
+// PUT requests are cached immediately in the LRU entity store (full
+// encrypted persistence is handled by a Processing Worker).
 func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
 	// Validate token
 	if req.GetToken() == "" {
@@ -219,12 +239,10 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 		return s.routeGETToProcWorker(ctx, req)
 	}
 
-	// PUT: store in the entity store as a lightweight placeholder.
+	// PUT: cache immediately (LRU evicts the least-recently-used entry if full).
 	// Full encrypted persistence is handled by a Processing Worker.
 	storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
-	s.entityStoreMu.Lock()
-	s.entityStore[storeKey] = json.RawMessage(req.GetPayload())
-	s.entityStoreMu.Unlock()
+	s.entityStore.Set(storeKey, req.GetPayload(), "1")
 
 	return &proto.ProcessResponse{
 		Status:  "OK",
@@ -235,7 +253,7 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 // routeGETToProcWorker forwards a GET Process request to an available
 // Processing Worker.  The worker's gRPC address must have been advertised as
 // the "grpc_addr" tag during Subscribe.  If no worker is available the
-// entity is looked up in the in-memory entity store as a fallback.
+// entity is served from the LRU entity store (cached by a previous PUT).
 func (s *MainWorkerServer) routeGETToProcWorker(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
 	// Find a proc-worker that advertised its gRPC address.
 	var procAddr string
@@ -263,21 +281,18 @@ func (s *MainWorkerServer) routeGETToProcWorker(ctx context.Context, req *proto.
 		}
 	}
 
-	// Fallback: serve from the in-memory entity store.
+	// Fallback: serve from the LRU entity store.
 	storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
-	s.entityStoreMu.RLock()
-	value, exists := s.entityStore[storeKey]
-	s.entityStoreMu.RUnlock()
-
-	if !exists {
+	entry, found := s.entityStore.Get(storeKey)
+	if !found {
 		return nil, status.Errorf(codes.NotFound, "entity %q/%q not found",
 			req.GetDatabaseName(), req.GetEntityKey())
 	}
 
 	return &proto.ProcessResponse{
 		Status:  "OK",
-		Result:  value,
-		Version: "1",
+		Result:  entry.Data,
+		Version: entry.Version,
 	}, nil
 }
 
@@ -347,9 +362,14 @@ func (s *MainWorkerServer) handleHealth(w http.ResponseWriter, r *http.Request) 
 
 // handleAdminWorkers serves the GET /admin/workers endpoint.
 // It returns the list of all registered Processing Workers and their status.
+// Requires a valid Bearer token.
 func (s *MainWorkerServer) handleAdminWorkers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if _, ok := s.extractBearerToken(w, r); !ok {
 		return
 	}
 
@@ -398,17 +418,17 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		storeKey := db + "/" + key
-		s.entityStoreMu.RLock()
-		value, exists := s.entityStore[storeKey]
-		s.entityStoreMu.RUnlock()
-		if !exists {
+		entry, found := s.entityStore.Get(storeKey)
+		if !found {
 			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(value) //nolint:errcheck
+		w.Write(entry.Data) //nolint:errcheck
 
 	case http.MethodPut:
+		// Limit request body to 1 MiB to prevent resource exhaustion.
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var payload map[string]json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, `{"error":"bad_json"}`, http.StatusBadRequest)
@@ -418,11 +438,12 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, `{"error":"empty"}`, http.StatusBadRequest)
 			return
 		}
-		s.entityStoreMu.Lock()
+		// Cache each key-value pair immediately.  LRU eviction keeps memory
+		// bounded: the least-recently-used entry is dropped when the cache is full.
+		// json.RawMessage is defined as []byte, so a direct slice conversion is safe.
 		for key, value := range payload {
-			s.entityStore[db+"/"+key] = value
+			s.entityStore.Set(db+"/"+key, value, "1")
 		}
-		s.entityStoreMu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
@@ -459,8 +480,9 @@ func (s *MainWorkerServer) handleAdminSchemas(w http.ResponseWriter, r *http.Req
 //   PUT  /schema/{id}  — create or replace a schema (authentication required).
 func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) {
 	schemaID := strings.TrimPrefix(r.URL.Path, "/schema/")
-	if schemaID == "" {
-		http.Error(w, `{"error":"missing schema id"}`, http.StatusBadRequest)
+	// Reject empty or path-traversal schema IDs.
+	if schemaID == "" || strings.ContainsAny(schemaID, `/\`) || strings.Contains(schemaID, "..") {
+		http.Error(w, `{"error":"invalid schema id"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -483,6 +505,8 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 		if _, ok := s.extractBearerToken(w, r); !ok {
 			return
 		}
+		// Limit schema body to 1 MiB.
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var body json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, `{"error":"bad_json"}`, http.StatusBadRequest)
@@ -503,12 +527,18 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 
 // GetStats returns server statistics.
 func (s *MainWorkerServer) GetStats() map[string]interface{} {
+	cacheStats := s.entityStore.Stats()
 	return map[string]interface{}{
 		"active_worker_tokens":    s.tokenManager.GetWorkerTokenCount(),
 		"active_client_tokens":    s.tokenManager.GetClientTokenCount(),
 		"registered_workers":      len(s.workerAuth.ListWorkers()),
 		"available_workers":       len(s.registry.ListAvailableWorkers()),
 		"master_key_id":           s.masterKeyID,
+		"entity_cache_size":       cacheStats.Size,
+		"entity_cache_max":        cacheStats.MaxSize,
+		"entity_cache_hits":       cacheStats.Hits,
+		"entity_cache_misses":     cacheStats.Misses,
+		"entity_cache_evictions":  cacheStats.Evicts,
 	}
 }
 

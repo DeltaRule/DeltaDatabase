@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"delta-db/api/proto"
@@ -77,6 +78,17 @@ func (s *ProcWorkerServer) Subscribe(_ context.Context, _ *proto.SubscribeReques
 func (s *ProcWorkerServer) Process(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
 	if req.GetDatabaseName() == "" || req.GetEntityKey() == "" {
 		return nil, status.Error(codes.InvalidArgument, "database_name and entity_key are required")
+	}
+
+	// Reject path-traversal characters in database_name and entity_key to prevent
+	// an attacker from escaping the shared-filesystem files directory.
+	dbName := req.GetDatabaseName()
+	entityKey := req.GetEntityKey()
+	if strings.ContainsAny(dbName, `/\`) || strings.Contains(dbName, "..") {
+		return nil, status.Error(codes.InvalidArgument, "invalid database_name: must not contain path separators or '..'")
+	}
+	if strings.ContainsAny(entityKey, `/\`) || strings.Contains(entityKey, "..") {
+		return nil, status.Error(codes.InvalidArgument, "invalid entity_key: must not contain path separators or '..'")
 	}
 
 	// Build the entity ID used as the storage and cache key (e.g. "chatdb_Chat_id").

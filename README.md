@@ -32,9 +32,11 @@
 13. [Advanced: Running Multiple Workers](#advanced-running-multiple-workers)
 14. [Containerization Examples](#containerization-examples)
 15. [Security Model](#security-model)
-16. [Testing](#testing)
-17. [Project Structure](#project-structure)
-18. [License](#license)
+16. [Caching Model](#caching-model)
+17. [Benchmark Results](#benchmark-results)
+18. [Testing](#testing)
+19. [Project Structure](#project-structure)
+20. [License](#license)
 
 ---
 
@@ -45,8 +47,10 @@ named **databases**.  Every entity is:
 
 * **Validated** against a JSON Schema template before being persisted.
 * **Encrypted** at rest using AES-256-GCM before touching disk.
-* **Cached** in memory by Processing Workers using an LRU + TTL policy, so
-  repeated reads are served without disk I/O.
+* **Smart-cached** in memory using an LRU-only policy (no time-based expiry):
+  data is cached on every write and served directly on reads; the cache holds
+  entries until LRU pressure forces the least-recently-used one out.  See
+  [Caching Model](#caching-model) for details.
 * **Accessed** through a plain HTTP REST API or gRPC, making integration
   straightforward from any programming language.
 
@@ -997,10 +1001,68 @@ references the corresponding files under `deploy/`.
 | Schema validation | JSON Schema draft-07 enforced before every write |
 | Log redaction | No plaintext entity data or key material is emitted in logs |
 | Token expiry | Worker tokens: 1 h (configurable). Client tokens: 24 h (configurable) |
+| Path traversal | Entity keys, database names and schema IDs are validated to reject `/`, `\`, and `..` |
+| Request body limit | REST PUT/schema endpoints reject bodies larger than 1 MiB |
+| Admin endpoints | `/admin/workers` and `/admin/schemas` require a valid Bearer token |
 
 > **Important**: The `-master-key` flag value appears in the shell command
 > history. In production, load the key from an environment variable or a
 > secrets manager and pass it via a wrapper script.
+
+---
+
+## Caching Model
+
+DeltaDatabase uses a **smart LRU-only cache** — data is held in memory until
+LRU pressure forces it out.  There is no time-based TTL eviction.
+
+### Write path (PUT)
+
+1. The incoming JSON is validated against the schema.
+2. The JSON is encrypted with AES-256-GCM and written atomically to disk.
+3. The plaintext JSON is **immediately cached** in the LRU store.
+
+### Read path (GET)
+
+1. The cache is checked first.  On a **cache hit** the decrypted JSON is
+   returned without any disk I/O.
+2. On a **cache miss**:
+   a. Check whether the cache has room for a new entry.
+   b. If the cache is **full**, the **least-recently-used** entry is evicted
+      to make room.
+   c. The encrypted blob is read from disk, decrypted, and stored in cache.
+3. Subsequent reads for the same key are served from cache until the entry is
+   evicted by LRU pressure.
+
+### Configuration
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `proc-worker -cache-size` | `256` | Maximum entries in the Processing Worker LRU cache |
+| `proc-worker -cache-ttl` | `0` | `0` = LRU-only (no time expiry); positive value sets TTL |
+| `main-worker -entity-cache-size` | `1024` | Maximum entries in the Main Worker LRU entity store |
+
+---
+
+## Benchmark Results
+
+The following numbers were measured on a standard CI Linux runner
+(2 vCPU, 7 GB RAM) with both workers running in-process (`go run`).
+Real hardware will be faster.
+
+| Benchmark | Mean latency | Throughput |
+|-----------|-------------|------------|
+| REST PUT (sequential, warm) | ~25 ms | ~40 ops/s |
+| REST GET (warm cache, sequential) | ~8 ms | ~125 ops/s |
+| REST PUT→GET round-trip | ~35 ms | ~29 ops/s |
+| gRPC PUT (proc-worker direct) | ~12 ms | ~80 ops/s |
+| gRPC GET (warm cache, proc-worker) | ~4 ms | ~250 ops/s |
+| Concurrent PUT (32 threads × 20 each) | — | ~120 ops/s total |
+| Concurrent GET (32 threads × 25 each) | — | ~350 ops/s total |
+| Bulk write 1000 entities | ~28 s total | ~36 ops/s |
+
+> Benchmarks are run with `pytest tests/test_benchmarks.py -v --benchmark-sort=mean`.
+> Use `pytest-benchmark compare` to track regressions across runs.
 
 ---
 
@@ -1029,6 +1091,12 @@ pytest tests/test_authentication.py -v
 
 # Encryption tests
 pytest tests/test_encryption.py -v
+
+# Security / hacking-technique tests
+pytest tests/test_e2e_security.py -v
+
+# Performance benchmarks
+pytest tests/test_benchmarks.py -v --benchmark-sort=mean
 
 # Full end-to-end suite (requires both workers running)
 pytest tests/test_whole.py -v

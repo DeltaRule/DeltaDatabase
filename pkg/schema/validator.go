@@ -5,10 +5,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/xeipuuv/gojsonschema"
 )
+
+// isValidSchemaID returns true when id is safe to use as a filename component.
+// It rejects empty strings, path separators (/ and \), and any string
+// containing ".." to prevent directory-traversal attacks.
+func isValidSchemaID(id string) bool {
+	if id == "" {
+		return false
+	}
+	if strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+		return false
+	}
+	return true
+}
 
 // Validator handles JSON schema validation against templates.
 type Validator struct {
@@ -54,8 +68,8 @@ func NewValidator(templatesPath string) (*Validator, error) {
 // LoadTemplate loads a schema template from disk by schema ID.
 // The template file is expected to be at <templatesPath>/<schemaID>.json
 func (v *Validator) LoadTemplate(schemaID string) error {
-	if schemaID == "" {
-		return fmt.Errorf("schema ID cannot be empty")
+	if !isValidSchemaID(schemaID) {
+		return fmt.Errorf("invalid schema ID")
 	}
 
 	v.mu.Lock()
@@ -192,8 +206,8 @@ func (v *Validator) GetLoadedSchemas() []string {
 
 // ReloadTemplate forces a reload of a specific schema template.
 func (v *Validator) ReloadTemplate(schemaID string) error {
-	if schemaID == "" {
-		return fmt.Errorf("schema ID cannot be empty")
+	if !isValidSchemaID(schemaID) {
+		return fmt.Errorf("invalid schema ID")
 	}
 
 	v.mu.Lock()
@@ -224,8 +238,8 @@ func (v *Validator) ListAvailableTemplates() ([]string, error) {
 
 // GetTemplateData reads and returns the raw JSON bytes for a schema template.
 func (v *Validator) GetTemplateData(schemaID string) ([]byte, error) {
-	if schemaID == "" {
-		return nil, fmt.Errorf("schema ID cannot be empty")
+	if !isValidSchemaID(schemaID) {
+		return nil, fmt.Errorf("invalid schema ID")
 	}
 	templatePath := filepath.Join(v.templatesPath, schemaID+".json")
 	return os.ReadFile(templatePath)
@@ -234,8 +248,8 @@ func (v *Validator) GetTemplateData(schemaID string) ([]byte, error) {
 // SaveTemplate saves a schema template to disk.
 // This is useful for creating or updating templates programmatically.
 func (v *Validator) SaveTemplate(schemaID string, schemaData []byte) error {
-	if schemaID == "" {
-		return fmt.Errorf("schema ID cannot be empty")
+	if !isValidSchemaID(schemaID) {
+		return fmt.Errorf("invalid schema ID")
 	}
 
 	// Validate that schemaData is valid JSON

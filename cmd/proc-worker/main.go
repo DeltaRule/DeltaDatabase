@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"delta-db/pkg/cache"
 	"delta-db/pkg/fs"
@@ -21,7 +20,7 @@ func main() {
 	sharedFS  := flag.String("shared-fs",  "./shared/db",     "Shared filesystem path")
 	grpcAddr  := flag.String("grpc-addr",  "127.0.0.1:0",     "Processing Worker gRPC listen address (host:port)")
 	cacheSize := flag.Int("cache-size",    256,               "Maximum number of entries in the in-memory cache")
-	cacheTTL  := flag.Duration("cache-ttl", 5*time.Minute,   "Time-to-live for cached entries")
+	cacheTTL  := flag.Duration("cache-ttl", 0,                "TTL for cached entries (0 = LRU-only eviction, no time-based expiry)")
 
 	flag.Usage = PrintUsage
 	flag.Parse()
@@ -47,7 +46,9 @@ func main() {
 		log.Fatalf("Failed to initialise storage: %v", err)
 	}
 
-	// Initialise in-memory LRU + TTL cache.
+	// Initialise in-memory LRU cache.
+	// DefaultTTL = 0: entries are kept until the LRU algorithm evicts them
+	// when the cache is full.  No time-based eviction is used.
 	c, err := cache.NewCache(cache.CacheConfig{
 		MaxSize:    *cacheSize,
 		DefaultTTL: *cacheTTL,
