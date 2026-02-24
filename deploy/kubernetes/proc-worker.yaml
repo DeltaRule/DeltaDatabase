@@ -1,0 +1,74 @@
+---
+# Deployment for Processing Workers.
+# Starts with 1 replica; the HPA (proc-worker-hpa.yaml) scales this up to 10.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proc-worker
+  namespace: deltadatabase
+  labels:
+    app: proc-worker
+spec:
+  replicas: 1   # Initial replica count — managed by HPA after startup.
+  selector:
+    matchLabels:
+      app: proc-worker
+  template:
+    metadata:
+      labels:
+        app: proc-worker
+    spec:
+      containers:
+        - name: proc-worker
+          image: deltadatabase/proc-worker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            # Use the Pod's name as a unique worker ID so each replica has a
+            # distinct identity when registering with the Main Worker.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          command:
+            - "sh"
+            - "-c"
+            - >
+              exec proc-worker
+              -main-addr=main-worker:50051
+              -worker-id=$(POD_NAME)
+              -grpc-addr=0.0.0.0:50052
+              -shared-fs=/shared/db
+          ports:
+            - name: grpc
+              containerPort: 50052
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared/db
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+      volumes:
+        - name: shared-data
+          persistentVolumeClaim:
+            claimName: delta-shared-pvc
+---
+# Headless Service so the Main Worker can reach individual Processing Worker pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: proc-worker
+  namespace: deltadatabase
+  labels:
+    app: proc-worker
+spec:
+  selector:
+    app: proc-worker
+  clusterIP: None   # headless — DNS resolves to individual pod IPs
+  ports:
+    - name: grpc
+      port: 50052
+      targetPort: 50052
