@@ -1,3 +1,7 @@
 .conda/
 __pycache__/
 *.pyc
+/main-worker
+/main-worker.exe
+/proc-worker
+/proc-worker.exe
