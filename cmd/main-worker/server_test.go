@@ -113,6 +113,11 @@ func TestSubscribe(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "worker-1", token.WorkerID)
 		assert.Equal(t, config.KeyID, token.KeyID)
+
+		// Verify worker is marked Available in the registry.
+		info, exists := server.registry.GetWorker("worker-1")
+		assert.True(t, exists)
+		assert.Equal(t, "Available", string(info.Status))
 	})
 
 	t.Run("returns error for empty worker ID", func(t *testing.T) {

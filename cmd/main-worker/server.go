@@ -3,13 +3,18 @@ package main
 import (
 	"context"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"delta-db/api/proto"
 	"delta-db/internal/auth"
+	"delta-db/internal/routing"
 	"delta-db/pkg/crypto"
 
 	"google.golang.org/grpc"
@@ -24,11 +29,18 @@ type MainWorkerServer struct {
 	// Authentication and token management
 	tokenManager  *auth.TokenManager
 	workerAuth    *auth.WorkerAuthenticator
-	
+
+	// Worker registry tracks Processing Worker status.
+	registry *routing.WorkerRegistry
+
+	// entityStore provides an in-memory entity store for REST clients.
+	entityStore   map[string]json.RawMessage
+	entityStoreMu sync.RWMutex
+
 	// Encryption key management
-	masterKey     []byte
-	masterKeyID   string
-	
+	masterKey   []byte
+	masterKeyID string
+
 	// Configuration
 	config *Config
 }
@@ -87,6 +99,8 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 	server := &MainWorkerServer{
 		tokenManager:  tokenManager,
 		workerAuth:    workerAuth,
+		registry:      routing.NewWorkerRegistry(),
+		entityStore:   make(map[string]json.RawMessage),
 		masterKey:     config.MasterKey,
 		masterKeyID:   config.KeyID,
 		config:        config,
@@ -149,6 +163,11 @@ func (s *MainWorkerServer) Subscribe(ctx context.Context, req *proto.SubscribeRe
 	log.Printf("Successfully subscribed worker %s with token (expires: %v)", 
 		workerID, token.ExpiresAt.Format(time.RFC3339))
 	
+	// Mark the worker as Available in the registry.
+	if err := s.registry.Register(workerID, s.masterKeyID, req.GetTags()); err != nil {
+		log.Printf("Warning: failed to register worker %s in registry: %v", workerID, err)
+	}
+	
 	// Return the subscription response
 	return &proto.SubscribeResponse{
 		Token:      token.Token,
@@ -190,44 +209,138 @@ func (s *MainWorkerServer) RegisterWorker(workerID, password string, tags map[st
 	return s.workerAuth.RegisterWorker(workerID, password, tags)
 }
 
-// Run starts the Main Worker gRPC server.
+// Run starts both the gRPC server and the REST HTTP server.
 func (s *MainWorkerServer) Run() error {
-	// Create gRPC server
+	// Start REST HTTP server in a separate goroutine.
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/health", s.handleHealth)
+		mux.HandleFunc("/admin/workers", s.handleAdminWorkers)
+		mux.HandleFunc("/entity/", s.handleEntity)
+
+		log.Printf("Main Worker REST server listening on %s", s.config.RESTAddr)
+		if err := http.ListenAndServe(s.config.RESTAddr, mux); err != nil && err != http.ErrServerClosed {
+			log.Printf("REST server error: %v", err)
+		}
+	}()
+
+	// Create gRPC server.
 	grpcServer := grpc.NewServer()
-	
-	// Register the MainWorker service
+
+	// Register the MainWorker service.
 	proto.RegisterMainWorkerServer(grpcServer, s)
-	
-	// Listen on the configured address
+
+	// Listen on the configured address.
 	listener, err := net.Listen("tcp", s.config.GRPCAddr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", s.config.GRPCAddr, err)
 	}
-	
+
 	log.Printf("Main Worker gRPC server listening on %s", s.config.GRPCAddr)
 	log.Printf("Master Key ID: %s", s.masterKeyID)
-	
-	// Start serving
+
+	// Start serving.
 	if err := grpcServer.Serve(listener); err != nil {
 		return fmt.Errorf("gRPC server error: %w", err)
 	}
-	
+
 	return nil
 }
 
 // Shutdown gracefully shuts down the server.
 func (s *MainWorkerServer) Shutdown() {
 	log.Println("Main Worker shutting down...")
-	// Cleanup resources if needed
+}
+
+// handleHealth serves the GET /health endpoint.
+func (s *MainWorkerServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
+}
+
+// handleAdminWorkers serves the GET /admin/workers endpoint.
+// It returns the list of all registered Processing Workers and their status.
+func (s *MainWorkerServer) handleAdminWorkers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	workers := s.registry.ListWorkers()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(workers) //nolint:errcheck
+}
+
+// handleEntity handles GET and PUT requests for /entity/{db}[?key=...].
+func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) {
+	// Require Authorization header with a non-empty Bearer token.
+	authHeader := r.Header.Get("Authorization")
+	bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
+	if !strings.HasPrefix(authHeader, "Bearer ") || bearerToken == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// Extract database name from path: /entity/{db}
+	pathParts := strings.TrimPrefix(r.URL.Path, "/entity/")
+	db := strings.Split(pathParts, "?")[0]
+	if db == "" {
+		http.Error(w, `{"error":"missing database"}`, http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		key := r.URL.Query().Get("key")
+		if key == "" {
+			http.Error(w, `{"error":"missing key"}`, http.StatusBadRequest)
+			return
+		}
+		storeKey := db + "/" + key
+		s.entityStoreMu.RLock()
+		value, exists := s.entityStore[storeKey]
+		s.entityStoreMu.RUnlock()
+		if !exists {
+			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(value) //nolint:errcheck
+
+	case http.MethodPut:
+		var payload map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, `{"error":"bad_json"}`, http.StatusBadRequest)
+			return
+		}
+		if len(payload) == 0 {
+			http.Error(w, `{"error":"empty"}`, http.StatusBadRequest)
+			return
+		}
+		s.entityStoreMu.Lock()
+		for key, value := range payload {
+			s.entityStore[db+"/"+key] = value
+		}
+		s.entityStoreMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // GetStats returns server statistics.
 func (s *MainWorkerServer) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"active_worker_tokens": s.tokenManager.GetWorkerTokenCount(),
-		"active_client_tokens": s.tokenManager.GetClientTokenCount(),
-		"registered_workers":   len(s.workerAuth.ListWorkers()),
-		"master_key_id":        s.masterKeyID,
+		"active_worker_tokens":    s.tokenManager.GetWorkerTokenCount(),
+		"active_client_tokens":    s.tokenManager.GetClientTokenCount(),
+		"registered_workers":      len(s.workerAuth.ListWorkers()),
+		"available_workers":       len(s.registry.ListAvailableWorkers()),
+		"master_key_id":           s.masterKeyID,
 	}
 }
 
