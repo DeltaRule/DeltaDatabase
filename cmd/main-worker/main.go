@@ -22,6 +22,7 @@ func main() {
 	keyID := flag.String("key-id", "main-key-v1", "Master key ID")
 	workerTTL := flag.Duration("worker-ttl", 1*time.Hour, "Worker token TTL")
 	clientTTL := flag.Duration("client-ttl", 24*time.Hour, "Client token TTL")
+	entityCacheSize := flag.Int("entity-cache-size", 1024, "Max number of entities in the in-memory LRU cache")
 	
 	flag.Parse()
 
@@ -57,13 +58,14 @@ func main() {
 
 	// Create configuration
 	config := &Config{
-		GRPCAddr:       *grpcAddr,
-		RESTAddr:       *restAddr,
-		SharedFSPath:   *sharedFS,
-		MasterKey:      masterKey,
-		KeyID:          *keyID,
-		WorkerTokenTTL: *workerTTL,
-		ClientTokenTTL: *clientTTL,
+		GRPCAddr:        *grpcAddr,
+		RESTAddr:        *restAddr,
+		SharedFSPath:    *sharedFS,
+		MasterKey:       masterKey,
+		KeyID:           *keyID,
+		WorkerTokenTTL:  *workerTTL,
+		ClientTokenTTL:  *clientTTL,
+		EntityCacheSize: *entityCacheSize,
 	}
 
 	// Create and start Main Worker server

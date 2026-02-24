@@ -23,9 +23,11 @@ def test_no_plaintext_keys_on_disk(shared_fs):
     assert not suspicious
 
 
-def test_replay_token_rejected(settings):
+def test_invalid_token_always_rejected(settings):
+    """Any request bearing a made-up token must be rejected with 401/403,
+    even when the same token string is tried more than once."""
     url = _rest_url(settings, "/entity/chatdb?key=Chat_id")
-    token = "replayed-token"
+    token = "not-a-real-token-abc123"
     first = requests.get(url, headers=_auth_header(token), timeout=2)
     second = requests.get(url, headers=_auth_header(token), timeout=2)
     assert first.status_code in {401, 403}

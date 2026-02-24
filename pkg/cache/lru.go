@@ -30,7 +30,12 @@ type CacheEntry struct {
 }
 
 // IsExpired returns true if the entry has passed its expiry time.
+// An entry with a zero Expiry (created with TTL == 0) never expires;
+// it is only removed when the LRU algorithm evicts it.
 func (e *CacheEntry) IsExpired() bool {
+	if e.Expiry.IsZero() {
+		return false
+	}
 	return time.Now().After(e.Expiry)
 }
 
@@ -68,13 +73,21 @@ type CacheConfig struct {
 }
 
 // NewCache creates a new LRU cache with the given configuration.
+//
+// When DefaultTTL is 0 the cache operates in LRU-only mode: entries are never
+// expired by time and are only evicted when the cache is full and a new entry
+// requires space (least-recently-used entry is removed first).  This is the
+// recommended mode for DeltaDatabase — data stays in memory as long as there
+// is room, giving every request the benefit of in-memory serving.
 func NewCache(config CacheConfig) (*Cache, error) {
 	if config.MaxSize <= 0 {
 		return nil, fmt.Errorf("max size must be positive, got %d", config.MaxSize)
 	}
 
-	if config.DefaultTTL <= 0 {
-		config.DefaultTTL = 5 * time.Minute // Default: 5 minutes
+	// DefaultTTL == 0  →  LRU-only eviction (no time-based expiry).
+	// DefaultTTL  < 0  →  fall back to a sensible 5-minute TTL.
+	if config.DefaultTTL < 0 {
+		config.DefaultTTL = 5 * time.Minute
 	}
 
 	if config.CleanupInterval <= 0 {
@@ -136,15 +149,21 @@ func (c *Cache) Set(key string, data []byte, version string) {
 }
 
 // SetWithTTL adds or updates a value in the cache with a custom TTL.
+// A ttl of 0 means the entry never expires and is only removed by LRU eviction.
 func (c *Cache) SetWithTTL(key string, data []byte, version string, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	
 	now := time.Now()
+	var expiry time.Time
+	if ttl > 0 {
+		expiry = now.Add(ttl)
+	}
+	// ttl == 0 → expiry remains zero → IsExpired() always returns false.
 	entry := &CacheEntry{
 		Data:         data,
 		Version:      version,
-		Expiry:       now.Add(ttl),
+		Expiry:       expiry,
 		CachedAt:     now,
 		AccessCount:  0,
 		LastAccessed: now,
