@@ -125,9 +125,9 @@ def test_put_schema_requires_auth(live_main_worker_schemas):
 
 
 def test_put_schema_with_auth_succeeds(live_main_worker_schemas):
-    """PUT /schema/{id} with a Bearer token must return 200 and save the schema."""
+    """PUT /schema/{id} with a valid Bearer token must return 200 and save the schema."""
     base = live_main_worker_schemas["rest_url"]
-    headers = {"Authorization": "Bearer any-token"}
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
 
     r = requests.put(base + "/schema/widget.v1", json=SAMPLE_SCHEMA,
                      headers=headers, timeout=5)
@@ -138,7 +138,7 @@ def test_put_schema_with_auth_succeeds(live_main_worker_schemas):
 def test_get_schema_returns_saved_schema(live_main_worker_schemas):
     """GET /schema/{id} must return the previously saved schema JSON."""
     base = live_main_worker_schemas["rest_url"]
-    headers = {"Authorization": "Bearer any-token"}
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
 
     # Ensure saved first.
     requests.put(base + "/schema/widget.v1", json=SAMPLE_SCHEMA,
@@ -154,7 +154,7 @@ def test_get_schema_returns_saved_schema(live_main_worker_schemas):
 def test_get_schema_no_auth_required(live_main_worker_schemas):
     """GET /schema/{id} must succeed without any Authorization header."""
     base = live_main_worker_schemas["rest_url"]
-    headers = {"Authorization": "Bearer any-token"}
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
     requests.put(base + "/schema/widget.v1", json=SAMPLE_SCHEMA,
                  headers=headers, timeout=5)
 
@@ -173,7 +173,7 @@ def test_get_schema_not_found(live_main_worker_schemas):
 def test_put_schema_rejects_invalid_json(live_main_worker_schemas):
     """PUT /schema/{id} with non-JSON body must return 400."""
     url = live_main_worker_schemas["rest_url"] + "/schema/bad.v1"
-    headers = {"Authorization": "Bearer any-token"}
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
     r = requests.put(url, data="{not-json}", headers=headers, timeout=5)
     assert r.status_code == 400
 
@@ -181,7 +181,7 @@ def test_put_schema_rejects_invalid_json(live_main_worker_schemas):
 def test_admin_schemas_lists_saved_schema(live_main_worker_schemas):
     """After a PUT, /admin/schemas must include the new schema ID."""
     base = live_main_worker_schemas["rest_url"]
-    headers = {"Authorization": "Bearer any-token"}
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
 
     schema_id = "listcheck.v1"
     requests.put(base + f"/schema/{schema_id}",
@@ -196,7 +196,7 @@ def test_admin_schemas_lists_saved_schema(live_main_worker_schemas):
 def test_put_schema_roundtrip(live_main_worker_schemas):
     """PUT then GET must return exactly the same schema content."""
     base = live_main_worker_schemas["rest_url"]
-    headers = {"Authorization": "Bearer any-token"}
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
     schema_body = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",

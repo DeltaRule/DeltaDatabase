@@ -52,7 +52,10 @@ def test_log_redaction(settings):
         pytest.skip("DELTADB_LOG_PATH not configured")
     log_content = open(settings["log_path"], "r", encoding="utf-8").read()
     assert "PRIVATE KEY" not in log_content
-    assert re.search(r"token-[A-Za-z0-9]+", log_content) is None
+    # Real JWT/session tokens are long base64-URL strings (≥ 20 chars).
+    # A match of a short name like "token-provider" is not a leaked token.
+    token_matches = re.findall(r"token-[A-Za-z0-9_-]{20,}", log_content)
+    assert not token_matches, f"Potential token leaks in log: {token_matches}"
 
 
 @pytest.mark.parametrize("payload", ["' OR 1=1 --", "../..", "${jndi:ldap://x}"])

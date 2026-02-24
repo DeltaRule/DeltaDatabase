@@ -1,17 +1,15 @@
+import base64
 import json
 import os
 import socket
 import subprocess
-import sys
 import time
-from importlib import util as importlib_util
 from pathlib import Path
 
 import grpc
 import pytest
 import requests as _requests
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from grpc_tools import protoc
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -222,79 +220,154 @@ def aesgcm(aesgcm_key):
     return AESGCM(aesgcm_key)
 
 
+# ---------------------------------------------------------------------------
+# Custom JSON-over-gRPC message types and stub
+#
+# The Go gRPC server uses a custom JSON codec (see api/proto/codec.go).  Go's
+# encoding/json represents []byte fields as standard base64.  We mirror that
+# here so Python and Go agree on the wire format.
+# ---------------------------------------------------------------------------
+
+class _Msg:
+    """Minimal gRPC message base: keyword-constructor + attribute access."""
+
+    _bytes_fields: frozenset = frozenset()
+
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def _to_wire(self) -> dict:
+        """Convert to a JSON-serialisable dict (base64-encodes bytes fields)."""
+        d = {}
+        for k, v in self.__dict__.items():
+            if v is None:
+                continue
+            if k in self._bytes_fields and isinstance(v, (bytes, bytearray)):
+                if v:  # omit empty bytes (omitempty)
+                    d[k] = base64.b64encode(v).decode("ascii")
+            elif isinstance(v, str) and v:
+                d[k] = v
+            elif isinstance(v, dict) and v:
+                d[k] = v
+            elif not isinstance(v, (str, bytes, bytearray, dict)):
+                d[k] = v
+        return d
+
+    @classmethod
+    def _from_wire(cls, d: dict):
+        obj = cls.__new__(cls)
+        for k, v in d.items():
+            if k in cls._bytes_fields and isinstance(v, str):
+                setattr(obj, k, base64.b64decode(v))
+            else:
+                setattr(obj, k, v)
+        # Ensure bytes fields default to b"" if missing
+        for f in cls._bytes_fields:
+            if not hasattr(obj, f):
+                setattr(obj, f, b"")
+        return obj
+
+
+class SubscribeRequest(_Msg):
+    _bytes_fields = frozenset(["pubkey"])
+
+    def __init__(self, worker_id: str = "", pubkey: bytes = b"",
+                 tags: dict = None):
+        self.worker_id = worker_id
+        self.pubkey = pubkey
+        self.tags = tags or {}
+
+
+class SubscribeResponse(_Msg):
+    _bytes_fields = frozenset(["wrapped_key"])
+
+    def __init__(self, token: str = "", wrapped_key: bytes = b"",
+                 key_id: str = ""):
+        self.token = token
+        self.wrapped_key = wrapped_key
+        self.key_id = key_id
+
+
+class ProcessRequest(_Msg):
+    _bytes_fields = frozenset(["payload"])
+
+    def __init__(self, database_name: str = "", entity_key: str = "",
+                 schema_id: str = "", operation: str = "",
+                 payload: bytes = b"", token: str = ""):
+        self.database_name = database_name
+        self.entity_key = entity_key
+        self.schema_id = schema_id
+        self.operation = operation
+        self.payload = payload
+        self.token = token
+
+
+class ProcessResponse(_Msg):
+    _bytes_fields = frozenset(["result"])
+
+    def __init__(self, status: str = "", result: bytes = b"",
+                 version: str = "", error: str = ""):
+        self.status = status
+        self.result = result
+        self.version = version
+        self.error = error
+
+
+def _serialize(msg: _Msg) -> bytes:
+    return json.dumps(msg._to_wire()).encode("utf-8")
+
+
+def _deserialize_subscribe(data: bytes) -> SubscribeResponse:
+    return SubscribeResponse._from_wire(json.loads(data.decode("utf-8")))
+
+
+def _deserialize_process(data: bytes) -> ProcessResponse:
+    return ProcessResponse._from_wire(json.loads(data.decode("utf-8")))
+
+
+class _DeltaDBStub:
+    """Python gRPC stub for the DeltaDB MainWorker service.
+
+    Uses JSON serialisation so it is compatible with the Go server's
+    custom JSON codec (api/proto/codec.go).
+    """
+
+    def __init__(self, channel):
+        self.Subscribe = channel.unary_unary(
+            "/deltadb.MainWorker/Subscribe",
+            request_serializer=_serialize,
+            response_deserializer=_deserialize_subscribe,
+        )
+        self.Process = channel.unary_unary(
+            "/deltadb.MainWorker/Process",
+            request_serializer=_serialize,
+            response_deserializer=_deserialize_process,
+        )
+
+
+class _PseudoPb2:
+    """Namespace that looks like a grpc_tools-generated *_pb2 module."""
+    SubscribeRequest = SubscribeRequest
+    SubscribeResponse = SubscribeResponse
+    ProcessRequest = ProcessRequest
+    ProcessResponse = ProcessResponse
+
+
+class _PseudoPb2Grpc:
+    """Namespace that looks like a grpc_tools-generated *_pb2_grpc module."""
+    MainWorkerStub = _DeltaDBStub
+
+
 @pytest.fixture(scope="session")
-def proto_modules(tmp_path_factory):
-    proto_dir = tmp_path_factory.mktemp("proto")
-    proto_path = proto_dir / "worker.proto"
-    proto_path.write_text(
-        """
-        syntax = \"proto3\";
-        package deltadb;
+def proto_modules():
+    """Return (pb2, pb2_grpc) compatible objects backed by JSON serialisation.
 
-        service MainWorker {
-          rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
-          rpc Process(ProcessRequest) returns (ProcessResponse);
-        }
-
-        message SubscribeRequest {
-          string worker_id = 1;
-          bytes pubkey = 2;
-          map<string, string> tags = 3;
-        }
-
-        message SubscribeResponse {
-          string token = 1;
-          bytes wrapped_key = 2;
-          string key_id = 3;
-        }
-
-        message ProcessRequest {
-          string database_name = 1;
-          string entity_key = 2;
-          string schema_id = 3;
-          string operation = 4; // GET or PUT
-          bytes payload = 5;
-          string token = 6;
-        }
-
-        message ProcessResponse {
-          string status = 1;
-          bytes result = 2;
-          string version = 3;
-          string error = 4;
-        }
-        """.strip(),
-        encoding="utf-8",
-    )
-
-    out_dir = proto_dir / "gen"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    protoc.main(
-        [
-            "grpc_tools.protoc",
-            f"-I{proto_dir}",
-            f"--python_out={out_dir}",
-            f"--grpc_python_out={out_dir}",
-            str(proto_path),
-        ]
-    )
-
-    sys.path.insert(0, str(out_dir))
-
-    pb2 = importlib_util.spec_from_file_location(
-        "worker_pb2", out_dir / "worker_pb2.py"
-    )
-    pb2_mod = importlib_util.module_from_spec(pb2)
-    pb2.loader.exec_module(pb2_mod)
-
-    pb2_grpc = importlib_util.spec_from_file_location(
-        "worker_pb2_grpc", out_dir / "worker_pb2_grpc.py"
-    )
-    pb2_grpc_mod = importlib_util.module_from_spec(pb2_grpc)
-    pb2_grpc.loader.exec_module(pb2_grpc_mod)
-
-    return pb2_mod, pb2_grpc_mod
+    This replaces the grpc_tools.protoc-generated modules.  The Go gRPC server
+    uses a custom JSON codec, so we send/receive JSON instead of binary
+    protobuf.
+    """
+    return _PseudoPb2(), _PseudoPb2Grpc()
 
 
 @pytest.fixture(scope="session")
