@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"delta-db/internal/auth"
 	"delta-db/internal/routing"
 	"delta-db/pkg/crypto"
+	"delta-db/pkg/schema"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -37,6 +39,9 @@ type MainWorkerServer struct {
 	// entityStore provides an in-memory entity store for REST clients.
 	entityStore   map[string]json.RawMessage
 	entityStoreMu sync.RWMutex
+
+	// Schema validator for managing JSON Schema templates.
+	validator *schema.Validator
 
 	// Encryption key management
 	masterKey   []byte
@@ -106,7 +111,17 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 		masterKeyID:   config.KeyID,
 		config:        config,
 	}
-	
+
+	// Initialize schema validator (non-fatal: schema endpoints disabled if it fails).
+	if config.SharedFSPath != "" {
+		templatesPath := filepath.Join(config.SharedFSPath, "templates")
+		if v, err := schema.NewValidator(templatesPath); err != nil {
+			log.Printf("Warning: failed to initialize schema validator: %v", err)
+		} else {
+			server.validator = v
+		}
+	}
+
 	return server, nil
 }
 
@@ -285,6 +300,8 @@ func (s *MainWorkerServer) Run() error {
 		s.registerFrontendRoutes(mux)
 		mux.HandleFunc("/health", s.handleHealth)
 		mux.HandleFunc("/admin/workers", s.handleAdminWorkers)
+		mux.HandleFunc("/admin/schemas", s.handleAdminSchemas)
+		mux.HandleFunc("/schema/", s.handleSchema)
 		mux.HandleFunc("/entity/", s.handleEntity)
 
 		log.Printf("Main Worker REST server listening on %s", s.config.RESTAddr)
@@ -393,6 +410,78 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 			s.entityStore[db+"/"+key] = value
 		}
 		s.entityStoreMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleAdminSchemas serves GET /admin/schemas.
+// It returns the list of all available schema IDs (no authentication required).
+func (s *MainWorkerServer) handleAdminSchemas(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.validator == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]string{}) //nolint:errcheck
+		return
+	}
+	schemas, err := s.validator.ListAvailableTemplates()
+	if err != nil {
+		http.Error(w, `{"error":"failed to list schemas"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(schemas) //nolint:errcheck
+}
+
+// handleSchema serves GET and PUT requests for /schema/{id}.
+//
+//   GET  /schema/{id}  — retrieve a schema JSON (no authentication required).
+//   PUT  /schema/{id}  — create or replace a schema (authentication required).
+func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) {
+	schemaID := strings.TrimPrefix(r.URL.Path, "/schema/")
+	if schemaID == "" {
+		http.Error(w, `{"error":"missing schema id"}`, http.StatusBadRequest)
+		return
+	}
+
+	if s.validator == nil {
+		http.Error(w, `{"error":"schema management unavailable"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		data, err := s.validator.GetTemplateData(schemaID)
+		if err != nil {
+			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data) //nolint:errcheck
+
+	case http.MethodPut:
+		authHeader := r.Header.Get("Authorization")
+		bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
+		if !strings.HasPrefix(authHeader, "Bearer ") || bearerToken == "" {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		var body json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"error":"bad_json"}`, http.StatusBadRequest)
+			return
+		}
+		if err := s.validator.SaveTemplate(schemaID, []byte(body)); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck

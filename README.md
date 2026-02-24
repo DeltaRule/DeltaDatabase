@@ -25,11 +25,15 @@
     - [Go client](#go-client)
     - [Python client](#python-client)
     - [curl / shell](#curl--shell)
-12. [Advanced: Running Multiple Workers](#advanced-running-multiple-workers)
-13. [Security Model](#security-model)
-14. [Testing](#testing)
-15. [Project Structure](#project-structure)
-16. [License](#license)
+12. [Chat Frontend Example (3-step lookup)](#chat-frontend-example-3-step-lookup)
+    - [Data model](#data-model)
+    - [Python walkthrough](#python-walkthrough)
+    - [curl walkthrough](#curl-walkthrough)
+13. [Advanced: Running Multiple Workers](#advanced-running-multiple-workers)
+14. [Security Model](#security-model)
+15. [Testing](#testing)
+16. [Project Structure](#project-structure)
+17. [License](#license)
 
 ---
 
@@ -355,13 +359,85 @@ Retrieve a single entity.
 
 ---
 
+### `GET /admin/schemas`
+
+Returns a list of all defined schema IDs. No authentication required.
+
+**Response:**
+
+```json
+["chat.v1", "user_credentials.v1", "user_chats.v1"]
+```
+
+---
+
+### `GET /schema/{schemaID}`
+
+Retrieve the JSON Schema document for a schema ID. No authentication required.
+
+**Path parameter:** `schemaID` — the schema identifier (e.g., `chat.v1`).
+
+**Response** — the raw JSON Schema document:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "chat.v1",
+  "type": "object",
+  "properties": { "chat": { "type": "array" } },
+  "required": ["chat"]
+}
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|-----------|---------|
+| `404` | Schema not found |
+
+---
+
+### `PUT /schema/{schemaID}`
+
+Create or replace a JSON Schema. Authentication required.
+
+**Path parameter:** `schemaID` — the schema identifier (e.g., `chat.v1`).
+
+**Request body** — a valid JSON Schema document:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" }
+  },
+  "required": ["name"]
+}
+```
+
+**Response:**
+
+```json
+{ "status": "ok" }
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|-----------|---------|
+| `400` | Invalid JSON or invalid JSON Schema |
+| `401` | Missing or invalid Bearer token |
+
+---
+
 ## JSON Schema Templates
 
 DeltaDatabase validates every `PUT` payload against a JSON Schema template
 (draft-07) before encryption and storage. Templates are JSON files placed in
 `{shared-fs}/templates/`.
 
-### Creating a template
+### Creating a template on disk
 
 Create `./shared/db/templates/chat.v1.json`:
 
@@ -386,6 +462,40 @@ Create `./shared/db/templates/chat.v1.json`:
   "required": ["messages"]
 }
 ```
+
+### Creating a template via the REST API (recommended)
+
+Schemas can also be defined directly through the REST API or the web
+management UI — no filesystem access required.
+
+```bash
+# Save a schema via the API
+TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"client_id":"admin"}' | jq -r .token)
+
+curl -X PUT http://127.0.0.1:8080/schema/chat.v1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "chat.v1",
+    "type": "object",
+    "properties": {
+      "messages": { "type": "array" }
+    },
+    "required": ["messages"]
+  }'
+
+# List all schemas
+curl http://127.0.0.1:8080/admin/schemas
+
+# Retrieve a schema
+curl http://127.0.0.1:8080/schema/chat.v1
+```
+
+The web management UI exposes a **📋 Schemas** tab where you can list, load,
+and edit schemas through a form — no `curl` or file editing needed.
 
 ### Using a schema on a PUT (gRPC)
 
@@ -429,6 +539,7 @@ Features:
 | **Dashboard** | Live health status and worker counts |
 | **Workers** | Table of all registered Processing Workers with status, key ID, last-seen time, and tags |
 | **Entities** | GET and PUT entities through a simple form; results displayed inline as formatted JSON |
+| **Schemas** | List, load, create, and edit JSON Schema templates through an in-browser editor |
 | **API Explorer** | Send arbitrary GET/PUT requests to any endpoint; shows HTTP status and round-trip time |
 
 No additional installation is required — the UI is embedded directly in the
