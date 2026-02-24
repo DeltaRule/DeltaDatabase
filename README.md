@@ -13,31 +13,30 @@
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Prerequisites](#prerequisites)
-4. [Building from Source](#building-from-source)
-5. [Quick Start](#quick-start)
-6. [Configuration Reference](#configuration-reference)
-7. [REST API Reference](#rest-api-reference)
-8. [JSON Schema Templates](#json-schema-templates)
-9. [Authentication](#authentication)
-10. [Web Management UI](#web-management-ui)
-11. [Chat Interface Example](#chat-interface-example)
+3. [Recommended Deployment: Docker / Kubernetes](#recommended-deployment-docker--kubernetes)
+4. [Quick Start (Local / Development)](#quick-start-local--development)
+5. [Configuration Reference](#configuration-reference)
+6. [REST API Reference](#rest-api-reference)
+7. [JSON Schema Templates](#json-schema-templates)
+8. [Authentication](#authentication)
+9. [Web Management UI](#web-management-ui)
+10. [Chat Interface Example](#chat-interface-example)
     - [Go client](#go-client)
     - [Python client](#python-client)
     - [curl / shell](#curl--shell)
-12. [Chat Frontend Example (3-step lookup)](#chat-frontend-example-3-step-lookup)
+11. [Chat Frontend Example (3-step lookup)](#chat-frontend-example-3-step-lookup)
     - [Data model](#data-model)
     - [Python walkthrough](#python-walkthrough)
     - [curl walkthrough](#curl-walkthrough)
-13. [Advanced: Running Multiple Workers](#advanced-running-multiple-workers)
-14. [S3-Compatible Object Storage](#s3-compatible-object-storage)
-15. [Containerization Examples](#containerization-examples)
-16. [Security Model](#security-model)
-17. [Caching Model](#caching-model)
-18. [Benchmark Results](#benchmark-results)
-19. [Testing](#testing)
-20. [Project Structure](#project-structure)
-21. [License](#license)
+12. [Advanced: Running Multiple Workers](#advanced-running-multiple-workers)
+13. [S3-Compatible Object Storage](#s3-compatible-object-storage)
+14. [Security Model](#security-model)
+15. [Caching Model](#caching-model)
+16. [Benchmark Results](#benchmark-results)
+17. [Testing](#testing)
+18. [Building from Source](#building-from-source)
+19. [Project Structure](#project-structure)
+20. [License](#license)
 
 ---
 
@@ -97,7 +96,8 @@ browse and manage databases without any external tooling.
 ```
 
 **Main Worker** — single entry-point for all clients. Handles authentication,
-token issuance, key distribution, and load-balancing across Processing Workers.
+token issuance, key distribution, and cache-aware + least-loaded routing across
+Processing Workers.
 
 **Processing Worker** — the data plane. Subscribes to the Main Worker to
 receive the AES master key (wrapped in the worker's RSA public key), then
@@ -119,43 +119,42 @@ object store.  Both backends are interchangeable at startup time via flags:
 
 ---
 
-## Prerequisites
+## Recommended Deployment: Docker / Kubernetes
 
-| Tool | Minimum version | Notes |
-|------|-----------------|-------|
-| Go   | 1.21            | Tested up to 1.25 |
-| Git  | any             | |
-| Python | 3.9+         | Integration tests only |
+> **For production and staging, Docker Compose and Kubernetes are the
+> recommended ways to run DeltaDatabase.**  They handle service orchestration,
+> environment variables, shared volumes, and graceful restarts for you —
+> no manual binary setup required.
 
-No external databases, message brokers, or container runtimes are required for
-development.
+| Scenario | Guide | Recommendation |
+|----------|-------|---------------|
+| Local dev / CI | [All-in-one container](examples/01-all-in-one.md) | Simplest — one `docker compose up` |
+| Small production | [1 Main + 1 Worker](examples/03-one-main-one-worker.md) | Minimal production setup |
+| Scale-out | [1 Main + N Workers](examples/02-one-main-multiple-workers.md) | Docker Compose scale-out |
+| Cloud / auto-scaling | [Kubernetes + HPA](examples/04-kubernetes-autoscaling.md) | ⭐ **Recommended for production** |
+| Cloud storage | [S3-compatible storage](examples/05-s3-compatible-storage.md) | No shared PVC needed |
+
+**Get started in one command (all-in-one):**
+
+```bash
+docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
+```
+
+The REST API is available at **http://localhost:8080** and the web UI at
+**http://localhost:8080/**.
+
+See the [`examples/`](examples/) folder and the [`deploy/`](deploy/) folder
+for all Docker and Kubernetes files.
+
+> Building and running the workers from source (for local development) is
+> documented in [BUILDING.md](BUILDING.md).
 
 ---
 
-## Building from Source
+## Quick Start (Local / Development)
 
-```bash
-git clone https://github.com/DeltaRule/DeltaDatabase.git
-cd DeltaDatabase
-
-# Build both workers
-go build -o bin/main-worker ./cmd/main-worker/
-go build -o bin/proc-worker ./cmd/proc-worker/
-
-# Verify
-./bin/main-worker --help
-./bin/proc-worker --help
-```
-
-Run all Go unit tests:
-
-```bash
-go test ./...
-```
-
----
-
-## Quick Start
+> For production use, see [Recommended Deployment: Docker / Kubernetes](#recommended-deployment-docker--kubernetes).
+> To build the binaries from source, see [BUILDING.md](BUILDING.md).
 
 The following steps start one Main Worker and one Processing Worker on a
 single machine, then store and retrieve an entity.
@@ -270,7 +269,7 @@ Response:
 | `-grpc-addr` | `127.0.0.1:0` | TCP address for this worker's gRPC server |
 | `-shared-fs` | `./shared/db` | Path to the shared filesystem root (ignored when `-s3-endpoint` is set) |
 | `-cache-size` | `256` | Maximum number of cached entities |
-| `-cache-ttl` | `5m` | Time-to-live per cache entry |
+| `-cache-ttl` | `0` | Time-to-live per cache entry (`0` = LRU-only eviction, no time-based expiry) |
 | `-s3-endpoint` | *(empty)* | S3-compatible endpoint, e.g. `minio:9000`; enables S3 backend |
 | `-s3-access-key` | *(empty)* | S3 access key ID (or `S3_ACCESS_KEY` env var) |
 | `-s3-secret-key` | *(empty)* | S3 secret access key (or `S3_SECRET_KEY` env var) |
@@ -320,8 +319,8 @@ Returns the system health status. No authentication required.
 
 ### `GET /admin/workers`
 
-Returns a list of all registered Processing Workers and their status. No
-authentication required.
+Returns a list of all registered Processing Workers and their status.
+Requires a valid Bearer token.
 
 **Response:**
 
@@ -986,7 +985,10 @@ pointing at the same Main Worker and the same shared filesystem directory:
   -shared-fs=./shared/db
 ```
 
-The Main Worker round-robins GET requests across all available workers. File-
+The Main Worker routes requests using a **cache-aware + least-loaded** strategy: it
+first tries to send each request to the worker that most recently served that
+entity (to maximise LRU cache hits), and falls back to the worker with the
+fewest active requests when no preferred worker is available. File-
 level advisory locks (`flock`-style) ensure that concurrent writes from
 different workers never corrupt an entity.  Each write also uses an explicit
 `fdatasync` before the atomic rename, guaranteeing that no data is lost even if
@@ -995,7 +997,10 @@ a worker crashes between the rename and a kernel writeback flush.
 View the registered workers at any time:
 
 ```bash
-curl -s http://127.0.0.1:8080/admin/workers | jq .
+TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"client_id":"myapp"}' | jq -r .token)
+curl -s -H "Authorization: Bearer ${TOKEN}" http://127.0.0.1:8080/admin/workers | jq .
 ```
 
 ---
@@ -1045,22 +1050,6 @@ for a complete Docker Compose and Kubernetes walkthrough.
 
 ---
 
-## Containerization Examples
-
-Ready-to-use Docker and Kubernetes deployment examples live in the
-[`examples/`](examples/) folder.  Each example has its own markdown guide and
-references the corresponding files under `deploy/`.
-
-| Example | Guide | Deploy files |
-|---------|-------|--------------|
-| **All-in-one** — main + worker in one container | [examples/01-all-in-one.md](examples/01-all-in-one.md) | `deploy/docker/Dockerfile.all-in-one`, `deploy/docker-compose/docker-compose.all-in-one.yml` |
-| **1 Main + N Workers** — Docker Compose scale-out | [examples/02-one-main-multiple-workers.md](examples/02-one-main-multiple-workers.md) | `deploy/docker-compose/docker-compose.one-main-multiple-workers.yml` |
-| **1 Main + 1 Worker** — simplest production setup | [examples/03-one-main-one-worker.md](examples/03-one-main-one-worker.md) | `deploy/docker-compose/docker-compose.one-main-one-worker.yml` |
-| **Kubernetes + HPA** — autoscaling workers | [examples/04-kubernetes-autoscaling.md](examples/04-kubernetes-autoscaling.md) | `deploy/kubernetes/` |
-| **S3-compatible storage** — MinIO / RustFS / SeaweedFS / AWS S3 | [examples/05-s3-compatible-storage.md](examples/05-s3-compatible-storage.md) | `deploy/docker-compose/docker-compose.with-s3.yml`, `deploy/kubernetes/s3-config.yaml` |
-
----
-
 ## Security Model
 
 | Property | Implementation |
@@ -1074,7 +1063,7 @@ references the corresponding files under `deploy/`.
 | Token expiry | Worker tokens: 1 h (configurable). Client tokens: 24 h (configurable) |
 | Path traversal | Entity keys, database names and schema IDs are validated to reject `/`, `\`, and `..` |
 | Request body limit | REST PUT/schema endpoints reject bodies larger than 1 MiB |
-| Admin endpoints | `/admin/workers` and `/admin/schemas` require a valid Bearer token |
+| Admin endpoints | `GET /admin/workers` requires a valid Bearer token; `GET /admin/schemas` is public |
 | Write durability (FS) | `fdatasync` before atomic rename guarantees no data loss on worker crash |
 | S3 credentials | Pass via `S3_ACCESS_KEY` / `S3_SECRET_KEY` env vars, not CLI flags |
 
@@ -1125,14 +1114,14 @@ Real hardware will be faster.
 
 | Benchmark | Mean latency | Throughput |
 |-----------|-------------|------------|
-| REST PUT (sequential, warm) | ~25 ms | ~40 ops/s |
-| REST GET (warm cache, sequential) | ~8 ms | ~125 ops/s |
-| REST PUT→GET round-trip | ~35 ms | ~29 ops/s |
-| gRPC PUT (proc-worker direct) | ~12 ms | ~80 ops/s |
-| gRPC GET (warm cache, proc-worker) | ~4 ms | ~250 ops/s |
-| Concurrent PUT (32 threads × 20 each) | — | ~120 ops/s total |
-| Concurrent GET (32 threads × 25 each) | — | ~350 ops/s total |
-| Bulk write 1000 entities | ~28 s total | ~36 ops/s |
+| REST PUT (sequential, warm) | ~1 ms | ~1,000 ops/s |
+| REST GET (warm cache, sequential) | ~1 ms | ~1,000 ops/s |
+| REST PUT→GET round-trip | ~2 ms | ~520 ops/s |
+| gRPC PUT (proc-worker direct) | ~0.6 ms | ~1,700 ops/s |
+| gRPC GET (warm cache, proc-worker) | ~0.3 ms | ~3,500 ops/s |
+| Concurrent PUT (32 threads × 20 each) | — | ~910 ops/s total |
+| Concurrent GET (32 threads × 25 each) | — | ~970 ops/s total |
+| Bulk write 1000 entities | ~1 s total | ~1,000 ops/s |
 
 > Benchmarks are run with `pytest tests/test_benchmarks.py -v --benchmark-sort=mean`.
 > Use `pytest-benchmark compare` to track regressions across runs.
@@ -1141,39 +1130,15 @@ Real hardware will be faster.
 
 ## Testing
 
-### Go unit tests
+See [BUILDING.md](BUILDING.md) for instructions on running Go unit tests and
+Python integration tests.
 
-```bash
-go test ./...
-```
+---
 
-### Python integration tests
+## Building from Source
 
-Install dependencies once:
-
-```bash
-cd tests
-pip install -r requirements.txt
-```
-
-Run individual test suites:
-
-```bash
-# Authentication tests
-pytest tests/test_authentication.py -v
-
-# Encryption tests
-pytest tests/test_encryption.py -v
-
-# Security / hacking-technique tests
-pytest tests/test_e2e_security.py -v
-
-# Performance benchmarks
-pytest tests/test_benchmarks.py -v --benchmark-sort=mean
-
-# Full end-to-end suite (requires both workers running)
-pytest tests/test_whole.py -v
-```
+For full build instructions, prerequisites, and testing setup, see
+[BUILDING.md](BUILDING.md).
 
 ---
 
@@ -1213,6 +1178,7 @@ pytest tests/test_whole.py -v
 │   └── kubernetes/         # Kubernetes manifests (Deployments, Services, HPA)
 ├── examples/               # Containerization deployment guides
 ├── Agents.md               # System design document
+├── BUILDING.md             # Build from source & testing instructions
 ├── Guideline.md            # Coding standards
 ├── LICENSE                 # DeltaDatabase Software License v1.0
 └── README.md               # This file

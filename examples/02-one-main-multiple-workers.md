@@ -62,7 +62,7 @@ docker compose \
 # Log in and inspect registered workers
 TOKEN=$(curl -s -X POST http://localhost:8080/api/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+  -d '{"client_id":"myapp"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
 curl -s -H "Authorization: Bearer ${TOKEN}" \
   http://localhost:8080/admin/workers | python3 -m json.tool
@@ -86,6 +86,6 @@ curl -s -H "Authorization: Bearer ${TOKEN}" \
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The Main Worker round-robins incoming entity requests across all registered
-Processing Workers.  Adding more workers increases throughput linearly until
-the shared filesystem becomes the bottleneck.
+The Main Worker routes entity requests using a cache-aware + least-loaded
+strategy across all registered Processing Workers.  Adding more workers
+increases throughput linearly until the shared filesystem becomes the bottleneck.

@@ -71,8 +71,12 @@ docker run -d \
 # Health check
 curl http://localhost:8080/health
 
-# List workers registered with the Main Worker
-curl -s http://localhost:8080/admin/workers | python3 -m json.tool
+# List workers registered with the Main Worker (requires a Bearer token)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"client_id":"myapp"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+curl -s -H "Authorization: Bearer ${TOKEN}" \
+  http://localhost:8080/admin/workers | python3 -m json.tool
 ```
 
 ---
