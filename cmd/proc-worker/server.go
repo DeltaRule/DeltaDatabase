@@ -16,6 +16,7 @@ import (
 	"delta-db/pkg/cache"
 	pkgcrypto "delta-db/pkg/crypto"
 	"delta-db/pkg/fs"
+	"delta-db/pkg/metrics"
 	"delta-db/pkg/schema"
 
 	"google.golang.org/grpc"
@@ -42,6 +43,15 @@ type ProcWorkerServer struct {
 	// background goroutine. WaitForPendingWrites blocks until all goroutines
 	// have finished (useful in tests and during graceful shutdown).
 	pendingWrites sync.WaitGroup
+
+	// Prometheus metrics
+	metrics *metrics.ProcWorkerMetrics
+
+	// lastCacheStats tracks the previous cache stats snapshot so we can
+	// increment Prometheus counters by the delta on each update.
+	lastCacheHits   int64
+	lastCacheMisses int64
+	lastCacheEvicts int64
 }
 
 // NewProcWorkerServer creates a ProcWorkerServer for the given worker, storage
@@ -57,6 +67,7 @@ func NewProcWorkerServer(worker *ProcWorker, storage fs.StorageBackend, lockMgr 
 		lockMgr:   lockMgr,
 		cache:     c,
 		validator: v,
+		metrics:   metrics.NewProcWorkerMetrics(),
 	}
 }
 
@@ -106,16 +117,54 @@ func (s *ProcWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 	// Build the entity ID used as the storage and cache key (e.g. "chatdb_Chat_id").
 	entityID := req.GetDatabaseName() + "_" + req.GetEntityKey()
 
-	switch req.GetOperation() {
+	start := time.Now()
+	op := req.GetOperation()
+
+	switch op {
 	case "GET":
 		log.Printf("[%s] GET %s", s.worker.config.WorkerID, entityID)
-		return s.processGET(ctx, req, entityID)
+		resp, err := s.processGET(ctx, req, entityID)
+		statusLabel := "success"
+		if err != nil {
+			statusLabel = "error"
+		}
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, statusLabel).Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op).Observe(time.Since(start).Seconds())
+		s.updateCacheMetrics()
+		return resp, err
 	case "PUT":
 		log.Printf("[%s] PUT %s", s.worker.config.WorkerID, entityID)
-		return s.processPUT(ctx, req, entityID)
+		resp, err := s.processPUT(ctx, req, entityID)
+		statusLabel := "success"
+		if err != nil {
+			statusLabel = "error"
+		}
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, statusLabel).Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op).Observe(time.Since(start).Seconds())
+		s.updateCacheMetrics()
+		return resp, err
 	default:
 		return nil, status.Errorf(codes.InvalidArgument,
-			"unsupported operation %q: must be GET or PUT", req.GetOperation())
+			"unsupported operation %q: must be GET or PUT", op)
+	}
+}
+
+// updateCacheMetrics refreshes the cache gauge metrics and increments counters
+// by the delta since the last call.
+func (s *ProcWorkerServer) updateCacheMetrics() {
+	cs := s.cache.Stats()
+	s.metrics.CacheSize.Set(float64(cs.Size))
+	if delta := cs.Hits - s.lastCacheHits; delta > 0 {
+		s.metrics.CacheHitsTotal.Add(float64(delta))
+		s.lastCacheHits = cs.Hits
+	}
+	if delta := cs.Misses - s.lastCacheMisses; delta > 0 {
+		s.metrics.CacheMissesTotal.Add(float64(delta))
+		s.lastCacheMisses = cs.Misses
+	}
+	if delta := cs.Evicts - s.lastCacheEvicts; delta > 0 {
+		s.metrics.CacheEvictionsTotal.Add(float64(delta))
+		s.lastCacheEvicts = cs.Evicts
 	}
 }
 
@@ -173,8 +222,11 @@ func (s *ProcWorkerServer) processGET(_ context.Context, _ *proto.ProcessRequest
 	if err != nil {
 		// Security: do not expose key material or plaintext in error messages.
 		log.Printf("[%s] decryption failed for %s", s.worker.config.WorkerID, entityID)
+		s.metrics.EncryptionOperationsTotal.WithLabelValues("decrypt").Inc()
+		s.metrics.EncryptionFailuresTotal.WithLabelValues("decrypt").Inc()
 		return nil, status.Error(codes.Internal, "decryption failed")
 	}
+	s.metrics.EncryptionOperationsTotal.WithLabelValues("decrypt").Inc()
 
 	// Step 5: Store decrypted data in cache and release the lock (via defer above).
 	version := strconv.Itoa(fileData.Metadata.Version)
@@ -247,8 +299,11 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 	if err != nil {
 		s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
 		log.Printf("[%s] encryption failed for %s", s.worker.config.WorkerID, entityID)
+		s.metrics.EncryptionOperationsTotal.WithLabelValues("encrypt").Inc()
+		s.metrics.EncryptionFailuresTotal.WithLabelValues("encrypt").Inc()
 		return nil, status.Error(codes.Internal, "encryption failed")
 	}
+	s.metrics.EncryptionOperationsTotal.WithLabelValues("encrypt").Inc()
 
 	// Prepare the metadata that will accompany the encrypted blob on disk.
 	metadata := fs.FileMetadata{
@@ -286,13 +341,17 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 	// complexity for a benefit that only matters under very high concurrent
 	// write rates to the same entity.
 	writeBlob := encResult.Ciphertext // captured for the goroutine
+	s.metrics.AsyncWritesPending.Inc()
+	s.metrics.AsyncWritesTotal.Inc()
 	s.pendingWrites.Add(1)
 	go func() {
 		defer s.pendingWrites.Done()
+		defer s.metrics.AsyncWritesPending.Dec()
 
 		if _, err := s.lockMgr.AcquireLock(entityID, fs.LockExclusive); err != nil {
 			log.Printf("[%s] async write: failed to acquire lock for %s: %v",
 				s.worker.config.WorkerID, entityID, err)
+			s.metrics.AsyncWriteFailuresTotal.Inc()
 			return
 		}
 		defer s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
@@ -311,6 +370,7 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 		if err := s.storage.WriteFile(entityID, writeBlob, metadata); err != nil {
 			log.Printf("[%s] async write: failed to write %s: %v",
 				s.worker.config.WorkerID, entityID, err)
+			s.metrics.AsyncWriteFailuresTotal.Inc()
 			return
 		}
 		log.Printf("[%s] async write: persisted %s (version=%s)",
@@ -333,7 +393,13 @@ func (s *ProcWorkerServer) WaitForPendingWrites() {
 // Serve starts the ProcWorkerServer's gRPC listener on addr and blocks until
 // the server exits. Call Handshake on the underlying ProcWorker before Serve
 // so that the encryption key is available.
-func (s *ProcWorkerServer) Serve(addr string) error {
+// If metricsAddr is non-empty a Prometheus /metrics HTTP server is started on
+// that address before the gRPC server begins accepting connections.
+func (s *ProcWorkerServer) Serve(addr string, metricsAddr string) error {
+	if metricsAddr != "" {
+		go s.metrics.Serve(metricsAddr)
+	}
+
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)

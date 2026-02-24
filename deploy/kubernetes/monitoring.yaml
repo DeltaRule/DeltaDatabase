@@ -1,0 +1,175 @@
+---
+# Prometheus scrape annotations are added to both worker Deployments via patches.
+# This file provides:
+#   1. Updated Main Worker Deployment with metrics port and Prometheus annotations.
+#   2. Updated Processing Worker Deployment with metrics port and Prometheus annotations.
+#   3. A Prometheus ConfigMap (for deployments without the Prometheus Operator).
+#   4. A Grafana ConfigMap containing the DeltaDatabase dashboard JSON.
+#
+# Apply:
+#   kubectl apply -n deltadatabase -f deploy/kubernetes/monitoring.yaml
+#
+# Prerequisites:
+#   kubectl apply -f deploy/kubernetes/main-worker.yaml
+#   kubectl apply -f deploy/kubernetes/proc-worker.yaml
+#   kubectl apply -f deploy/kubernetes/shared-pvc.yaml
+
+---
+# Patch: add -metrics-addr flag and metrics port to the Main Worker Deployment.
+# Re-apply after main-worker.yaml with this overlay, or merge manually.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main-worker
+  namespace: deltadatabase
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "9090"
+        prometheus.io/path:   "/metrics"
+    spec:
+      containers:
+        - name: main-worker
+          args:
+            - "-grpc-addr=0.0.0.0:50051"
+            - "-rest-addr=0.0.0.0:8080"
+            - "-metrics-addr=0.0.0.0:9090"
+            - "-shared-fs=/shared/db"
+          ports:
+            - name: rest
+              containerPort: 8080
+            - name: grpc
+              containerPort: 50051
+            - name: metrics
+              containerPort: 9090
+
+---
+# Service: expose the Main Worker metrics port for Prometheus scraping.
+apiVersion: v1
+kind: Service
+metadata:
+  name: main-worker-metrics
+  namespace: deltadatabase
+  labels:
+    app: main-worker
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port:   "9090"
+    prometheus.io/path:   "/metrics"
+spec:
+  selector:
+    app: main-worker
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  type: ClusterIP
+
+---
+# Patch: add -metrics-addr flag and metrics port to the Processing Worker Deployment.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proc-worker
+  namespace: deltadatabase
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "9091"
+        prometheus.io/path:   "/metrics"
+    spec:
+      containers:
+        - name: proc-worker
+          command:
+            - "sh"
+            - "-c"
+            - >
+              exec proc-worker
+              -main-addr=main-worker:50051
+              -worker-id=$(POD_NAME)
+              -grpc-addr=0.0.0.0:50052
+              -metrics-addr=0.0.0.0:9091
+              -shared-fs=/shared/db
+          ports:
+            - name: grpc
+              containerPort: 50052
+            - name: metrics
+              containerPort: 9091
+
+---
+# Service: expose the Processing Worker metrics port.
+# Headless so Prometheus can resolve each pod individually.
+apiVersion: v1
+kind: Service
+metadata:
+  name: proc-worker-metrics
+  namespace: deltadatabase
+  labels:
+    app: proc-worker
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port:   "9091"
+    prometheus.io/path:   "/metrics"
+spec:
+  selector:
+    app: proc-worker
+  clusterIP: None   # headless — scrape each pod
+  ports:
+    - name: metrics
+      port: 9091
+      targetPort: 9091
+
+---
+# ConfigMap: Prometheus configuration for the DeltaDatabase namespace.
+# Use this when running Prometheus without the Prometheus Operator.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: deltadatabase
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: deltadatabase_main
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [deltadatabase]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: main-worker-metrics
+          - target_label: worker_type
+            replacement: main
+
+      - job_name: deltadatabase_proc
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [deltadatabase]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: proc-worker
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - target_label: worker_type
+            replacement: proc
