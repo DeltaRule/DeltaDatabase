@@ -1,0 +1,114 @@
+---
+# Processing Worker Deployment configured for an S3-compatible storage backend.
+#
+# This manifest replaces proc-worker.yaml when you want Processing Workers to
+# store encrypted data in an S3-compatible object store (RustFS, SeaweedFS,
+# MinIO, AWS S3) instead of a shared PersistentVolumeClaim.
+#
+# Prerequisites:
+#   1. Apply deploy/kubernetes/s3-secret.yaml with your actual credentials.
+#   2. Set S3_ENDPOINT to the URL of your object store (see env block below).
+#   3. Create the bucket referenced by S3_BUCKET before deploying.
+#
+# Apply with:
+#   kubectl apply -f deploy/kubernetes/s3-secret.yaml
+#   kubectl apply -f deploy/kubernetes/proc-worker-s3.yaml
+#   kubectl apply -f deploy/kubernetes/proc-worker-hpa.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proc-worker
+  namespace: deltadatabase
+  labels:
+    app: proc-worker
+spec:
+  replicas: 1   # Initial replica count — managed by HPA after startup.
+  selector:
+    matchLabels:
+      app: proc-worker
+  template:
+    metadata:
+      labels:
+        app: proc-worker
+    spec:
+      containers:
+        - name: proc-worker
+          image: deltadatabase/proc-worker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            # Use the Pod's name as a unique worker ID.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+
+            # ── S3 endpoint ──────────────────────────────────────────────────
+            # Set to the URL of your object store, e.g.:
+            #   RustFS:    http://rustfs:9000
+            #   SeaweedFS: http://seaweedfs:8333
+            #   MinIO:     http://minio:9000
+            #   AWS S3:    (leave empty — SDK uses the default AWS endpoint)
+            - name: S3_ENDPOINT
+              value: "http://rustfs:9000"
+
+            - name: S3_BUCKET
+              value: "delta-db"
+
+            - name: S3_REGION
+              value: "us-east-1"
+
+            # Credentials are read from the delta-s3-credentials Secret.
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: delta-s3-credentials
+                  key: access-key
+
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: delta-s3-credentials
+                  key: secret-key
+
+          command:
+            - "sh"
+            - "-c"
+            - >
+              exec proc-worker
+              -main-addr=main-worker:50051
+              -worker-id=$(POD_NAME)
+              -grpc-addr=0.0.0.0:50052
+              -s3-endpoint=$(S3_ENDPOINT)
+              -s3-bucket=$(S3_BUCKET)
+              -s3-region=$(S3_REGION)
+              -s3-access-key=$(S3_ACCESS_KEY)
+              -s3-secret-key=$(S3_SECRET_KEY)
+              -s3-path-style=true
+          ports:
+            - name: grpc
+              containerPort: 50052
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+---
+# Headless Service so the Main Worker can reach individual Processing Worker pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: proc-worker
+  namespace: deltadatabase
+  labels:
+    app: proc-worker
+spec:
+  selector:
+    app: proc-worker
+  clusterIP: None   # headless — DNS resolves to individual pod IPs
+  ports:
+    - name: grpc
+      port: 50052
+      targetPort: 50052

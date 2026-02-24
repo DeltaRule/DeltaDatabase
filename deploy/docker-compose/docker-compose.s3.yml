@@ -1,0 +1,121 @@
+# Docker Compose — S3-compatible object storage backend
+#
+# This compose file starts:
+#   - A RustFS (or SeaweedFS) instance acting as an S3-compatible object store
+#   - The DeltaDatabase Main Worker
+#   - One Processing Worker configured to use the S3 backend
+#
+# Build:  docker compose -f deploy/docker-compose/docker-compose.s3.yml build
+# Run:    docker compose -f deploy/docker-compose/docker-compose.s3.yml up
+#
+# Swap out the `rustfs` service for SeaweedFS or MinIO by replacing the image
+# and adjusting RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY environment variables.
+
+services:
+  # ── S3-compatible object store ──────────────────────────────────────────────
+  # RustFS is a high-performance, Rust-based S3-compatible object store.
+  # To switch to a different S3-compatible service replace this block:
+  #
+  #   MinIO:     image: minio/minio:latest
+  #              command: server /data --console-address ":9001"
+  #              environment:
+  #                MINIO_ROOT_USER: "${S3_ACCESS_KEY:-minioadmin}"
+  #                MINIO_ROOT_PASSWORD: "${S3_SECRET_KEY:-minioadmin}"
+  #
+  #   SeaweedFS: image: chrislusf/seaweedfs:latest
+  #              command: server -s3
+  #              (see SeaweedFS documentation for S3-gateway env vars)
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: delta-rustfs
+    environment:
+      # RustFS-specific credential variables — adjust if using MinIO or SeaweedFS.
+      RUSTFS_ACCESS_KEY: "${S3_ACCESS_KEY:-minioadmin}"
+      RUSTFS_SECRET_KEY: "${S3_SECRET_KEY:-minioadmin}"
+      RUSTFS_VOLUMES: /data
+    volumes:
+      - rustfs_data:/data
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9000/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Bucket init (one-shot) ──────────────────────────────────────────────────
+  # Creates the "delta-db" bucket before the workers start.
+  create-bucket:
+    image: amazon/aws-cli:latest
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY:-minioadmin}"
+      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_KEY:-minioadmin}"
+      AWS_DEFAULT_REGION: "us-east-1"
+    entrypoint: >
+      sh -c "aws --endpoint-url http://rustfs:9000 s3 mb s3://delta-db --region us-east-1 || true"
+    restart: "no"
+
+  # ── Main Worker ──────────────────────────────────────────────────────────────
+  main-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.main-worker
+    container_name: delta-main-worker-s3
+    depends_on:
+      create-bucket:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"    # REST API
+      - "50051:50051"  # gRPC (internal)
+    environment:
+      MASTER_KEY: "${MASTER_KEY:-}"
+    command:
+      - "-grpc-addr=0.0.0.0:50051"
+      - "-rest-addr=0.0.0.0:8080"
+      - "-shared-fs=/shared/db"
+      - "${MASTER_KEY:+-master-key=${MASTER_KEY}}"
+    volumes:
+      # Main Worker still uses a small local volume for its own metadata.
+      - main_data:/shared/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Processing Worker (S3 backend) ──────────────────────────────────────────
+  proc-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.proc-worker
+    depends_on:
+      main-worker:
+        condition: service_healthy
+    command:
+      - "sh"
+      - "-c"
+      - >
+        exec proc-worker
+        -main-addr=main-worker:50051
+        -worker-id=proc-$${HOSTNAME}
+        -grpc-addr=0.0.0.0:50052
+        -s3-endpoint=http://rustfs:9000
+        -s3-bucket=delta-db
+        -s3-access-key=${S3_ACCESS_KEY:-minioadmin}
+        -s3-secret-key=${S3_SECRET_KEY:-minioadmin}
+        -s3-path-style=true
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+volumes:
+  rustfs_data:
+  main_data:

@@ -30,15 +30,27 @@ type ProcWorkerServer struct {
 	proto.UnimplementedMainWorkerServer
 
 	worker    *ProcWorker
-	storage   *fs.Storage
-	lockMgr   *fs.LockManager
+	storage   fs.Backend
+	lockMgr   fs.LockManagerInterface
 	cache     *cache.Cache
 	validator *schema.Validator
 }
 
 // NewProcWorkerServer creates a ProcWorkerServer for the given worker, storage
-// path, and cache configuration.
-func NewProcWorkerServer(worker *ProcWorker, storage *fs.Storage, c *cache.Cache) *ProcWorkerServer {
+// backend, and cache configuration.
+//
+// When storage is a *fs.Storage (local filesystem) a file-based LockManager is
+// used.  For all other backends (e.g. *fs.S3Storage) an in-memory
+// MemoryLockManager is used instead.
+func NewProcWorkerServer(worker *ProcWorker, storage fs.Backend, c *cache.Cache) *ProcWorkerServer {
+	var lockMgr fs.LockManagerInterface
+	switch s := storage.(type) {
+	case *fs.Storage:
+		lockMgr = fs.NewFileLockManagerAdapter(s)
+	default:
+		lockMgr = fs.NewMemoryLockManager()
+	}
+
 	v, err := schema.NewValidator(storage.GetTemplatesDir())
 	if err != nil {
 		log.Printf("[warn] failed to initialise schema validator: %v — schema validation will be skipped", err)
@@ -46,7 +58,7 @@ func NewProcWorkerServer(worker *ProcWorker, storage *fs.Storage, c *cache.Cache
 	return &ProcWorkerServer{
 		worker:    worker,
 		storage:   storage,
-		lockMgr:   fs.NewLockManager(storage),
+		lockMgr:   lockMgr,
 		cache:     c,
 		validator: v,
 	}
@@ -123,7 +135,7 @@ func (s *ProcWorkerServer) processGET(_ context.Context, _ *proto.ProcessRequest
 
 	// Step 2: Acquire shared (read) lock so other concurrent readers are not blocked
 	// while a writer cannot modify the file underneath us.
-	if _, err := s.lockMgr.AcquireLock(entityID, fs.LockShared); err != nil {
+	if err := s.lockMgr.AcquireLock(entityID, fs.LockShared); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to acquire shared lock: %v", err)
 	}
 	defer s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
@@ -209,7 +221,7 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 	s.worker.mu.RUnlock()
 
 	// Step 2: Acquire exclusive lock to prevent concurrent writes.
-	if _, err := s.lockMgr.AcquireLock(entityID, fs.LockExclusive); err != nil {
+	if err := s.lockMgr.AcquireLock(entityID, fs.LockExclusive); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to acquire exclusive lock: %v", err)
 	}
 	defer s.lockMgr.ReleaseLock(entityID) //nolint:errcheck

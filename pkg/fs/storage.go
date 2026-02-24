@@ -10,6 +10,25 @@ import (
 	"time"
 )
 
+// writeFileSync writes data to path and calls Sync() before closing the file,
+// ensuring the data is flushed from the OS page-cache to stable storage before
+// any subsequent rename. This prevents data loss on unexpected power-off.
+func writeFileSync(path string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close() //nolint:errcheck
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close() //nolint:errcheck
+		return err
+	}
+	return f.Close()
+}
+
 var (
 	// ErrFileNotFound is returned when the requested file does not exist
 	ErrFileNotFound = errors.New("file not found")
@@ -132,30 +151,33 @@ func (s *Storage) WriteFile(id string, data []byte, metadata FileMetadata) error
 		return fmt.Errorf("%w: failed to marshal metadata: %v", ErrWriteFailed, err)
 	}
 
-	// Write blob to temporary file
-	if err := os.WriteFile(blobTempPath, data, 0644); err != nil {
+	// Write blob to temporary file and sync to disk before rename.
+	if err := writeFileSync(blobTempPath, data, 0644); err != nil {
 		return fmt.Errorf("%w: failed to write blob: %v", ErrWriteFailed, err)
 	}
 
-	// Write metadata to temporary file
-	if err := os.WriteFile(metaTempPath, metaJSON, 0644); err != nil {
+	// Write metadata to temporary file and sync to disk before rename.
+	if err := writeFileSync(metaTempPath, metaJSON, 0644); err != nil {
 		// Clean up blob temp file
-		os.Remove(blobTempPath)
+		os.Remove(blobTempPath) //nolint:errcheck
 		return fmt.Errorf("%w: failed to write metadata: %v", ErrWriteFailed, err)
 	}
 
-	// Atomically rename blob temp file to final location
+	// Atomically rename blob temp file to final location.
 	if err := os.Rename(blobTempPath, blobPath); err != nil {
 		// Clean up both temp files
-		os.Remove(blobTempPath)
-		os.Remove(metaTempPath)
+		os.Remove(blobTempPath) //nolint:errcheck
+		os.Remove(metaTempPath) //nolint:errcheck
 		return fmt.Errorf("%w: failed to rename blob: %v", ErrWriteFailed, err)
 	}
 
-	// Atomically rename metadata temp file to final location
+	// Atomically rename metadata temp file to final location.
+	// If this rename fails after the blob rename succeeded, attempt to roll
+	// back the blob rename so neither file is updated, preserving consistency.
 	if err := os.Rename(metaTempPath, metaPath); err != nil {
-		// Clean up metadata temp file
-		os.Remove(metaTempPath)
+		// Attempt rollback of blob rename (best-effort).
+		os.Rename(blobPath, blobTempPath) //nolint:errcheck
+		os.Remove(metaTempPath)           //nolint:errcheck
 		return fmt.Errorf("%w: failed to rename metadata: %v", ErrWriteFailed, err)
 	}
 

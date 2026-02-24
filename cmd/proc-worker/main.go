@@ -17,17 +17,27 @@ func main() {
 	// Command-line flags.
 	mainAddr  := flag.String("main-addr",  "127.0.0.1:50051", "Main Worker gRPC address (host:port)")
 	workerID  := flag.String("worker-id",  "",                "Unique ID for this Processing Worker")
-	sharedFS  := flag.String("shared-fs",  "./shared/db",     "Shared filesystem path")
+	sharedFS  := flag.String("shared-fs",  "./shared/db",     "Shared filesystem path (used when S3 is not configured)")
 	grpcAddr  := flag.String("grpc-addr",  "127.0.0.1:0",     "Processing Worker gRPC listen address (host:port)")
 	cacheSize := flag.Int("cache-size",    256,               "Maximum number of entries in the in-memory cache")
 	cacheTTL  := flag.Duration("cache-ttl", 0,                "TTL for cached entries (0 = LRU-only eviction, no time-based expiry)")
+
+	// S3-compatible object-store flags (optional).
+	// When -s3-endpoint is set the worker stores data in the S3 bucket instead
+	// of the local filesystem. Compatible with AWS S3, RustFS, SeaweedFS, MinIO,
+	// and any service that implements the S3 API.
+	s3Endpoint  := flag.String("s3-endpoint",   "", "S3-compatible endpoint URL (e.g. http://rustfs:9000). Empty = use local FS.")
+	s3Bucket    := flag.String("s3-bucket",      "", "S3 bucket name")
+	s3Region    := flag.String("s3-region",      "us-east-1", "S3 region (or placeholder for self-hosted services)")
+	s3AccessKey := flag.String("s3-access-key",  "", "S3 access key ID (falls back to AWS credential chain if empty)")
+	s3SecretKey := flag.String("s3-secret-key",  "", "S3 secret access key")
+	s3PathStyle := flag.Bool("s3-path-style",    true, "Use S3 path-style addressing (required for RustFS, SeaweedFS, MinIO)")
 
 	flag.Usage = PrintUsage
 	flag.Parse()
 
 	log.Println("=== DeltaDatabase Processing Worker ===")
 	log.Printf("Main Worker address: %s", *mainAddr)
-	log.Printf("Shared FS: %s", *sharedFS)
 
 	if *workerID == "" {
 		// Default to hostname-based ID if not specified.
@@ -40,10 +50,30 @@ func main() {
 
 	log.Printf("Worker ID: %s", *workerID)
 
-	// Initialise shared filesystem storage.
-	storage, err := fs.NewStorage(*sharedFS)
-	if err != nil {
-		log.Fatalf("Failed to initialise storage: %v", err)
+	// Initialise storage backend: S3 when an endpoint is provided, otherwise
+	// the local shared filesystem.
+	var storage fs.Backend
+	if *s3Endpoint != "" {
+		log.Printf("Storage backend: S3-compatible (%s, bucket=%s)", *s3Endpoint, *s3Bucket)
+		s3Storage, err := fs.NewS3Storage(fs.S3Config{
+			Endpoint:        *s3Endpoint,
+			Bucket:          *s3Bucket,
+			Region:          *s3Region,
+			AccessKeyID:     *s3AccessKey,
+			SecretAccessKey: *s3SecretKey,
+			ForcePathStyle:  *s3PathStyle,
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialise S3 storage: %v", err)
+		}
+		storage = s3Storage
+	} else {
+		log.Printf("Storage backend: local filesystem (%s)", *sharedFS)
+		localStorage, err := fs.NewStorage(*sharedFS)
+		if err != nil {
+			log.Fatalf("Failed to initialise storage: %v", err)
+		}
+		storage = localStorage
 	}
 
 	// Initialise in-memory LRU cache.
@@ -116,7 +146,13 @@ func PrintUsage() {
 	fmt.Println("Options:")
 	flag.PrintDefaults()
 	fmt.Println()
-	fmt.Println("Example:")
+	fmt.Println("Examples:")
+	fmt.Println("  # Local filesystem backend:")
 	fmt.Println("  proc-worker -main-addr=127.0.0.1:50051 -worker-id=proc-1 -grpc-addr=127.0.0.1:50052")
+	fmt.Println()
+	fmt.Println("  # S3-compatible backend (RustFS / SeaweedFS / MinIO):")
+	fmt.Println("  proc-worker -main-addr=127.0.0.1:50051 -worker-id=proc-1 -grpc-addr=127.0.0.1:50052 \\")
+	fmt.Println("    -s3-endpoint=http://rustfs:9000 -s3-bucket=delta-db \\")
+	fmt.Println("    -s3-access-key=minioadmin -s3-secret-key=minioadmin")
 	fmt.Println()
 }
