@@ -128,7 +128,9 @@ func (fl *FileLock) IsLocked() bool {
 	return fl.locked
 }
 
-// LockManager provides a higher-level interface for managing locks on multiple files
+// LockManager provides a higher-level interface for managing locks on multiple
+// files.  It implements the LockBackend interface using POSIX advisory file
+// locks, making it suitable for shared POSIX filesystems (local, NFS, CIFS…).
 type LockManager struct {
 	storage *Storage
 	locks   map[string]*FileLock

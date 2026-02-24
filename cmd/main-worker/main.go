@@ -11,25 +11,33 @@ import (
 	"time"
 
 	"delta-db/pkg/crypto"
+	"delta-db/pkg/fs"
 )
 
 func main() {
 	// Command line flags
 	grpcAddr := flag.String("grpc-addr", "127.0.0.1:50051", "gRPC server address")
 	restAddr := flag.String("rest-addr", "127.0.0.1:8080", "REST API server address")
-	sharedFS := flag.String("shared-fs", "./shared/db", "Shared filesystem path")
+	sharedFS := flag.String("shared-fs", "./shared/db", "Shared filesystem path (ignored when -s3-endpoint is set)")
 	masterKeyHex := flag.String("master-key", "", "Master encryption key (hex-encoded 32 bytes)")
 	keyID := flag.String("key-id", "main-key-v1", "Master key ID")
 	workerTTL := flag.Duration("worker-ttl", 1*time.Hour, "Worker token TTL")
 	clientTTL := flag.Duration("client-ttl", 24*time.Hour, "Client token TTL")
 	entityCacheSize := flag.Int("entity-cache-size", 1024, "Max number of entities in the in-memory LRU cache")
-	
+
+	// S3-compatible storage flags (optional).
+	s3Endpoint  := flag.String("s3-endpoint",   "", "S3-compatible endpoint (enables S3 backend for templates)")
+	s3AccessKey := flag.String("s3-access-key", "", "S3 access key ID")
+	s3SecretKey := flag.String("s3-secret-key", "", "S3 secret access key")
+	s3Bucket    := flag.String("s3-bucket",     "deltadatabase", "S3 bucket name")
+	s3UseSSL    := flag.Bool("s3-use-ssl",      false,           "Use TLS for S3 connection")
+	s3Region    := flag.String("s3-region",     "",              "S3 region (optional)")
+
 	flag.Parse()
 
 	log.Println("=== DeltaDatabase Main Worker ===")
 	log.Printf("gRPC Address: %s", *grpcAddr)
 	log.Printf("REST Address: %s", *restAddr)
-	log.Printf("Shared FS: %s", *sharedFS)
 
 	// Parse or generate master key
 	var masterKey []byte
@@ -56,11 +64,49 @@ func main() {
 		log.Println("IMPORTANT: Save this key securely! It is needed to decrypt data.")
 	}
 
+	// Resolve the templates directory.  When S3 is configured the Main Worker
+	// uses the S3Storage backend so that templates are persisted in the same
+	// bucket as entity data and are available to all Processing Workers.
+	templatesDir := ""
+	if *s3Endpoint != "" {
+		log.Printf("Storage backend: S3-compatible  endpoint=%s  bucket=%s", *s3Endpoint, *s3Bucket)
+
+		accessKey := *s3AccessKey
+		if accessKey == "" {
+			accessKey = os.Getenv("S3_ACCESS_KEY")
+		}
+		secretKey := *s3SecretKey
+		if secretKey == "" {
+			secretKey = os.Getenv("S3_SECRET_KEY")
+		}
+
+		s3, err := fs.NewS3Storage(fs.S3Config{
+			Endpoint:        *s3Endpoint,
+			AccessKeyID:     accessKey,
+			SecretAccessKey: secretKey,
+			Bucket:          *s3Bucket,
+			UseSSL:          *s3UseSSL,
+			Region:          *s3Region,
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialise S3 storage: %v", err)
+		}
+		// GetTemplatesDir syncs all existing templates from S3 to a local
+		// temp dir so the file-based schema.Validator can read them.
+		templatesDir = s3.GetTemplatesDir()
+		if templatesDir == "" {
+			log.Fatalf("Failed to initialise S3 templates directory")
+		}
+	} else {
+		log.Printf("Storage backend: local shared filesystem  path=%s", *sharedFS)
+		templatesDir = *sharedFS
+	}
+
 	// Create configuration
 	config := &Config{
 		GRPCAddr:        *grpcAddr,
 		RESTAddr:        *restAddr,
-		SharedFSPath:    *sharedFS,
+		SharedFSPath:    templatesDir,
 		MasterKey:       masterKey,
 		KeyID:           *keyID,
 		WorkerTokenTTL:  *workerTTL,
@@ -106,8 +152,13 @@ func PrintUsage() {
 	fmt.Println("Options:")
 	flag.PrintDefaults()
 	fmt.Println()
-	fmt.Println("Example:")
+	fmt.Println("Examples:")
+	fmt.Println("  # Local shared filesystem (default):")
 	fmt.Println("  main-worker -grpc-addr=:50051 -rest-addr=:8080")
+	fmt.Println()
+	fmt.Println("  # S3-compatible backend (MinIO):")
+	fmt.Println("  main-worker -grpc-addr=:50051 -rest-addr=:8080 \\")
+	fmt.Println("    -s3-endpoint=minio:9000 -s3-bucket=deltadatabase -s3-access-key=minioadmin -s3-secret-key=minioadmin")
 	fmt.Println()
 }
 

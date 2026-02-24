@@ -97,15 +97,43 @@ func (s *Storage) GetTemplatesDir() string {
 	return filepath.Join(s.basePath, "templates")
 }
 
+// writeSynced writes data to path via a write-then-fdatasync sequence.
+// Calling Sync() before returning ensures the kernel flushes dirty pages to
+// the storage device before the file descriptor is closed.  The subsequent
+// atomic rename then becomes durable: a crash after the rename cannot leave
+// the destination file with a partial or empty payload.
+func writeSynced(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
 // WriteFile writes an encrypted blob and its metadata to disk atomically.
-// The operation uses temporary files and atomic rename to ensure consistency.
+// The operation uses temporary files, an explicit fdatasync per file, and
+// atomic renames to guarantee consistency with multiple concurrent workers:
+//
+//  1. The blob is written to a temp file and synced to disk.
+//  2. The metadata is written to a separate temp file and synced to disk.
+//  3. The blob temp file is atomically renamed to its final path.
+//  4. The metadata temp file is atomically renamed to its final path.
+//
+// A reader that observes the metadata file always sees the corresponding
+// fully-written, durable blob.
 //
 // Parameters:
 //   - id: unique identifier for the entity (e.g., "Chat_id")
 //   - data: encrypted blob to write
 //   - metadata: metadata about the encryption and entity
-//
-// Returns an error if the write operation fails.
 //
 // Security notes:
 //   - Uses atomic rename to prevent partial writes
@@ -132,13 +160,15 @@ func (s *Storage) WriteFile(id string, data []byte, metadata FileMetadata) error
 		return fmt.Errorf("%w: failed to marshal metadata: %v", ErrWriteFailed, err)
 	}
 
-	// Write blob to temporary file
-	if err := os.WriteFile(blobTempPath, data, 0644); err != nil {
+	// Write blob to temporary file and sync to disk before rename.
+	// fdatasync here ensures the payload is durable before the rename
+	// makes it visible to readers.
+	if err := writeSynced(blobTempPath, data); err != nil {
 		return fmt.Errorf("%w: failed to write blob: %v", ErrWriteFailed, err)
 	}
 
-	// Write metadata to temporary file
-	if err := os.WriteFile(metaTempPath, metaJSON, 0644); err != nil {
+	// Write metadata to temporary file and sync to disk before rename.
+	if err := writeSynced(metaTempPath, metaJSON); err != nil {
 		// Clean up blob temp file
 		os.Remove(blobTempPath)
 		return fmt.Errorf("%w: failed to write metadata: %v", ErrWriteFailed, err)

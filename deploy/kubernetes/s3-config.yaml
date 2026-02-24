@@ -1,0 +1,165 @@
+---
+# S3-compatible storage configuration for DeltaDatabase on Kubernetes.
+#
+# This file provides the Secret and ConfigMap for using an S3-compatible
+# object store (MinIO, RustFS, SeaweedFS, AWS S3, …) instead of a shared
+# PersistentVolumeClaim.
+#
+# Apply this file BEFORE the main-worker and proc-worker deployments:
+#   kubectl apply -f deploy/kubernetes/s3-config.yaml
+#
+# Then update main-worker.yaml and proc-worker.yaml to remove the shared-pvc
+# volume mount and add the S3 flags (see comments in those files).
+
+---
+# Secret holding the S3 credentials.
+# Replace the base64 values with your actual credentials:
+#   echo -n 'minioadmin' | base64
+apiVersion: v1
+kind: Secret
+metadata:
+  name: delta-s3-credentials
+  namespace: deltadatabase
+type: Opaque
+data:
+  # base64-encoded S3 access key (default: minioadmin)
+  access-key: bWluaW9hZG1pbg==
+  # base64-encoded S3 secret key (default: minioadmin)
+  secret-key: bWluaW9hZG1pbg==
+
+---
+# ConfigMap with non-sensitive S3 connection settings.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: delta-s3-config
+  namespace: deltadatabase
+data:
+  # S3-compatible endpoint without scheme (host:port or hostname).
+  # Examples:
+  #   minio.minio.svc.cluster.local:9000   – in-cluster MinIO
+  #   s3.amazonaws.com                     – AWS S3
+  #   seaweedfs-s3.default.svc:8333        – SeaweedFS S3 gateway
+  S3_ENDPOINT: "minio.minio.svc.cluster.local:9000"
+  S3_BUCKET:   "deltadatabase"
+  S3_USE_SSL:  "false"
+  S3_REGION:   ""
+
+---
+# MinIO Deployment — in-cluster MinIO for development / testing.
+# Remove this section when using an external S3 service (AWS S3, RustFS, …).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: deltadatabase
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:latest
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: delta-s3-credentials
+                  key: access-key
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: delta-s3-credentials
+                  key: secret-key
+          ports:
+            - name: s3-api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          volumeMounts:
+            - name: minio-data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: minio-data
+          emptyDir: {}   # replace with a PVC for persistent storage
+
+---
+# Service for in-cluster MinIO.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: deltadatabase
+  labels:
+    app: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: s3-api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+  type: ClusterIP
+
+---
+# Job that creates the DeltaDatabase bucket in MinIO on first run.
+# Remove this when using an external S3 service that already has the bucket.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-bucket-init
+  namespace: deltadatabase
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          command:
+            - sh
+            - -c
+            - |
+              mc alias set local http://minio:9000 "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" &&
+              mc mb --ignore-existing local/deltadatabase &&
+              echo "Bucket 'deltadatabase' is ready."
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: delta-s3-credentials
+                  key: access-key
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: delta-s3-credentials
+                  key: secret-key

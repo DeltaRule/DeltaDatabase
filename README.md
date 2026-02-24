@@ -30,13 +30,14 @@
     - [Python walkthrough](#python-walkthrough)
     - [curl walkthrough](#curl-walkthrough)
 13. [Advanced: Running Multiple Workers](#advanced-running-multiple-workers)
-14. [Containerization Examples](#containerization-examples)
-15. [Security Model](#security-model)
-16. [Caching Model](#caching-model)
-17. [Benchmark Results](#benchmark-results)
-18. [Testing](#testing)
-19. [Project Structure](#project-structure)
-20. [License](#license)
+14. [S3-Compatible Object Storage](#s3-compatible-object-storage)
+15. [Containerization Examples](#containerization-examples)
+16. [Security Model](#security-model)
+17. [Caching Model](#caching-model)
+18. [Benchmark Results](#benchmark-results)
+19. [Testing](#testing)
+20. [Project Structure](#project-structure)
+21. [License](#license)
 
 ---
 
@@ -85,13 +86,14 @@ browse and manage databases without any external tooling.
               │               │               │
               └───────────────┴───────────────┘
                               │
-                     Shared Filesystem
-                     /shared/db/
-                       ├── files/
-                       │   ├── chatdb_Chat_id.json.enc
-                       │   └── chatdb_Chat_id.meta.json
-                       └── templates/
-                           └── chat.v1.json
+             ┌────────────────┴────────────────┐
+             │                                 │
+    ┌────────┴────────┐               ┌────────┴────────┐
+    │  Shared FS      │  ── or ──     │  S3-compatible  │
+    │  /shared/db/    │               │  object store   │
+    │  ├── files/     │               │  (MinIO, AWS S3,│
+    │  └── templates/ │               │  RustFS, …)     │
+    └─────────────────┘               └─────────────────┘
 ```
 
 **Main Worker** — single entry-point for all clients. Handles authentication,
@@ -99,12 +101,21 @@ token issuance, key distribution, and load-balancing across Processing Workers.
 
 **Processing Worker** — the data plane. Subscribes to the Main Worker to
 receive the AES master key (wrapped in the worker's RSA public key), then
-handles `GET` and `PUT` operations: validate → encrypt/decrypt → read/write FS
-→ update cache.
+handles `GET` and `PUT` operations: validate → encrypt/decrypt → read/write
+storage → update cache.
 
-**Shared Filesystem** — any POSIX-compatible directory (local, NFS, CIFS, …).
-All workers see the same directory; file-level advisory locks prevent
-concurrent writes.
+**Storage Backend** — either a shared POSIX filesystem or an S3-compatible
+object store.  Both backends are interchangeable at startup time via flags:
+
+* **Shared FS** (default) — any POSIX-compatible directory (local, NFS,
+  CIFS, …).  File-level advisory locks (`flock`) prevent concurrent writes.
+  Writes use an explicit `fdatasync` + atomic rename sequence to guarantee
+  durability even if a worker crashes mid-write.
+
+* **S3-compatible** (optional) — MinIO, RustFS, SeaweedFS, AWS S3, Ceph
+  RadosGW, or any other S3-compatible service.  No shared PVC is needed.
+  Per-entity in-process mutexes replace file locks; S3's strong
+  read-after-write consistency prevents cross-worker races.
 
 ---
 
@@ -238,11 +249,17 @@ Response:
 |------|---------|-------------|
 | `-grpc-addr` | `127.0.0.1:50051` | TCP address for the gRPC server |
 | `-rest-addr` | `127.0.0.1:8080` | TCP address for the REST HTTP server |
-| `-shared-fs` | `./shared/db` | Path to the shared filesystem root |
+| `-shared-fs` | `./shared/db` | Path to the shared filesystem root (ignored when `-s3-endpoint` is set) |
 | `-master-key` | *(auto-generated)* | Hex-encoded 32-byte AES master key |
 | `-key-id` | `main-key-v1` | Logical identifier for the master key |
 | `-worker-ttl` | `1h` | TTL for Processing Worker session tokens |
 | `-client-ttl` | `24h` | TTL for client Bearer tokens |
+| `-s3-endpoint` | *(empty)* | S3-compatible endpoint, e.g. `minio:9000`; enables S3 backend |
+| `-s3-access-key` | *(empty)* | S3 access key ID (or `S3_ACCESS_KEY` env var) |
+| `-s3-secret-key` | *(empty)* | S3 secret access key (or `S3_SECRET_KEY` env var) |
+| `-s3-bucket` | `deltadatabase` | S3 bucket name |
+| `-s3-use-ssl` | `false` | Enable TLS for the S3 connection (set `true` for AWS S3) |
+| `-s3-region` | *(empty)* | S3 region (optional; leave empty for MinIO/SeaweedFS) |
 
 ### Processing Worker flags
 
@@ -251,9 +268,15 @@ Response:
 | `-main-addr` | `127.0.0.1:50051` | Main Worker gRPC address |
 | `-worker-id` | *(hostname)* | Unique ID for this worker |
 | `-grpc-addr` | `127.0.0.1:0` | TCP address for this worker's gRPC server |
-| `-shared-fs` | `./shared/db` | Path to the shared filesystem root |
+| `-shared-fs` | `./shared/db` | Path to the shared filesystem root (ignored when `-s3-endpoint` is set) |
 | `-cache-size` | `256` | Maximum number of cached entities |
 | `-cache-ttl` | `5m` | Time-to-live per cache entry |
+| `-s3-endpoint` | *(empty)* | S3-compatible endpoint, e.g. `minio:9000`; enables S3 backend |
+| `-s3-access-key` | *(empty)* | S3 access key ID (or `S3_ACCESS_KEY` env var) |
+| `-s3-secret-key` | *(empty)* | S3 secret access key (or `S3_SECRET_KEY` env var) |
+| `-s3-bucket` | `deltadatabase` | S3 bucket name |
+| `-s3-use-ssl` | `false` | Enable TLS for the S3 connection |
+| `-s3-region` | *(empty)* | S3 region (optional) |
 
 ---
 
@@ -965,13 +988,60 @@ pointing at the same Main Worker and the same shared filesystem directory:
 
 The Main Worker round-robins GET requests across all available workers. File-
 level advisory locks (`flock`-style) ensure that concurrent writes from
-different workers never corrupt an entity.
+different workers never corrupt an entity.  Each write also uses an explicit
+`fdatasync` before the atomic rename, guaranteeing that no data is lost even if
+a worker crashes between the rename and a kernel writeback flush.
 
 View the registered workers at any time:
 
 ```bash
 curl -s http://127.0.0.1:8080/admin/workers | jq .
 ```
+
+---
+
+## S3-Compatible Object Storage
+
+DeltaDatabase supports an optional **S3-compatible storage backend** that
+replaces the shared POSIX filesystem.  Pass `-s3-endpoint` to any worker to
+switch from the default local-FS backend to S3:
+
+```bash
+# MinIO (in Docker / Kubernetes)
+./bin/proc-worker \
+  -main-addr=127.0.0.1:50051 \
+  -worker-id=proc-1 \
+  -grpc-addr=127.0.0.1:50052 \
+  -s3-endpoint=minio:9000 \
+  -s3-bucket=deltadatabase \
+  -s3-use-ssl=false \
+  -s3-access-key=minioadmin \
+  -s3-secret-key=minioadmin
+
+# AWS S3
+./bin/proc-worker \
+  -main-addr=127.0.0.1:50051 \
+  -worker-id=proc-1 \
+  -grpc-addr=127.0.0.1:50052 \
+  -s3-endpoint=s3.amazonaws.com \
+  -s3-use-ssl=true \
+  -s3-region=us-east-1 \
+  -s3-bucket=my-deltadatabase-bucket
+```
+
+To avoid exposing credentials in the argument list, set the
+`S3_ACCESS_KEY` and `S3_SECRET_KEY` environment variables instead.
+
+**Compatible services:** MinIO · RustFS · SeaweedFS · AWS S3 · Ceph RadosGW
+
+When `-s3-endpoint` is set:
+* No shared PersistentVolumeClaim is needed in Kubernetes.
+* Per-entity in-process mutexes replace filesystem advisory locks.
+* Objects are stored in the bucket with the keys `files/<id>.json.enc`,
+  `files/<id>.meta.json`, and `templates/<schemaID>.json`.
+
+See [examples/05-s3-compatible-storage.md](examples/05-s3-compatible-storage.md)
+for a complete Docker Compose and Kubernetes walkthrough.
 
 ---
 
@@ -987,6 +1057,7 @@ references the corresponding files under `deploy/`.
 | **1 Main + N Workers** — Docker Compose scale-out | [examples/02-one-main-multiple-workers.md](examples/02-one-main-multiple-workers.md) | `deploy/docker-compose/docker-compose.one-main-multiple-workers.yml` |
 | **1 Main + 1 Worker** — simplest production setup | [examples/03-one-main-one-worker.md](examples/03-one-main-one-worker.md) | `deploy/docker-compose/docker-compose.one-main-one-worker.yml` |
 | **Kubernetes + HPA** — autoscaling workers | [examples/04-kubernetes-autoscaling.md](examples/04-kubernetes-autoscaling.md) | `deploy/kubernetes/` |
+| **S3-compatible storage** — MinIO / RustFS / SeaweedFS / AWS S3 | [examples/05-s3-compatible-storage.md](examples/05-s3-compatible-storage.md) | `deploy/docker-compose/docker-compose.with-s3.yml`, `deploy/kubernetes/s3-config.yaml` |
 
 ---
 
@@ -994,9 +1065,9 @@ references the corresponding files under `deploy/`.
 
 | Property | Implementation |
 |----------|---------------|
-| Encryption at rest | AES-256-GCM per entity; nonce and AEAD tag stored in `.meta.json` |
+| Encryption at rest | AES-256-GCM per entity; nonce and AEAD tag stored in `.meta.json` (FS) or `.meta.json` S3 object |
 | Key distribution | RSA-OAEP wrap/unwrap; master key never leaves Main Worker in plaintext |
-| In-memory only | Processing Workers clear keys on shutdown; keys are never written to disk |
+| In-memory only | Processing Workers clear keys on shutdown; keys are never written to disk or object storage |
 | Tamper detection | AEAD tag checked on every decryption; reads fail closed on mismatch |
 | Schema validation | JSON Schema draft-07 enforced before every write |
 | Log redaction | No plaintext entity data or key material is emitted in logs |
@@ -1004,6 +1075,8 @@ references the corresponding files under `deploy/`.
 | Path traversal | Entity keys, database names and schema IDs are validated to reject `/`, `\`, and `..` |
 | Request body limit | REST PUT/schema endpoints reject bodies larger than 1 MiB |
 | Admin endpoints | `/admin/workers` and `/admin/schemas` require a valid Bearer token |
+| Write durability (FS) | `fdatasync` before atomic rename guarantees no data loss on worker crash |
+| S3 credentials | Pass via `S3_ACCESS_KEY` / `S3_SECRET_KEY` env vars, not CLI flags |
 
 > **Important**: The `-master-key` flag value appears in the shell command
 > history. In production, load the key from an environment variable or a

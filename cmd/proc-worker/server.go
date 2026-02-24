@@ -31,8 +31,8 @@ type ProcWorkerServer struct {
 	proto.UnimplementedMainWorkerServer
 
 	worker    *ProcWorker
-	storage   *fs.Storage
-	lockMgr   *fs.LockManager
+	storage   fs.StorageBackend
+	lockMgr   fs.LockBackend
 	cache     *cache.Cache
 	validator *schema.Validator
 
@@ -46,7 +46,7 @@ type ProcWorkerServer struct {
 
 // NewProcWorkerServer creates a ProcWorkerServer for the given worker, storage
 // path, and cache configuration.
-func NewProcWorkerServer(worker *ProcWorker, storage *fs.Storage, c *cache.Cache) *ProcWorkerServer {
+func NewProcWorkerServer(worker *ProcWorker, storage fs.StorageBackend, lockMgr fs.LockBackend, c *cache.Cache) *ProcWorkerServer {
 	v, err := schema.NewValidator(storage.GetTemplatesDir())
 	if err != nil {
 		log.Printf("[warn] failed to initialise schema validator: %v — schema validation will be skipped", err)
@@ -54,7 +54,7 @@ func NewProcWorkerServer(worker *ProcWorker, storage *fs.Storage, c *cache.Cache
 	return &ProcWorkerServer{
 		worker:    worker,
 		storage:   storage,
-		lockMgr:   fs.NewLockManager(storage),
+		lockMgr:   lockMgr,
 		cache:     c,
 		validator: v,
 	}

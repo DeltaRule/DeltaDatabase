@@ -17,17 +17,25 @@ func main() {
 	// Command-line flags.
 	mainAddr  := flag.String("main-addr",  "127.0.0.1:50051", "Main Worker gRPC address (host:port)")
 	workerID  := flag.String("worker-id",  "",                "Unique ID for this Processing Worker")
-	sharedFS  := flag.String("shared-fs",  "./shared/db",     "Shared filesystem path")
+	sharedFS  := flag.String("shared-fs",  "./shared/db",     "Shared filesystem path (ignored when -s3-endpoint is set)")
 	grpcAddr  := flag.String("grpc-addr",  "127.0.0.1:0",     "Processing Worker gRPC listen address (host:port)")
 	cacheSize := flag.Int("cache-size",    256,               "Maximum number of entries in the in-memory cache")
 	cacheTTL  := flag.Duration("cache-ttl", 0,                "TTL for cached entries (0 = LRU-only eviction, no time-based expiry)")
+
+	// S3-compatible storage flags (all optional; when -s3-endpoint is provided
+	// the shared filesystem backend is replaced with S3-compatible object storage).
+	s3Endpoint  := flag.String("s3-endpoint",   "", "S3-compatible endpoint, e.g. minio:9000 or s3.amazonaws.com (enables S3 backend)")
+	s3AccessKey := flag.String("s3-access-key", "", "S3 access key ID")
+	s3SecretKey := flag.String("s3-secret-key", "", "S3 secret access key")
+	s3Bucket    := flag.String("s3-bucket",     "deltadatabase", "S3 bucket name")
+	s3UseSSL    := flag.Bool("s3-use-ssl",      false,           "Use TLS for S3 connection (set to true for AWS S3)")
+	s3Region    := flag.String("s3-region",     "",              "S3 region (optional, leave empty for MinIO / SeaweedFS)")
 
 	flag.Usage = PrintUsage
 	flag.Parse()
 
 	log.Println("=== DeltaDatabase Processing Worker ===")
 	log.Printf("Main Worker address: %s", *mainAddr)
-	log.Printf("Shared FS: %s", *sharedFS)
 
 	if *workerID == "" {
 		// Default to hostname-based ID if not specified.
@@ -40,10 +48,48 @@ func main() {
 
 	log.Printf("Worker ID: %s", *workerID)
 
-	// Initialise shared filesystem storage.
-	storage, err := fs.NewStorage(*sharedFS)
-	if err != nil {
-		log.Fatalf("Failed to initialise storage: %v", err)
+	// Build the storage backend and matching lock backend.
+	var storage   fs.StorageBackend
+	var lockMgr   fs.LockBackend
+
+	if *s3Endpoint != "" {
+		// S3-compatible backend (MinIO, RustFS, SeaweedFS, AWS S3, …).
+		log.Printf("Storage backend: S3-compatible  endpoint=%s  bucket=%s", *s3Endpoint, *s3Bucket)
+
+		// Allow environment-variable overrides for credentials so that
+		// secrets are not exposed in the process argument list.
+		accessKey := *s3AccessKey
+		if accessKey == "" {
+			accessKey = os.Getenv("S3_ACCESS_KEY")
+		}
+		secretKey := *s3SecretKey
+		if secretKey == "" {
+			secretKey = os.Getenv("S3_SECRET_KEY")
+		}
+
+		s3, err := fs.NewS3Storage(fs.S3Config{
+			Endpoint:        *s3Endpoint,
+			AccessKeyID:     accessKey,
+			SecretAccessKey: secretKey,
+			Bucket:          *s3Bucket,
+			UseSSL:          *s3UseSSL,
+			Region:          *s3Region,
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialise S3 storage: %v", err)
+		}
+		storage = s3
+		lockMgr = fs.NewMemoryLockManager()
+	} else {
+		// Local shared-filesystem backend (default).
+		log.Printf("Storage backend: local shared filesystem  path=%s", *sharedFS)
+
+		localStorage, err := fs.NewStorage(*sharedFS)
+		if err != nil {
+			log.Fatalf("Failed to initialise storage: %v", err)
+		}
+		storage = localStorage
+		lockMgr = fs.NewLockManager(localStorage)
 	}
 
 	// Initialise in-memory LRU cache.
@@ -73,7 +119,7 @@ func main() {
 	}
 
 	// Create the gRPC server that handles Process/GET requests.
-	srv := NewProcWorkerServer(worker, storage, c)
+	srv := NewProcWorkerServer(worker, storage, lockMgr, c)
 
 	// Set up cancellable context for the handshake goroutine.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -116,7 +162,13 @@ func PrintUsage() {
 	fmt.Println("Options:")
 	flag.PrintDefaults()
 	fmt.Println()
-	fmt.Println("Example:")
+	fmt.Println("Examples:")
+	fmt.Println("  # Local shared filesystem (default):")
 	fmt.Println("  proc-worker -main-addr=127.0.0.1:50051 -worker-id=proc-1 -grpc-addr=127.0.0.1:50052")
 	fmt.Println()
+	fmt.Println("  # S3-compatible backend (MinIO):")
+	fmt.Println("  proc-worker -main-addr=127.0.0.1:50051 -worker-id=proc-1 -grpc-addr=127.0.0.1:50052 \\")
+	fmt.Println("    -s3-endpoint=minio:9000 -s3-bucket=deltadatabase -s3-access-key=minioadmin -s3-secret-key=minioadmin")
+	fmt.Println()
 }
+
