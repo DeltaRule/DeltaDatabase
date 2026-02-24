@@ -1,0 +1,36 @@
+# Docker Compose — Option 1: Main Worker + Processing Worker in a single container
+#
+# Build:  docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml build
+# Run:    docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
+#
+# The all-in-one image runs both binaries inside one container via an
+# entrypoint shell script (deploy/docker/entrypoint-all-in-one.sh).
+
+services:
+  deltadatabase:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.all-in-one
+    container_name: deltadatabase-all-in-one
+    ports:
+      - "8080:8080"    # REST API
+      - "50051:50051"  # Main Worker gRPC (internal, exposed for debugging)
+      - "50052:50052"  # Processing Worker gRPC (internal, exposed for debugging)
+    environment:
+      # Generate a fresh key on first start and persist it in a .env file, or
+      # supply a pre-existing 32-byte hex key:
+      #   MASTER_KEY=<64-char hex string>
+      MASTER_KEY: "${MASTER_KEY:-}"
+      SHARED_FS: /shared/db
+    volumes:
+      - shared_data:/shared/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  shared_data:

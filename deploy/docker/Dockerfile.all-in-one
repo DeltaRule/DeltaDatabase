@@ -1,0 +1,35 @@
+# ── Stage 1: build both binaries ──────────────────────────────────────────────
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /main-worker ./cmd/main-worker && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /proc-worker ./cmd/proc-worker
+
+# ── Stage 2: minimal runtime image ────────────────────────────────────────────
+FROM alpine:3.21
+
+RUN addgroup -S delta && adduser -S delta -G delta
+
+COPY --from=builder /main-worker /usr/local/bin/main-worker
+COPY --from=builder /proc-worker /usr/local/bin/proc-worker
+COPY --from=builder /app/shared/db/templates /shared/db/templates
+COPY deploy/docker/entrypoint-all-in-one.sh /usr/local/bin/entrypoint.sh
+
+RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    chown -R delta:delta /shared
+
+USER delta
+
+# REST API
+EXPOSE 8080
+# Main Worker gRPC
+EXPOSE 50051
+# Processing Worker gRPC
+EXPOSE 50052
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

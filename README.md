@@ -30,10 +30,11 @@
     - [Python walkthrough](#python-walkthrough)
     - [curl walkthrough](#curl-walkthrough)
 13. [Advanced: Running Multiple Workers](#advanced-running-multiple-workers)
-14. [Security Model](#security-model)
-15. [Testing](#testing)
-16. [Project Structure](#project-structure)
-17. [License](#license)
+14. [Containerization Examples](#containerization-examples)
+15. [Security Model](#security-model)
+16. [Testing](#testing)
+17. [Project Structure](#project-structure)
+18. [License](#license)
 
 ---
 
@@ -970,6 +971,21 @@ curl -s http://127.0.0.1:8080/admin/workers | jq .
 
 ---
 
+## Containerization Examples
+
+Ready-to-use Docker and Kubernetes deployment examples live in the
+[`examples/`](examples/) folder.  Each example has its own markdown guide and
+references the corresponding files under `deploy/`.
+
+| Example | Guide | Deploy files |
+|---------|-------|--------------|
+| **All-in-one** — main + worker in one container | [examples/01-all-in-one.md](examples/01-all-in-one.md) | `deploy/docker/Dockerfile.all-in-one`, `deploy/docker-compose/docker-compose.all-in-one.yml` |
+| **1 Main + N Workers** — Docker Compose scale-out | [examples/02-one-main-multiple-workers.md](examples/02-one-main-multiple-workers.md) | `deploy/docker-compose/docker-compose.one-main-multiple-workers.yml` |
+| **1 Main + 1 Worker** — simplest production setup | [examples/03-one-main-one-worker.md](examples/03-one-main-one-worker.md) | `deploy/docker-compose/docker-compose.one-main-one-worker.yml` |
+| **Kubernetes + HPA** — autoscaling workers | [examples/04-kubernetes-autoscaling.md](examples/04-kubernetes-autoscaling.md) | `deploy/kubernetes/` |
+
+---
+
 ## Security Model
 
 | Property | Implementation |
@@ -1050,6 +1066,11 @@ pytest tests/test_whole.py -v
 │       ├── files/          # Encrypted entity blobs (runtime)
 │       └── templates/      # JSON Schema templates
 ├── tests/                  # Python integration & end-to-end tests
+├── deploy/
+│   ├── docker/             # Dockerfiles (main-worker, proc-worker, all-in-one)
+│   ├── docker-compose/     # Docker Compose configurations
+│   └── kubernetes/         # Kubernetes manifests (Deployments, Services, HPA)
+├── examples/               # Containerization deployment guides
 ├── Agents.md               # System design document
 ├── Guideline.md            # Coding standards
 ├── LICENSE                 # DeltaDatabase Software License v1.0

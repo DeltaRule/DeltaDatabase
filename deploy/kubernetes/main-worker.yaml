@@ -1,0 +1,85 @@
+---
+# Deployment for the Main Worker.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main-worker
+  namespace: deltadatabase
+  labels:
+    app: main-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: main-worker
+  template:
+    metadata:
+      labels:
+        app: main-worker
+    spec:
+      containers:
+        - name: main-worker
+          image: deltadatabase/main-worker:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-grpc-addr=0.0.0.0:50051"
+            - "-rest-addr=0.0.0.0:8080"
+            - "-shared-fs=/shared/db"
+          env:
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: delta-master-key
+                  key: master-key
+                  optional: true
+          ports:
+            - name: rest
+              containerPort: 8080
+            - name: grpc
+              containerPort: 50051
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared/db
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+      volumes:
+        - name: shared-data
+          persistentVolumeClaim:
+            claimName: delta-shared-pvc
+---
+# Service exposing the Main Worker inside the cluster and optionally externally.
+apiVersion: v1
+kind: Service
+metadata:
+  name: main-worker
+  namespace: deltadatabase
+  labels:
+    app: main-worker
+spec:
+  selector:
+    app: main-worker
+  ports:
+    - name: rest
+      port: 8080
+      targetPort: 8080
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+  type: ClusterIP
