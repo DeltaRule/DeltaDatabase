@@ -5,3 +5,7 @@ __pycache__/
 /main-worker.exe
 /proc-worker
 /proc-worker.exe
+/bin/main-worker
+/bin/main-worker.exe
+/bin/proc-worker
+/bin/proc-worker.exe
