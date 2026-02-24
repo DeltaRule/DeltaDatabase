@@ -405,8 +405,8 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 	// Extract database name from path: /entity/{db}
 	pathParts := strings.TrimPrefix(r.URL.Path, "/entity/")
 	db := strings.Split(pathParts, "?")[0]
-	if db == "" {
-		http.Error(w, `{"error":"missing database"}`, http.StatusBadRequest)
+	if db == "" || strings.ContainsAny(db, `/\`) || strings.Contains(db, "..") {
+		http.Error(w, `{"error":"invalid database name"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -415,6 +415,11 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 		key := r.URL.Query().Get("key")
 		if key == "" {
 			http.Error(w, `{"error":"missing key"}`, http.StatusBadRequest)
+			return
+		}
+		// Reject path-traversal characters in the entity key.
+		if strings.ContainsAny(key, `/\`) || strings.Contains(key, "..") {
+			http.Error(w, `{"error":"invalid key"}`, http.StatusBadRequest)
 			return
 		}
 		storeKey := db + "/" + key
@@ -437,6 +442,13 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 		if len(payload) == 0 {
 			http.Error(w, `{"error":"empty"}`, http.StatusBadRequest)
 			return
+		}
+		// Validate entity keys before storing.
+		for key := range payload {
+			if strings.ContainsAny(key, `/\`) || strings.Contains(key, "..") {
+				http.Error(w, `{"error":"invalid key"}`, http.StatusBadRequest)
+				return
+			}
 		}
 		// Cache each key-value pair immediately.  LRU eviction keeps memory
 		// bounded: the least-recently-used entry is dropped when the cache is full.
