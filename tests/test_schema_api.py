@@ -91,7 +91,12 @@ def live_main_worker_schemas():
             f"{stderr.decode(errors='replace')}"
         )
 
-    yield {"rest_url": rest_url, "process": proc}
+    # Obtain a real client token from the live server.
+    login_r = requests.post(rest_url + "/api/login",
+                            json={"client_id": "schema-test"}, timeout=5)
+    token = login_r.json()["token"]
+
+    yield {"rest_url": rest_url, "process": proc, "token": token}
 
     proc.terminate()
     try:

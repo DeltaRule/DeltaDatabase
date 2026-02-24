@@ -404,6 +404,11 @@ func TestHandleSchema(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, server.validator)
 
+	// Generate a real client token that passes ValidateClientToken.
+	ct, err := server.tokenManager.GenerateClientToken("test-client", []string{"read", "write"})
+	require.NoError(t, err)
+	authHeader := "Bearer " + ct.Token
+
 	schemaJSON := `{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}`
 
 	t.Run("PUT requires Authorization header", func(t *testing.T) {
@@ -415,10 +420,10 @@ func TestHandleSchema(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("PUT with auth saves schema and returns ok", func(t *testing.T) {
+	t.Run("PUT with valid client token saves schema and returns ok", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/schema/myschema.v1",
 			strings.NewReader(schemaJSON))
-		req.Header.Set("Authorization", "Bearer any-token")
+		req.Header.Set("Authorization", authHeader)
 		w := httptest.NewRecorder()
 		server.handleSchema(w, req)
 
@@ -450,7 +455,7 @@ func TestHandleSchema(t *testing.T) {
 	t.Run("PUT rejects invalid JSON", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/schema/bad.v1",
 			strings.NewReader("{not-json}"))
-		req.Header.Set("Authorization", "Bearer any-token")
+		req.Header.Set("Authorization", authHeader)
 		w := httptest.NewRecorder()
 		server.handleSchema(w, req)
 
@@ -460,7 +465,7 @@ func TestHandleSchema(t *testing.T) {
 	t.Run("PUT returns 400 for missing schema id", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPut, "/schema/",
 			strings.NewReader(schemaJSON))
-		req.Header.Set("Authorization", "Bearer any-token")
+		req.Header.Set("Authorization", authHeader)
 		w := httptest.NewRecorder()
 		server.handleSchema(w, req)
 
