@@ -250,34 +250,52 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 	}, nil
 }
 
-// routeGETToProcWorker forwards a GET Process request to an available
-// Processing Worker.  The worker's gRPC address must have been advertised as
-// the "grpc_addr" tag during Subscribe.  If no worker is available the
-// entity is served from the LRU entity store (cached by a previous PUT).
+// routeGETToProcWorker forwards a GET Process request to a Processing Worker
+// using two-tier smart routing:
+//
+//  1. Cache-aware: prefer the worker that last served this entity — it is
+//     likely to have the entity in its LRU cache, avoiding a disk read.
+//  2. Load-aware: if the preferred worker is overloaded (deallocating) or no
+//     cache-preferred worker exists, fall back to the least-loaded available
+//     worker.
+//
+// If no Processing Worker is reachable the entity is served from the Main
+// Worker's own LRU entity store (cached by a previous PUT).
 func (s *MainWorkerServer) routeGETToProcWorker(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
-	// Find a proc-worker that advertised its gRPC address.
-	var procAddr string
-	for _, w := range s.registry.ListAvailableWorkers() {
-		if addr, ok := w.Tags["grpc_addr"]; ok && addr != "" {
-			procAddr = addr
-			break
-		}
+	entityID := req.GetDatabaseName() + "/" + req.GetEntityKey()
+
+	// Tier 1: prefer the worker that last served this entity (cache-aware).
+	worker := s.registry.FindWorkerForEntity(entityID)
+
+	// Tier 2: fall back to the least-loaded available worker.
+	if worker == nil {
+		worker = s.registry.FindLeastLoadedWorker()
 	}
 
-	if procAddr != "" {
-		// Forward to the Processing Worker.
-		conn, err := grpc.NewClient(
-			procAddr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithDefaultCallOptions(grpc.ForceCodec(proto.JSONCodec{})),
-		)
-		if err == nil {
-			defer conn.Close()
-			resp, err := proto.NewMainWorkerClient(conn).Process(ctx, req)
+	if worker != nil {
+		addr := worker.Tags["grpc_addr"]
+		if addr != "" {
+			// Track in-flight load so the registry can detect overloaded workers.
+			s.registry.IncrementLoad(worker.WorkerID)
+			conn, err := grpc.NewClient(
+				addr,
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+				grpc.WithDefaultCallOptions(grpc.ForceCodec(proto.JSONCodec{})),
+			)
 			if err == nil {
-				return resp, nil
+				defer conn.Close()
+				resp, err := proto.NewMainWorkerClient(conn).Process(ctx, req)
+				s.registry.DecrementLoad(worker.WorkerID)
+				if err == nil {
+					// Record that this worker served the entity so future
+					// requests benefit from its cache.
+					s.registry.UpdateEntityLocation(entityID, worker.WorkerID)
+					return resp, nil
+				}
+				log.Printf("Process forwarding to %s failed: %v — falling back", addr, err)
+			} else {
+				s.registry.DecrementLoad(worker.WorkerID)
 			}
-			log.Printf("Process forwarding to %s failed: %v — falling back", procAddr, err)
 		}
 	}
 
