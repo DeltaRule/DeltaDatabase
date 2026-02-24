@@ -51,10 +51,10 @@ def _hash_password(password: str) -> str:
 # Step 1 — email → {id, password_hash}
 # ---------------------------------------------------------------------------
 
-def test_store_user_by_email(rest_mock_server):
+def test_store_user_by_email(live_server):
     """Storing a user record keyed by email must succeed with HTTP 200."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
 
     response = requests.put(
         _url(base_url, "/entity/users"),
@@ -65,10 +65,10 @@ def test_store_user_by_email(rest_mock_server):
     assert response.status_code == 200
 
 
-def test_lookup_user_by_email(rest_mock_server):
+def test_lookup_user_by_email(live_server):
     """After storing a user, retrieving by email must return id and password_hash."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
     email = "bob@example.com"
     user_id = "user-bob-002"
     password_hash = _hash_password("bobspassword")
@@ -93,10 +93,10 @@ def test_lookup_user_by_email(rest_mock_server):
     assert data["password_hash"] == password_hash
 
 
-def test_lookup_nonexistent_user_returns_404(rest_mock_server):
+def test_lookup_nonexistent_user_returns_404(live_server):
     """Looking up an email that was never stored must return 404."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
 
     response = requests.get(
         _url(base_url, "/entity/users?key=nobody@example.com"),
@@ -106,9 +106,9 @@ def test_lookup_nonexistent_user_returns_404(rest_mock_server):
     assert response.status_code == 404
 
 
-def test_user_lookup_requires_auth(rest_mock_server):
+def test_user_lookup_requires_auth(live_server):
     """GET /entity/users without a valid Bearer token must be rejected."""
-    base_url = rest_mock_server["base_url"]
+    base_url = live_server["rest_url"]
 
     response = requests.get(
         _url(base_url, "/entity/users?key=alice@example.com"),
@@ -121,10 +121,10 @@ def test_user_lookup_requires_auth(rest_mock_server):
 # Step 2 — user_id → {chat_ids: [...]}
 # ---------------------------------------------------------------------------
 
-def test_store_user_chats(rest_mock_server):
+def test_store_user_chats(live_server):
     """Storing the chat-ID list for a user must succeed with HTTP 200."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
     user_id = "user-charlie-003"
     chat_ids = ["chat-001", "chat-002", "chat-003"]
 
@@ -137,10 +137,10 @@ def test_store_user_chats(rest_mock_server):
     assert response.status_code == 200
 
 
-def test_lookup_chats_by_user_id(rest_mock_server):
+def test_lookup_chats_by_user_id(live_server):
     """After storing a user's chats, retrieving by user_id must return all chat IDs."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
     user_id = "user-dana-004"
     chat_ids = ["chat-aaa", "chat-bbb"]
 
@@ -163,10 +163,10 @@ def test_lookup_chats_by_user_id(rest_mock_server):
     assert data["chat_ids"] == chat_ids
 
 
-def test_lookup_chats_for_unknown_user_returns_404(rest_mock_server):
+def test_lookup_chats_for_unknown_user_returns_404(live_server):
     """Looking up chat IDs for a user that was never stored must return 404."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
 
     response = requests.get(
         _url(base_url, "/entity/user_chats?key=user-does-not-exist"),
@@ -180,10 +180,10 @@ def test_lookup_chats_for_unknown_user_returns_404(rest_mock_server):
 # Step 3 — chat_id → {chat: [...messages]}
 # ---------------------------------------------------------------------------
 
-def test_store_chat_history(rest_mock_server):
+def test_store_chat_history(live_server):
     """Storing a chat's message history must succeed with HTTP 200."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
     chat_id = "chat-xyz-005"
     history = [
         {"type": "user", "text": "Hello!"},
@@ -200,10 +200,10 @@ def test_store_chat_history(rest_mock_server):
     assert response.status_code == 200
 
 
-def test_lookup_chat_history(rest_mock_server):
+def test_lookup_chat_history(live_server):
     """After storing a chat, retrieving by chat_id must return the full message history."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
     chat_id = "chat-xyz-006"
     history = [
         {"type": "user", "text": "What is 2+2?"},
@@ -229,10 +229,10 @@ def test_lookup_chat_history(rest_mock_server):
     assert data["chat"] == history
 
 
-def test_lookup_nonexistent_chat_returns_404(rest_mock_server):
+def test_lookup_nonexistent_chat_returns_404(live_server):
     """Looking up a chat_id that was never stored must return 404."""
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
 
     response = requests.get(
         _url(base_url, "/entity/chats?key=chat-does-not-exist"),
@@ -246,7 +246,7 @@ def test_lookup_nonexistent_chat_returns_404(rest_mock_server):
 # Full three-step workflow: email → user_id → chat_ids → chat history
 # ---------------------------------------------------------------------------
 
-def test_full_chat_frontend_workflow(rest_mock_server):
+def test_full_chat_frontend_workflow(live_server):
     """
     End-to-end three-step lookup chain for the chat frontend:
 
@@ -254,8 +254,8 @@ def test_full_chat_frontend_workflow(rest_mock_server):
       2. Use the user id to retrieve the user's list of chat IDs.
       3. Use each chat ID to retrieve the full message history.
     """
-    base_url = rest_mock_server["base_url"]
-    token = rest_mock_server["valid_token"]
+    base_url = live_server["rest_url"]
+    token = live_server["token"]
 
     # --- Test data ---
     email = "eve@example.com"

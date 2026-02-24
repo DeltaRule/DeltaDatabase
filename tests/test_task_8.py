@@ -22,6 +22,7 @@ import subprocess
 import time
 from pathlib import Path
 
+import grpc
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -129,102 +130,41 @@ def _write_entity_to_shared_fs(shared_fs_dir: Path, entity_id: str,
 
 
 # ---------------------------------------------------------------------------
-# Unit-level: mock gRPC server verifies Process/GET contract
+# Tests using the live proc-worker server
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def mock_proc_worker_server(proto_modules):
-    """
-    Start a Python mock Processing Worker gRPC server that implements
-    the Process handler for GET operations with a simple in-memory store.
-    """
-    from concurrent import futures as concurrent_futures
-
-    pb2, pb2_grpc = proto_modules
-    store: dict[str, bytes] = {}
-
-    class MockProcWorker(pb2_grpc.MainWorkerServicer):
-        def Subscribe(self, request, context):  # noqa: N802
-            return pb2.SubscribeResponse(token="mock", wrapped_key=b"x", key_id="k1")
-
-        def Process(self, request, context):  # noqa: N802
-            if request.operation not in {"GET", "PUT"}:
-                context.abort(
-                    __import__("grpc").StatusCode.INVALID_ARGUMENT, "bad operation"
-                )
-                return None
-            if request.operation == "PUT":
-                key = f"{request.database_name}_{request.entity_key}"
-                store[key] = request.payload
-                return pb2.ProcessResponse(status="OK", version="1")
-            # GET
-            key = f"{request.database_name}_{request.entity_key}"
-            value = store.get(key)
-            if value is None:
-                context.abort(
-                    __import__("grpc").StatusCode.NOT_FOUND, "not found"
-                )
-                return None
-            return pb2.ProcessResponse(status="OK", result=value, version="1")
-
-    server = __import__("grpc").server(
-        concurrent_futures.ThreadPoolExecutor(max_workers=4)
-    )
-    pb2_grpc.add_MainWorkerServicer_to_server(MockProcWorker(), server)
-    port = server.add_insecure_port("127.0.0.1:0")
-    server.start()
-
-    yield {
-        "address": f"127.0.0.1:{port}",
-        "pb2": pb2,
-        "pb2_grpc": pb2_grpc,
-        "server": server,
-        "store": store,
-    }
-    server.stop(grace=None)
-
-
-def test_mock_process_get_returns_ok_after_put(mock_proc_worker_server):
+def test_process_get_returns_ok_after_put(live_proc_worker_task8, proto_modules):
     """PUT followed by GET must return status=OK and the original payload."""
-    import grpc
-
-    pb2 = mock_proc_worker_server["pb2"]
-    pb2_grpc = mock_proc_worker_server["pb2_grpc"]
-    addr = mock_proc_worker_server["address"]
-
+    pb2, pb2_grpc = proto_modules
+    addr = live_proc_worker_task8["grpc_addr"]
     ch = grpc.insecure_channel(addr)
     stub = pb2_grpc.MainWorkerStub(ch)
 
-    payload = json.dumps({"chat": [{"type": "user", "text": "hello"}]}).encode("utf-8")
-
+    payload = json.dumps({"chat": [{"type": "user", "text": "hello"}]}).encode()
     put_resp = stub.Process(pb2.ProcessRequest(
         database_name="chatdb",
-        entity_key="Chat_id",
+        entity_key="Task8GETPut",
         operation="PUT",
         payload=payload,
-        token="tok",
+        token="",
     ))
     assert put_resp.status == "OK"
 
     get_resp = stub.Process(pb2.ProcessRequest(
         database_name="chatdb",
-        entity_key="Chat_id",
+        entity_key="Task8GETPut",
         operation="GET",
         payload=b"",
-        token="tok",
+        token="",
     ))
     assert get_resp.status == "OK"
     assert json.loads(get_resp.result) == json.loads(payload)
 
 
-def test_mock_process_get_not_found(mock_proc_worker_server):
+def test_process_get_not_found(live_proc_worker_task8, proto_modules):
     """GET for a missing entity must return NOT_FOUND."""
-    import grpc
-
-    pb2 = mock_proc_worker_server["pb2"]
-    pb2_grpc = mock_proc_worker_server["pb2_grpc"]
-    addr = mock_proc_worker_server["address"]
-
+    pb2, pb2_grpc = proto_modules
+    addr = live_proc_worker_task8["grpc_addr"]
     ch = grpc.insecure_channel(addr)
     stub = pb2_grpc.MainWorkerStub(ch)
 
@@ -234,19 +174,15 @@ def test_mock_process_get_not_found(mock_proc_worker_server):
             entity_key="no_such_key",
             operation="GET",
             payload=b"",
-            token="tok",
+            token="",
         ))
     assert exc.value.code() == grpc.StatusCode.NOT_FOUND
 
 
-def test_mock_process_rejects_invalid_operation(mock_proc_worker_server):
+def test_process_rejects_invalid_operation(live_proc_worker_task8, proto_modules):
     """An unsupported operation must be rejected with INVALID_ARGUMENT."""
-    import grpc
-
-    pb2 = mock_proc_worker_server["pb2"]
-    pb2_grpc = mock_proc_worker_server["pb2_grpc"]
-    addr = mock_proc_worker_server["address"]
-
+    pb2, pb2_grpc = proto_modules
+    addr = live_proc_worker_task8["grpc_addr"]
     ch = grpc.insecure_channel(addr)
     stub = pb2_grpc.MainWorkerStub(ch)
 
@@ -256,7 +192,7 @@ def test_mock_process_rejects_invalid_operation(mock_proc_worker_server):
             entity_key="Chat_id",
             operation="DELETE",
             payload=b"",
-            token="tok",
+            token="",
         ))
     assert exc.value.code() == grpc.StatusCode.INVALID_ARGUMENT
 
@@ -442,8 +378,8 @@ def test_proc_worker_process_get_returns_not_found(live_proc_worker_task8, proto
 
 def test_proc_worker_rejects_non_get_operation(live_proc_worker_task8, proto_modules):
     """
-    The proc-worker gRPC server must reject non-GET operations with
-    INVALID_ARGUMENT.
+    The proc-worker gRPC server must reject unsupported operations (e.g., DELETE)
+    with INVALID_ARGUMENT. Only GET and PUT are valid operations.
     """
     import grpc
 
@@ -457,7 +393,7 @@ def test_proc_worker_rejects_non_get_operation(live_proc_worker_task8, proto_mod
         stub.Process(pb2.ProcessRequest(
             database_name="chatdb",
             entity_key="Chat_id",
-            operation="PUT",
+            operation="DELETE",
             payload=b"{}",
             token="",
         ))

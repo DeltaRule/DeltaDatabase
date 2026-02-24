@@ -359,13 +359,26 @@ func (s *MainWorkerServer) handleAdminWorkers(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(workers) //nolint:errcheck
 }
 
-// handleEntity handles GET and PUT requests for /entity/{db}[?key=...].
-func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) {
-	// Require Authorization header with a non-empty Bearer token.
+// extractBearerToken extracts and validates a client Bearer token from the
+// Authorization header.  It returns the token string on success, or writes a
+// 401 response and returns ("", false) on failure.
+func (s *MainWorkerServer) extractBearerToken(w http.ResponseWriter, r *http.Request) (string, bool) {
 	authHeader := r.Header.Get("Authorization")
 	bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
 	if !strings.HasPrefix(authHeader, "Bearer ") || bearerToken == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return "", false
+	}
+	if _, err := s.tokenManager.ValidateClientToken(bearerToken); err != nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return "", false
+	}
+	return bearerToken, true
+}
+
+// handleEntity handles GET and PUT requests for /entity/{db}[?key=...].
+func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.extractBearerToken(w, r); !ok {
 		return
 	}
 
@@ -467,10 +480,7 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 		w.Write(data) //nolint:errcheck
 
 	case http.MethodPut:
-		authHeader := r.Header.Get("Authorization")
-		bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
-		if !strings.HasPrefix(authHeader, "Bearer ") || bearerToken == "" {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		if _, ok := s.extractBearerToken(w, r); !ok {
 			return
 		}
 		var body json.RawMessage

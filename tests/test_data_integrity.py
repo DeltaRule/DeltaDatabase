@@ -1,6 +1,7 @@
 import json
 import os
 
+import grpc
 import pytest
 import requests
 from jsonschema import Draft7Validator
@@ -14,11 +15,19 @@ def _auth_header(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_schema_validation_rejects_invalid(settings, sample_schema):
-    url = _rest_url(settings, "/entity/chatdb")
-    payload = {"Chat_id": {"chat": [{"type": "assistant"}]}}
-    response = requests.put(url, headers=_auth_header("valid-token"), json=payload, timeout=2)
-    assert response.status_code == 400
+def test_schema_validation_rejects_invalid(proc_grpc_stub, sample_schema):
+    pb2, stub = proc_grpc_stub
+    payload = json.dumps({"chat": [{"type": "assistant"}]}).encode()  # missing "text"
+    with pytest.raises(grpc.RpcError) as exc:
+        stub.Process(pb2.ProcessRequest(
+            database_name="chatdb",
+            entity_key="SchemaRejectTest",
+            schema_id="chat.v1",
+            operation="PUT",
+            payload=payload,
+            token="",
+        ))
+    assert exc.value.code() == grpc.StatusCode.INVALID_ARGUMENT
 
 
 def test_schema_validation_accepts_valid(sample_schema):
@@ -29,8 +38,19 @@ def test_schema_validation_accepts_valid(sample_schema):
     assert not errors
 
 
-def test_metadata_matches_schema_id(shared_fs):
-    meta_path = shared_fs["files"] / "Chat_id.meta.json"
+def test_metadata_matches_schema_id(proc_grpc_stub, shared_fs, sample_schema):
+    pb2, stub = proc_grpc_stub
+    payload = json.dumps({"chat": [{"type": "user", "text": "hello"}]}).encode()
+    resp = stub.Process(pb2.ProcessRequest(
+        database_name="chatdb",
+        entity_key="MetaCheck",
+        schema_id="chat.v1",
+        operation="PUT",
+        payload=payload,
+        token="",
+    ))
+    assert resp.status == "OK"
+    meta_path = shared_fs["files"] / "chatdb_MetaCheck.meta.json"
     assert meta_path.exists()
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     assert meta["schema_id"] == "chat.v1"
@@ -42,8 +62,17 @@ def test_atomic_write_no_temp_files(shared_fs):
 
 
 @pytest.mark.parametrize("iteration", range(200))
-def test_file_metadata_has_version(shared_fs, iteration):
-    meta_path = shared_fs["files"] / f"Meta-{iteration}.meta.json"
+def test_file_metadata_has_version(proc_grpc_stub, shared_fs, iteration):
+    pb2, stub = proc_grpc_stub
+    payload = json.dumps({"chat": [{"type": "user", "text": f"v{iteration}"}]}).encode()
+    stub.Process(pb2.ProcessRequest(
+        database_name="chatdb",
+        entity_key=f"Meta-{iteration}",
+        operation="PUT",
+        payload=payload,
+        token="",
+    ))
+    meta_path = shared_fs["files"] / f"chatdb_Meta-{iteration}.meta.json"
     if meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         assert "version" in meta
@@ -52,3 +81,4 @@ def test_file_metadata_has_version(shared_fs, iteration):
 def test_filesystem_permissions(shared_fs):
     files_dir = shared_fs["files"]
     assert os.access(files_dir, os.R_OK | os.W_OK)
+

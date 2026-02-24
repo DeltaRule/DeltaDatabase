@@ -226,98 +226,21 @@ def test_proc_worker_receives_key_id(live_proc_worker):
 
 
 # ---------------------------------------------------------------------------
-# Tests using the Python gRPC mock server (no Go binaries required)
+# Tests using the live main-worker server
 # ---------------------------------------------------------------------------
 
-def _build_mock_main_worker(pb2, pb2_grpc, registry: dict):
-    """Return a MainWorkerServicer that records each subscription."""
-    from cryptography.hazmat.primitives.asymmetric import padding
-    from cryptography.hazmat.primitives import hashes, serialization
-
-    class MockMainWorker(pb2_grpc.MainWorkerServicer):
-        _dummy_key = bytes(32)
-
-        def Subscribe(self, request, context):  # noqa: N802
-            if not request.worker_id:
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "missing worker_id")
-            if not request.pubkey:
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "missing pubkey")
-
-            try:
-                pub_key = serialization.load_pem_public_key(request.pubkey)
-                wrapped_key = pub_key.encrypt(
-                    self._dummy_key,
-                    padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                        algorithm=hashes.SHA256(),
-                        label=None,
-                    ),
-                )
-            except Exception as exc:  # noqa: BLE001
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
-                return None
-
-            token = f"mock-token-{request.worker_id}"
-            registry[request.worker_id] = {
-                "status": "Available",
-                "token": token,
-                "key_id": "mock-key-1",
-            }
-
-            return pb2.SubscribeResponse(
-                token=token,
-                wrapped_key=wrapped_key,
-                key_id="mock-key-1",
-            )
-
-        def Process(self, request, context):  # noqa: N802
-            if request.operation not in {"GET", "PUT"}:
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "bad operation")
-            return pb2.ProcessResponse(status="OK", result=b"{}", version="1")
-
-    return MockMainWorker()
-
-
-@pytest.fixture(scope="module")
-def mock_main_worker_server(proto_modules):
-    """Start an in-process Python mock Main Worker gRPC server."""
-    from concurrent import futures as concurrent_futures
-
-    pb2, pb2_grpc = proto_modules
-    registry = {}
-
-    servicer = _build_mock_main_worker(pb2, pb2_grpc, registry)
-    server = grpc.server(concurrent_futures.ThreadPoolExecutor(max_workers=4))
-    pb2_grpc.add_MainWorkerServicer_to_server(servicer, server)
-    port = server.add_insecure_port("127.0.0.1:0")
-    server.start()
-
-    yield {
-        "address": f"127.0.0.1:{port}",
-        "port": port,
-        "pb2": pb2,
-        "pb2_grpc": pb2_grpc,
-        "registry": registry,
-        "server": server,
-    }
-    server.stop(grace=None)
-
-
-def test_subscribe_request_contains_public_key(mock_main_worker_server):
+def test_subscribe_request_contains_public_key(live_main_worker, proto_modules):
     """
-    A direct Python→Python Subscribe call must send a valid RSA public key in PEM
-    format and receive a properly wrapped response.
+    A Subscribe call with a valid RSA public key must return a properly
+    wrapped response that can be decrypted with the matching private key.
     """
-    pb2 = mock_main_worker_server["pb2"]
-    pb2_grpc = mock_main_worker_server["pb2_grpc"]
-    addr = mock_main_worker_server["address"]
-
-    channel = grpc.insecure_channel(addr)
-    stub = pb2_grpc.MainWorkerStub(channel)
-
-    from cryptography.hazmat.primitives.asymmetric import rsa, padding
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+    pb2, pb2_grpc = proto_modules
+    channel = grpc.insecure_channel(live_main_worker["grpc_addr"])
+    stub = pb2_grpc.MainWorkerStub(channel)
 
     private_key = rsa.generate_private_key(
         public_exponent=65537,
@@ -332,7 +255,7 @@ def test_subscribe_request_contains_public_key(mock_main_worker_server):
     resp = stub.Subscribe(pb2.SubscribeRequest(worker_id="pyworker-1", pubkey=pub_pem))
     assert resp.token
     assert resp.wrapped_key
-    assert resp.key_id == "mock-key-1"
+    assert resp.key_id  # real server returns its configured key_id
 
     decrypted = private_key.decrypt(
         resp.wrapped_key,
@@ -345,13 +268,10 @@ def test_subscribe_request_contains_public_key(mock_main_worker_server):
     assert len(decrypted) == 32  # 256-bit AES key
 
 
-def test_subscribe_rejects_empty_worker_id(mock_main_worker_server):
+def test_subscribe_rejects_empty_worker_id(live_main_worker, proto_modules):
     """Subscribe with an empty worker_id must be rejected."""
-    pb2 = mock_main_worker_server["pb2"]
-    pb2_grpc = mock_main_worker_server["pb2_grpc"]
-    addr = mock_main_worker_server["address"]
-
-    channel = grpc.insecure_channel(addr)
+    pb2, pb2_grpc = proto_modules
+    channel = grpc.insecure_channel(live_main_worker["grpc_addr"])
     stub = pb2_grpc.MainWorkerStub(channel)
 
     with pytest.raises(grpc.RpcError) as exc:

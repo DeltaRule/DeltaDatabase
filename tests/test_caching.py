@@ -15,12 +15,12 @@ def _auth_header(token):
 def _put(settings, key, value):
     url = _rest_url(settings, "/entity/chatdb")
     payload = {key: {"chat": [{"type": "assistant", "text": value}]}}
-    return requests.put(url, headers=_auth_header("valid-token"), json=payload, timeout=2)
+    return requests.put(url, headers=_auth_header(settings["token"]), json=payload, timeout=2)
 
 
 def _get(settings, key):
     url = _rest_url(settings, f"/entity/chatdb?key={key}")
-    return requests.get(url, headers=_auth_header("valid-token"), timeout=2)
+    return requests.get(url, headers=_auth_header(settings["token"]), timeout=2)
 
 
 def test_cache_hit_ratio_after_warmup(settings):
