@@ -192,6 +192,7 @@
     <a href="#" class="active" data-page="dashboard" onclick="showPage('dashboard',this)">🏠 Dashboard</a>
     <a href="#" data-page="workers" onclick="showPage('workers',this)">⚙️ Workers</a>
     <a href="#" data-page="entities" onclick="showPage('entities',this)">📦 Entities</a>
+    <a href="#" data-page="schemas" onclick="showPage('schemas',this)">📋 Schemas</a>
     <a href="#" data-page="explorer" onclick="showPage('explorer',this)">🔍 Explorer</a>
   </nav>
 
@@ -264,6 +265,44 @@
         </div>
         <div id="put-alert" class="alert mt8"></div>
         <pre id="put-result" class="result mt8"></pre>
+      </div>
+    </div>
+
+    <!-- Schemas ---------------------------------------------------- -->
+    <div id="page-schemas" class="page">
+      <h2>JSON Schemas</h2>
+
+      <div class="card mb16">
+        <h3>Available Schemas</h3>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+          <button class="btn btn-primary btn-sm" onclick="loadSchemas()">↻ Refresh</button>
+        </div>
+        <div id="schemas-list" class="text-muted">Loading…</div>
+      </div>
+
+      <div class="card">
+        <h3>Create / Edit Schema</h3>
+        <div class="field">
+          <label>Schema ID <span class="text-muted">(e.g. chat.v1 or user_credentials.v1)</span></label>
+          <input id="schema-id" type="text" placeholder="myschema.v1">
+        </div>
+        <div class="field">
+          <label>JSON Schema <span class="text-muted">(JSON Schema draft-07)</span></label>
+          <textarea id="schema-body" style="min-height:200px" placeholder='{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" }
+  },
+  "required": ["name"]
+}'></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button class="btn btn-primary" onclick="loadSchemaIntoEditor()">Load</button>
+          <button class="btn btn-success" onclick="saveSchema()">Save</button>
+        </div>
+        <div id="schema-alert" class="alert mt8"></div>
+        <pre id="schema-result" class="result mt8"></pre>
       </div>
     </div>
 
@@ -388,6 +427,7 @@ function showPage(name, link) {
   if (link) link.classList.add('active');
   if (name === 'workers') loadWorkers();
   if (name === 'dashboard') initDashboard();
+  if (name === 'schemas') loadSchemas();
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────
@@ -497,6 +537,77 @@ async function putEntity() {
     showResult('put-result', JSON.parse(body));
   } catch (e) {
     showAlert('put-alert', 'error', 'Error: ' + e.message);
+  }
+}
+
+// ── Schemas ────────────────────────────────────────────────────────
+async function loadSchemas() {
+  const el = document.getElementById('schemas-list');
+  el.textContent = 'Loading…';
+  try {
+    const res = await apiFetch('/admin/schemas');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const schemas = await res.json();
+    if (!schemas || schemas.length === 0) {
+      el.innerHTML = '<span class="text-muted">No schemas defined yet.</span>';
+      return;
+    }
+    el.innerHTML = schemas.map(id => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #334155">
+        <span class="mono" style="flex:1">${esc(id)}</span>
+        <button class="btn btn-primary btn-sm" onclick="loadSchemaByID(${JSON.stringify(id)})">Edit</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<span class="badge badge-red">Error: ${esc(e.message)}</span>`;
+  }
+}
+
+async function loadSchemaByID(schemaID) {
+  document.getElementById('schema-id').value = schemaID;
+  hideAlert('schema-alert'); hideResult('schema-result');
+  try {
+    const res = await apiFetch('/schema/' + encodeURIComponent(schemaID));
+    if (!res.ok) { showAlert('schema-alert', 'error', 'HTTP ' + res.status); return; }
+    const body = await res.text();
+    document.getElementById('schema-body').value = JSON.stringify(JSON.parse(body), null, 2);
+    showAlert('schema-alert', 'info', 'Schema loaded into editor.');
+  } catch (e) {
+    showAlert('schema-alert', 'error', 'Error: ' + e.message);
+  }
+}
+
+async function loadSchemaIntoEditor() {
+  const schemaID = document.getElementById('schema-id').value.trim();
+  if (!schemaID) { showAlert('schema-alert', 'error', 'Schema ID is required.'); return; }
+  await loadSchemaByID(schemaID);
+}
+
+async function saveSchema() {
+  hideAlert('schema-alert'); hideResult('schema-result');
+  const schemaID = document.getElementById('schema-id').value.trim();
+  const rawBody  = document.getElementById('schema-body').value.trim();
+  if (!schemaID) { showAlert('schema-alert', 'error', 'Schema ID is required.'); return; }
+  let parsed;
+  try { parsed = JSON.parse(rawBody); } catch (_) {
+    showAlert('schema-alert', 'error', 'Invalid JSON schema.');
+    return;
+  }
+  try {
+    const res = await apiFetch('/schema/' + encodeURIComponent(schemaID), {
+      method: 'PUT',
+      body: JSON.stringify(parsed)
+    });
+    const body = await res.text();
+    if (!res.ok) {
+      showAlert('schema-alert', 'error', 'HTTP ' + res.status + ': ' + body);
+      return;
+    }
+    showAlert('schema-alert', 'success', 'Schema "' + schemaID + '" saved successfully.');
+    showResult('schema-result', JSON.parse(body));
+    loadSchemas();
+  } catch (e) {
+    showAlert('schema-alert', 'error', 'Error: ' + e.message);
   }
 }
 

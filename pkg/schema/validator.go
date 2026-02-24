@@ -222,6 +222,15 @@ func (v *Validator) ListAvailableTemplates() ([]string, error) {
 	return templates, nil
 }
 
+// GetTemplateData reads and returns the raw JSON bytes for a schema template.
+func (v *Validator) GetTemplateData(schemaID string) ([]byte, error) {
+	if schemaID == "" {
+		return nil, fmt.Errorf("schema ID cannot be empty")
+	}
+	templatePath := filepath.Join(v.templatesPath, schemaID+".json")
+	return os.ReadFile(templatePath)
+}
+
 // SaveTemplate saves a schema template to disk.
 // This is useful for creating or updating templates programmatically.
 func (v *Validator) SaveTemplate(schemaID string, schemaData []byte) error {

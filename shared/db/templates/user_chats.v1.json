@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "user_chats.v1",
+  "title": "User Chats Schema",
+  "description": "Schema for a user's list of chat IDs stored in the user_chats database, keyed by user ID",
+  "type": "object",
+  "properties": {
+    "chat_ids": {
+      "type": "array",
+      "description": "List of chat IDs associated with this user",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["chat_ids"],
+  "additionalProperties": false
+}

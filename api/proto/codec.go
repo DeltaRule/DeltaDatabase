@@ -8,6 +8,11 @@ import (
 
 func init() {
 	encoding.RegisterCodec(JSONCodec{})
+	// Also register under "proto" so that standard gRPC clients (e.g. Python
+	// grpcio) that send Content-Type: application/grpc+proto can communicate
+	// with this server.  Our hand-written structs use JSON struct tags rather
+	// than the protobuf binary wire format, so we use JSON for both codecs.
+	encoding.RegisterCodec(protoNamedJSONCodec{})
 }
 
 // JSONCodec is a gRPC codec that uses encoding/json for marshaling and
@@ -37,5 +42,25 @@ func (JSONCodec) Marshal(v interface{}) ([]byte, error) {
 
 // Unmarshal decodes JSON data into v.
 func (JSONCodec) Unmarshal(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
+}
+
+// protoNamedJSONCodec is identical to JSONCodec but registers itself as
+// "proto".  This allows standard gRPC clients (Python grpcio, etc.) that
+// negotiate Content-Type: application/grpc+proto to communicate with the
+// server; the actual wire payload is JSON rather than protobuf binary.
+type protoNamedJSONCodec struct{}
+
+// Name returns "proto" so this codec is selected for the standard
+// application/grpc+proto content type.
+func (protoNamedJSONCodec) Name() string { return "proto" }
+
+// Marshal encodes v to JSON.
+func (protoNamedJSONCodec) Marshal(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// Unmarshal decodes JSON data into v.
+func (protoNamedJSONCodec) Unmarshal(data []byte, v interface{}) error {
 	return json.Unmarshal(data, v)
 }
