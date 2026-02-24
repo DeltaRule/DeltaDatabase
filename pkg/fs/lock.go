@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"syscall"
-	"unsafe"
 )
 
 var (
@@ -22,11 +20,11 @@ var (
 type LockType int
 
 const (
-	// LockShared represents a shared (read) lock
-	// Multiple readers can hold shared locks simultaneously
+	// LockShared represents a shared (read) lock.
+	// Multiple readers can hold shared locks simultaneously.
 	LockShared LockType = iota
-	// LockExclusive represents an exclusive (write) lock
-	// Only one writer can hold an exclusive lock, and no readers can hold locks
+	// LockExclusive represents an exclusive (write) lock.
+	// Only one writer can hold an exclusive lock, and no readers can hold locks.
 	LockExclusive
 )
 
@@ -38,33 +36,11 @@ type FileLock struct {
 	locked   bool
 }
 
-// Windows-specific constants and functions for file locking
-var (
-	kernel32         = syscall.NewLazyDLL("kernel32.dll")
-	procLockFileEx   = kernel32.NewProc("LockFileEx")
-	procUnlockFileEx = kernel32.NewProc("UnlockFileEx")
-)
-
-const (
-	// Windows lock flags
-	lockfileFailImmediately = 0x00000001
-	lockfileExclusiveLock   = 0x00000002
-)
-
-// overlapped structure for Windows file operations
-type overlapped struct {
-	Internal     uintptr
-	InternalHigh uintptr
-	Offset       uint32
-	OffsetHigh   uint32
-	HEvent       syscall.Handle
-}
-
-// NewFileLock creates a new file lock for the given file path
-// The file is opened (or created if it doesn't exist) for locking purposes
+// NewFileLock creates a new file lock for the given file path.
+// The file is opened (or created if it doesn't exist) for locking purposes.
 func NewFileLock(filePath string) (*FileLock, error) {
-	// Open or create the file for locking
-	// Use O_RDWR to allow both read and write locks
+	// Open or create the file for locking.
+	// Use O_RDWR to allow both read and write locks.
 	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file for locking: %w", err)
@@ -76,8 +52,8 @@ func NewFileLock(filePath string) (*FileLock, error) {
 	}, nil
 }
 
-// Lock acquires a lock on the file
-// lockType specifies whether to acquire a shared (read) or exclusive (write) lock
+// Lock acquires a lock on the file.
+// lockType specifies whether to acquire a shared (read) or exclusive (write) lock.
 func (fl *FileLock) Lock(lockType LockType) error {
 	fl.mu.Lock()
 	defer fl.mu.Unlock()
@@ -86,7 +62,7 @@ func (fl *FileLock) Lock(lockType LockType) error {
 		return ErrAlreadyLocked
 	}
 
-	if err := fl.lockWindows(lockType); err != nil {
+	if err := fl.platformLock(lockType, false); err != nil {
 		return fmt.Errorf("%w: %v", ErrLockFailed, err)
 	}
 
@@ -95,8 +71,8 @@ func (fl *FileLock) Lock(lockType LockType) error {
 	return nil
 }
 
-// TryLock attempts to acquire a lock without blocking
-// Returns ErrLockFailed if the lock cannot be acquired immediately
+// TryLock attempts to acquire a lock without blocking.
+// Returns ErrLockFailed if the lock cannot be acquired immediately.
 func (fl *FileLock) TryLock(lockType LockType) error {
 	fl.mu.Lock()
 	defer fl.mu.Unlock()
@@ -105,7 +81,7 @@ func (fl *FileLock) TryLock(lockType LockType) error {
 		return ErrAlreadyLocked
 	}
 
-	if err := fl.tryLockWindows(lockType); err != nil {
+	if err := fl.platformLock(lockType, true); err != nil {
 		return fmt.Errorf("%w: %v", ErrLockFailed, err)
 	}
 
@@ -114,7 +90,7 @@ func (fl *FileLock) TryLock(lockType LockType) error {
 	return nil
 }
 
-// Unlock releases the lock on the file
+// Unlock releases the lock on the file.
 func (fl *FileLock) Unlock() error {
 	fl.mu.Lock()
 	defer fl.mu.Unlock()
@@ -123,7 +99,7 @@ func (fl *FileLock) Unlock() error {
 		return nil // Already unlocked
 	}
 
-	if err := fl.unlockWindows(); err != nil {
+	if err := fl.platformUnlock(); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnlockFailed, err)
 	}
 
@@ -131,7 +107,7 @@ func (fl *FileLock) Unlock() error {
 	return nil
 }
 
-// Close releases the lock (if held) and closes the underlying file
+// Close releases the lock (if held) and closes the underlying file.
 func (fl *FileLock) Close() error {
 	// Unlock if still locked
 	if fl.locked {
@@ -145,80 +121,11 @@ func (fl *FileLock) Close() error {
 	return fl.file.Close()
 }
 
-// IsLocked returns whether the file is currently locked
+// IsLocked returns whether the file is currently locked.
 func (fl *FileLock) IsLocked() bool {
 	fl.mu.Lock()
 	defer fl.mu.Unlock()
 	return fl.locked
-}
-
-// lockWindows acquires a lock using Windows LockFileEx API
-func (fl *FileLock) lockWindows(lockType LockType) error {
-	var flags uint32 = 0
-
-	if lockType == LockExclusive {
-		flags |= lockfileExclusiveLock
-	}
-
-	// Lock the entire file (0xFFFFFFFF bytes)
-	ol := overlapped{}
-	ret, _, err := procLockFileEx.Call(
-		uintptr(fl.file.Fd()),
-		uintptr(flags),
-		uintptr(0),           // reserved
-		uintptr(0xFFFFFFFF),  // low bytes to lock
-		uintptr(0xFFFFFFFF),  // high bytes to lock
-		uintptr(unsafe.Pointer(&ol)),
-	)
-
-	if ret == 0 {
-		return fmt.Errorf("LockFileEx failed: %w", err)
-	}
-
-	return nil
-}
-
-// tryLockWindows attempts to acquire a lock without blocking
-func (fl *FileLock) tryLockWindows(lockType LockType) error {
-	var flags uint32 = lockfileFailImmediately
-
-	if lockType == LockExclusive {
-		flags |= lockfileExclusiveLock
-	}
-
-	ol := overlapped{}
-	ret, _, err := procLockFileEx.Call(
-		uintptr(fl.file.Fd()),
-		uintptr(flags),
-		uintptr(0),
-		uintptr(0xFFFFFFFF),
-		uintptr(0xFFFFFFFF),
-		uintptr(unsafe.Pointer(&ol)),
-	)
-
-	if ret == 0 {
-		return fmt.Errorf("LockFileEx failed: %w", err)
-	}
-
-	return nil
-}
-
-// unlockWindows releases a lock using Windows UnlockFileEx API
-func (fl *FileLock) unlockWindows() error {
-	ol := overlapped{}
-	ret, _, err := procUnlockFileEx.Call(
-		uintptr(fl.file.Fd()),
-		uintptr(0), // reserved
-		uintptr(0xFFFFFFFF),
-		uintptr(0xFFFFFFFF),
-		uintptr(unsafe.Pointer(&ol)),
-	)
-
-	if ret == 0 {
-		return fmt.Errorf("UnlockFileEx failed: %w", err)
-	}
-
-	return nil
 }
 
 // LockManager provides a higher-level interface for managing locks on multiple files
@@ -236,8 +143,8 @@ func NewLockManager(storage *Storage) *LockManager {
 	}
 }
 
-// AcquireLock acquires a lock for the given entity ID
-// The lock file is separate from the data file (using .lock extension)
+// AcquireLock acquires a lock for the given entity ID.
+// The lock file is separate from the data file (using .lock extension).
 func (lm *LockManager) AcquireLock(id string, lockType LockType) (*FileLock, error) {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()

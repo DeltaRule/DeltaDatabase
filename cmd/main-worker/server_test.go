@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func createTestConfig() *Config {
@@ -253,7 +255,7 @@ func TestProcess(t *testing.T) {
 		assert.Nil(t, resp)
 	})
 
-	t.Run("returns unimplemented with valid token", func(t *testing.T) {
+	t.Run("returns not_found for missing entity with valid token", func(t *testing.T) {
 		// Generate a valid token first
 		token, err := server.tokenManager.GenerateWorkerToken("worker-1", "key-1", nil)
 		require.NoError(t, err)
@@ -267,10 +269,10 @@ func TestProcess(t *testing.T) {
 
 		resp, err := server.Process(context.Background(), req)
 
-		// Should return unimplemented error for now
+		// No proc-worker registered and entity not in entity store → NotFound.
 		assert.Error(t, err)
-		assert.NotNil(t, resp)
-		assert.Equal(t, "not_implemented", resp.Status)
+		assert.Nil(t, resp)
+		assert.Equal(t, codes.NotFound, status.Code(err))
 	})
 }
 

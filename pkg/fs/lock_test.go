@@ -516,8 +516,10 @@ func TestLockPersistsAcrossProcesses(t *testing.T) {
 }
 
 func TestFileLockInvalidPath(t *testing.T) {
-	// Try to create lock in non-existent directory (without creating it)
-	invalidPath := filepath.Join("Z:\\nonexistent\\directory", "test.lock")
+	// Try to create a lock in a non-existent subdirectory (without creating it).
+	// os.OpenFile with O_CREATE does not create missing parent directories,
+	// so this path reliably fails on all platforms.
+	invalidPath := filepath.Join(t.TempDir(), "nonexistent_subdir", "test.lock")
 
 	_, err := NewFileLock(invalidPath)
 	assert.Error(t, err)
