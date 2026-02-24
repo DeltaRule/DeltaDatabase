@@ -282,6 +282,7 @@ func (s *MainWorkerServer) Run() error {
 	// Start REST HTTP server in a separate goroutine.
 	go func() {
 		mux := http.NewServeMux()
+		s.registerFrontendRoutes(mux)
 		mux.HandleFunc("/health", s.handleHealth)
 		mux.HandleFunc("/admin/workers", s.handleAdminWorkers)
 		mux.HandleFunc("/entity/", s.handleEntity)
