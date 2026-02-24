@@ -304,6 +304,26 @@
         <div id="schema-alert" class="alert mt8"></div>
         <pre id="schema-result" class="result mt8"></pre>
       </div>
+
+      <div class="card">
+        <h3>Export Schema</h3>
+        <p class="text-muted mb16">Generate typed models from the schema loaded in the editor above.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn btn-primary" onclick="exportAsPydantic()">🐍 Export as Pydantic</button>
+          <button class="btn btn-primary" onclick="exportAsTypeScript()">🔷 Export as TypeScript</button>
+        </div>
+        <div id="export-alert" class="alert mt8"></div>
+        <div id="export-result-wrap" style="display:none;margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span id="export-filename" class="text-muted mono"></span>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sm btn-primary" onclick="copyExport()">Copy</button>
+              <button class="btn btn-sm btn-success" onclick="downloadExport()">⬇ Download</button>
+            </div>
+          </div>
+          <pre id="export-result" class="result show" style="max-height:480px"></pre>
+        </div>
+      </div>
     </div>
 
     <!-- Explorer --------------------------------------------------- -->
@@ -650,6 +670,190 @@ async function runExplorer() {
     document.getElementById('exp-info').textContent = '';
     showAlert('exp-alert', 'error', 'Network error: ' + e.message);
   }
+}
+
+// ── Export ─────────────────────────────────────────────────────────
+let _exportFilename = '';
+
+// Convert a schema ID like "user.v1" or "chat_messages.v1" to a PascalCase
+// class name like "UserSchema" or "ChatMessagesSchema".
+function schemaIdToModelName(schemaId) {
+  // Strip version suffix (e.g. ".v1"), then trim leading/trailing separators.
+  const base = (schemaId || '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/^[._\-\s]+|[._\-\s]+$/g, '');
+  if (!base) return 'Schema';
+  return base.split(/[._\-\s]+/)
+    .filter(Boolean)
+    .map(w => w[0].toUpperCase() + w.slice(1))
+    .join('') + 'Schema';
+}
+
+// Convert a PascalCase name like "UserSchema" to snake_case "user_schema"
+// for use in Python filenames.
+function toSnakeCase(name) {
+  return name.replace(/([A-Z])/g, (m, p1, offset) => (offset ? '_' : '') + p1.toLowerCase());
+}
+
+// ── Pydantic export ─────────────────────────────────────────────────
+// Recursively build Pydantic BaseModel class definitions into `out`.
+function buildPydanticClass(name, schema, out) {
+  const props = schema.properties || {};
+  const req   = new Set(schema.required || []);
+
+  function pyType(pName, ps) {
+    if (!ps || typeof ps !== 'object') return 'Any';
+    if (ps.enum) {
+      return 'Literal[' + ps.enum.map(v => JSON.stringify(v)).join(', ') + ']';
+    }
+    const t = ps.type;
+    if (t === 'string') {
+      if (ps.format === 'date-time') return 'datetime';
+      if (ps.format === 'email')     return 'EmailStr';
+      return 'str';
+    }
+    if (t === 'integer') return 'int';
+    if (t === 'number')  return 'float';
+    if (t === 'boolean') return 'bool';
+    if (t === 'array') {
+      const itemType = pyType(pName + '_item', ps.items || {});
+      return 'List[' + itemType + ']';
+    }
+    if (t === 'object') {
+      const nestedName = name + (pName ? pName[0].toUpperCase() + pName.slice(1) : 'Nested');
+      buildPydanticClass(nestedName, ps, out);
+      return nestedName;
+    }
+    return 'Any';
+  }
+
+  const lines = ['class ' + name + '(BaseModel):'];
+  if (schema.description) lines.push('    """' + schema.description + '"""');
+  const entries = Object.entries(props);
+  if (!entries.length) {
+    lines.push('    pass');
+  } else {
+    for (const [k, v] of entries) {
+      const safe = k.replace(/[^a-zA-Z0-9_]/g, '_') || '_field';
+      const pt   = pyType(k, v);
+      if (req.has(k)) lines.push('    ' + safe + ': ' + pt);
+      else            lines.push('    ' + safe + ': Optional[' + pt + '] = None');
+    }
+  }
+  out.push(lines.join('\n'));
+}
+
+async function exportAsPydantic() {
+  hideAlert('export-alert');
+  const rawSchema = document.getElementById('schema-body').value.trim();
+  const schemaId  = document.getElementById('schema-id').value.trim() || 'Schema';
+  if (!rawSchema) { showAlert('export-alert', 'error', 'Load a schema into the editor first.'); return; }
+  let schema;
+  try { schema = JSON.parse(rawSchema); } catch (_) {
+    showAlert('export-alert', 'error', 'Invalid JSON in editor.'); return;
+  }
+  const modelName = schemaIdToModelName(schemaId);
+  const classes   = [];
+  buildPydanticClass(modelName, schema, classes);
+
+  const raw = JSON.stringify(schema);
+  const imports = [
+    'from __future__ import annotations',
+    'from typing import Any, List, Literal, Optional',
+    'from pydantic import BaseModel',
+  ];
+  if (raw.includes('"date-time"')) imports.push('from datetime import datetime');
+  if (raw.includes('"email"'))     imports.push('from pydantic import EmailStr');
+
+  const code = imports.join('\n') + '\n\n\n' + classes.join('\n\n\n');
+  showExportResult(code, toSnakeCase(modelName) + '.py');
+  showAlert('export-alert', 'success', 'Pydantic model generated successfully.');
+}
+
+// ── TypeScript export ───────────────────────────────────────────────
+// Recursively build TypeScript interface declarations into `out`.
+function buildTsInterface(name, schema, out) {
+  const props = schema.properties || {};
+  const req   = new Set(schema.required || []);
+
+  function tsType(pName, ps) {
+    if (!ps || typeof ps !== 'object') return 'unknown';
+    if (ps.enum) {
+      return ps.enum.map(v => JSON.stringify(v)).join(' | ');
+    }
+    const t = ps.type;
+    if (t === 'string')                   return 'string';
+    if (t === 'integer' || t === 'number') return 'number';
+    if (t === 'boolean')                  return 'boolean';
+    if (t === 'null')                     return 'null';
+    if (t === 'array') {
+      const it = tsType(pName + 'Item', ps.items || {});
+      return (it.includes('|') ? '(' + it + ')' : it) + '[]';
+    }
+    if (t === 'object') {
+      const nestedName = name + (pName ? pName[0].toUpperCase() + pName.slice(1) : 'Nested');
+      buildTsInterface(nestedName, ps, out);
+      return nestedName;
+    }
+    return 'unknown';
+  }
+
+  const lines = [];
+  if (schema.description) lines.push('/** ' + schema.description + ' */');
+  lines.push('export interface ' + name + ' {');
+  for (const [k, v] of Object.entries(props)) {
+    const safe = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k) ? k : '"' + k + '"';
+    const tt   = tsType(k, v);
+    const opt  = req.has(k) ? '' : '?';
+    lines.push('  ' + safe + opt + ': ' + tt + ';');
+  }
+  lines.push('}');
+  out.push(lines.join('\n'));
+}
+
+async function exportAsTypeScript() {
+  hideAlert('export-alert');
+  const rawSchema = document.getElementById('schema-body').value.trim();
+  const schemaId  = document.getElementById('schema-id').value.trim() || 'Schema';
+  if (!rawSchema) { showAlert('export-alert', 'error', 'Load a schema into the editor first.'); return; }
+  let schema;
+  try { schema = JSON.parse(rawSchema); } catch (_) {
+    showAlert('export-alert', 'error', 'Invalid JSON in editor.'); return;
+  }
+  const ifaceName   = schemaIdToModelName(schemaId);
+  const interfaces  = [];
+  buildTsInterface(ifaceName, schema, interfaces);
+  const code = '// Generated by DeltaDatabase\n\n' + interfaces.join('\n\n');
+  showExportResult(code, ifaceName + '.ts');
+  showAlert('export-alert', 'success', 'TypeScript types generated successfully.');
+}
+
+// ── Export helpers ──────────────────────────────────────────────────
+function showExportResult(code, filename) {
+  _exportFilename = filename;
+  document.getElementById('export-filename').textContent = filename;
+  document.getElementById('export-result').textContent   = code;
+  document.getElementById('export-result-wrap').style.display = 'block';
+}
+
+function copyExport() {
+  const code = document.getElementById('export-result').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    showAlert('export-alert', 'success', 'Copied to clipboard!');
+  }).catch(() => {
+    showAlert('export-alert', 'error', 'Copy failed — please select and copy manually.');
+  });
+}
+
+function downloadExport() {
+  const code = document.getElementById('export-result').textContent;
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = _exportFilename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Escape HTML ────────────────────────────────────────────────────
