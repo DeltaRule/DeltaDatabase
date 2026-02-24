@@ -59,7 +59,8 @@ func setupProcWorkerServer(t *testing.T) (*ProcWorkerServer, *fs.Storage, []byte
 	worker.keyID = "test-key-id"
 	worker.mu.Unlock()
 
-	srv := NewProcWorkerServer(worker, storage, c)
+	lockMgr := fs.NewLockManager(storage)
+	srv := NewProcWorkerServer(worker, storage, lockMgr, c)
 	return srv, storage, key
 }
 
@@ -184,7 +185,7 @@ func TestProcess_NoEncryptionKey(t *testing.T) {
 		// encryptionKey intentionally empty
 	}
 
-	srv := NewProcWorkerServer(worker, storage, c)
+	srv := NewProcWorkerServer(worker, storage, fs.NewLockManager(storage), c)
 
 	// Write a dummy file so the storage read succeeds.
 	key, err := pkgcrypto.GenerateKey(32)
@@ -384,7 +385,7 @@ func TestProcess_PUT_NoEncryptionKey(t *testing.T) {
 		// encryptionKey intentionally empty
 	}
 
-	srv := NewProcWorkerServer(worker, storage, c)
+	srv := NewProcWorkerServer(worker, storage, fs.NewLockManager(storage), c)
 
 	req := &proto.ProcessRequest{
 		DatabaseName: "chatdb",
@@ -505,6 +506,9 @@ func TestProcess_PUT_UpdatesCache(t *testing.T) {
 	require.True(t, ok, "entity should be cached after PUT")
 	assert.Equal(t, payload, entry.Data)
 	assert.Equal(t, "1", entry.Version)
+
+	// Wait for the asynchronous disk write so the temp dir can be cleaned up.
+	srv.WaitForPendingWrites()
 }
 
 // ---------------------------------------------------------------------------
@@ -532,6 +536,9 @@ func TestProcess_PUT_SchemaValidationSuccess(t *testing.T) {
 	resp, err := srv.Process(context.Background(), req)
 	require.NoError(t, err)
 	assert.Equal(t, "OK", resp.GetStatus())
+
+	// Wait for the asynchronous disk write so the temp dir can be cleaned up.
+	srv.WaitForPendingWrites()
 }
 
 // ---------------------------------------------------------------------------
