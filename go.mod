@@ -4,6 +4,7 @@ go 1.25.6
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/minio/minio-go/v7 v7.0.98
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	google.golang.org/grpc v1.64.0
@@ -19,7 +20,6 @@ require (
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
-	github.com/minio/minio-go/v7 v7.0.98 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
