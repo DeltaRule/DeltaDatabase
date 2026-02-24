@@ -112,7 +112,7 @@ func TestProcess_Subscribe_Unimplemented(t *testing.T) {
 func TestProcess_InvalidOperation(t *testing.T) {
 	srv, _, _ := setupProcWorkerServer(t)
 
-	for _, op := range []string{"PUT", "DELETE", "bad", ""} {
+	for _, op := range []string{"DELETE", "bad", ""} {
 		t.Run(fmt.Sprintf("op=%q", op), func(t *testing.T) {
 			req := &proto.ProcessRequest{
 				DatabaseName: "db",
@@ -321,4 +321,275 @@ func TestProcess_GET_WrongKey(t *testing.T) {
 	_, err = srv.Process(context.Background(), req)
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+// ---------------------------------------------------------------------------
+// Process — PUT: invalid argument cases
+// ---------------------------------------------------------------------------
+
+func TestProcess_PUT_EmptyPayload(t *testing.T) {
+	srv, _, _ := setupProcWorkerServer(t)
+
+	req := &proto.ProcessRequest{
+		DatabaseName: "chatdb",
+		EntityKey:    "Chat_id",
+		Operation:    "PUT",
+		Payload:      nil,
+	}
+	_, err := srv.Process(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestProcess_PUT_SchemaValidationFailure(t *testing.T) {
+	srv, _, _ := setupProcWorkerServer(t)
+
+	// Write a simple schema that requires a "name" field.
+	schemaJSON := []byte(`{
+		"type": "object",
+		"properties": {"name": {"type": "string"}},
+		"required": ["name"]
+	}`)
+	err := srv.storage.WriteTemplate("test_schema", schemaJSON)
+	require.NoError(t, err)
+
+	// Payload missing required "name" field → validation should fail.
+	req := &proto.ProcessRequest{
+		DatabaseName: "db",
+		EntityKey:    "entity1",
+		Operation:    "PUT",
+		SchemaId:     "test_schema",
+		Payload:      []byte(`{"other": "field"}`),
+	}
+	_, err = srv.Process(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestProcess_PUT_NoEncryptionKey(t *testing.T) {
+	tmpDir := t.TempDir()
+	storage, err := fs.NewStorage(tmpDir)
+	require.NoError(t, err)
+
+	c, err := cache.NewCache(cache.CacheConfig{MaxSize: 8, DefaultTTL: time.Minute})
+	require.NoError(t, err)
+	defer c.Close()
+
+	privKey, _, err := pkgcrypto.GenerateRSAKeyPair(2048)
+	require.NoError(t, err)
+
+	worker := &ProcWorker{
+		config:     &ProcConfig{MainAddr: "127.0.0.1:1", WorkerID: "no-key-worker"},
+		privateKey: privKey,
+		// encryptionKey intentionally empty
+	}
+
+	srv := NewProcWorkerServer(worker, storage, c)
+
+	req := &proto.ProcessRequest{
+		DatabaseName: "chatdb",
+		EntityKey:    "Chat_id",
+		Operation:    "PUT",
+		Payload:      []byte(`{"chat":[]}`),
+	}
+	_, err = srv.Process(context.Background(), req)
+	require.Error(t, err)
+	assert.Equal(t, codes.Unavailable, status.Code(err))
+}
+
+// ---------------------------------------------------------------------------
+// Process — PUT: successful create (new entity)
+// ---------------------------------------------------------------------------
+
+func TestProcess_PUT_CreateNew(t *testing.T) {
+	srv, storage, key := setupProcWorkerServer(t)
+
+	payload := []byte(`{"chat":[{"type":"assistant","text":"hello"}]}`)
+	req := &proto.ProcessRequest{
+		DatabaseName: "chatdb",
+		EntityKey:    "NewEntity",
+		Operation:    "PUT",
+		Payload:      payload,
+	}
+	resp, err := srv.Process(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "OK", resp.GetStatus())
+	assert.Equal(t, "1", resp.GetVersion())
+
+	// Verify the file was written to disk.
+	entityID := "chatdb_NewEntity"
+	assert.True(t, storage.FileExists(entityID), "encrypted file should exist on disk")
+
+	// Verify the metadata contains expected fields.
+	fileData, err := storage.ReadFile(entityID)
+	require.NoError(t, err)
+	assert.Equal(t, "AES-GCM", fileData.Metadata.Algorithm)
+	assert.Equal(t, 1, fileData.Metadata.Version)
+	assert.NotEmpty(t, fileData.Metadata.IV)
+	assert.NotEmpty(t, fileData.Metadata.Tag)
+
+	// Verify decryptability.
+	nonce, err := base64.StdEncoding.DecodeString(fileData.Metadata.IV)
+	require.NoError(t, err)
+	tag, err := base64.StdEncoding.DecodeString(fileData.Metadata.Tag)
+	require.NoError(t, err)
+	plaintext, err := pkgcrypto.Decrypt(key, fileData.Blob, nonce, tag)
+	require.NoError(t, err)
+	assert.Equal(t, payload, plaintext)
+}
+
+// ---------------------------------------------------------------------------
+// Process — PUT: version increment on update
+// ---------------------------------------------------------------------------
+
+func TestProcess_PUT_VersionIncrement(t *testing.T) {
+	srv, storage, key := setupProcWorkerServer(t)
+
+	entityID := "chatdb_VersionTest"
+	// Pre-populate the entity on disk at version 3.
+	encResult, err := pkgcrypto.Encrypt(key, []byte(`{"chat":[]}`))
+	require.NoError(t, err)
+	err = storage.WriteFile(entityID, encResult.Ciphertext, fs.FileMetadata{
+		KeyID:     "test-key-id",
+		Algorithm: "AES-GCM",
+		IV:        base64.StdEncoding.EncodeToString(encResult.Nonce),
+		Tag:       base64.StdEncoding.EncodeToString(encResult.Tag),
+		Version:   3,
+	})
+	require.NoError(t, err)
+
+	req := &proto.ProcessRequest{
+		DatabaseName: "chatdb",
+		EntityKey:    "VersionTest",
+		Operation:    "PUT",
+		Payload:      []byte(`{"chat":[{"type":"user","text":"hi"}]}`),
+	}
+	resp, err := srv.Process(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "OK", resp.GetStatus())
+	assert.Equal(t, "4", resp.GetVersion(), "version should be incremented to 4")
+
+	// Verify the metadata on disk.
+	fileData, err := storage.ReadFile(entityID)
+	require.NoError(t, err)
+	assert.Equal(t, 4, fileData.Metadata.Version)
+}
+
+// ---------------------------------------------------------------------------
+// Process — PUT: cache is updated after write
+// ---------------------------------------------------------------------------
+
+func TestProcess_PUT_UpdatesCache(t *testing.T) {
+	srv, _, _ := setupProcWorkerServer(t)
+
+	payload := []byte(`{"chat":[{"type":"user","text":"cached"}]}`)
+	entityID := "chatdb_CacheWrite"
+
+	req := &proto.ProcessRequest{
+		DatabaseName: "chatdb",
+		EntityKey:    "CacheWrite",
+		Operation:    "PUT",
+		Payload:      payload,
+	}
+	_, err := srv.Process(context.Background(), req)
+	require.NoError(t, err)
+
+	// The entity should now be in cache.
+	entry, ok := srv.cache.Get(entityID)
+	require.True(t, ok, "entity should be cached after PUT")
+	assert.Equal(t, payload, entry.Data)
+	assert.Equal(t, "1", entry.Version)
+}
+
+// ---------------------------------------------------------------------------
+// Process — PUT: schema validation passes for valid payload
+// ---------------------------------------------------------------------------
+
+func TestProcess_PUT_SchemaValidationSuccess(t *testing.T) {
+	srv, _, _ := setupProcWorkerServer(t)
+
+	schemaJSON := []byte(`{
+		"type": "object",
+		"properties": {"name": {"type": "string"}},
+		"required": ["name"]
+	}`)
+	err := srv.storage.WriteTemplate("name_schema", schemaJSON)
+	require.NoError(t, err)
+
+	req := &proto.ProcessRequest{
+		DatabaseName: "db",
+		EntityKey:    "entity2",
+		Operation:    "PUT",
+		SchemaId:     "name_schema",
+		Payload:      []byte(`{"name": "alice"}`),
+	}
+	resp, err := srv.Process(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "OK", resp.GetStatus())
+}
+
+// ---------------------------------------------------------------------------
+// Process — PUT: metadata fields are populated correctly
+// ---------------------------------------------------------------------------
+
+func TestProcess_PUT_MetadataFields(t *testing.T) {
+	srv, storage, _ := setupProcWorkerServer(t)
+
+	req := &proto.ProcessRequest{
+		DatabaseName: "mydb",
+		EntityKey:    "MetaKey",
+		Operation:    "PUT",
+		Payload:      []byte(`{"chat":[]}`),
+	}
+	before := time.Now().UTC()
+	resp, err := srv.Process(context.Background(), req)
+	after := time.Now().UTC()
+	require.NoError(t, err)
+	assert.Equal(t, "OK", resp.GetStatus())
+
+	fileData, err := storage.ReadFile("mydb_MetaKey")
+	require.NoError(t, err)
+	meta := fileData.Metadata
+
+	assert.Equal(t, "AES-GCM", meta.Algorithm)
+	assert.Equal(t, "mydb", meta.Database)
+	assert.Equal(t, "MetaKey", meta.EntityKey)
+	assert.Equal(t, "test-worker", meta.WriterID)
+	assert.Equal(t, "test-key-id", meta.KeyID)
+	assert.True(t, !meta.Timestamp.Before(before) && !meta.Timestamp.After(after),
+		"timestamp should be set at write time")
+}
+
+// ---------------------------------------------------------------------------
+// Process — GET after PUT (round-trip)
+// ---------------------------------------------------------------------------
+
+func TestProcess_PUT_then_GET(t *testing.T) {
+	srv, _, _ := setupProcWorkerServer(t)
+
+	payload := []byte(`{"chat":[{"type":"assistant","text":"roundtrip"}]}`)
+
+	putReq := &proto.ProcessRequest{
+		DatabaseName: "chatdb",
+		EntityKey:    "RoundTrip",
+		Operation:    "PUT",
+		Payload:      payload,
+	}
+	putResp, err := srv.Process(context.Background(), putReq)
+	require.NoError(t, err)
+	assert.Equal(t, "OK", putResp.GetStatus())
+
+	// Clear cache to force a disk read on the subsequent GET.
+	srv.cache.Clear()
+
+	getReq := &proto.ProcessRequest{
+		DatabaseName: "chatdb",
+		EntityKey:    "RoundTrip",
+		Operation:    "GET",
+	}
+	getResp, err := srv.Process(context.Background(), getReq)
+	require.NoError(t, err)
+	assert.Equal(t, "OK", getResp.GetStatus())
+	assert.JSONEq(t, string(payload), string(getResp.GetResult()))
+	assert.Equal(t, putResp.GetVersion(), getResp.GetVersion())
 }
