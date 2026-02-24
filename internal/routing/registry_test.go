@@ -129,3 +129,97 @@ func TestWorkerRegistry_Count(t *testing.T) {
 	require.NoError(t, r.Register("worker-y", "key-1", nil))
 	assert.Equal(t, 2, r.Count())
 }
+
+func TestWorkerRegistry_IncrementDecrementLoad(t *testing.T) {
+	r := NewWorkerRegistry()
+	require.NoError(t, r.Register("worker-load", "key-1", nil))
+
+	r.IncrementLoad("worker-load")
+	r.IncrementLoad("worker-load")
+
+	info, _ := r.GetWorker("worker-load")
+	assert.Equal(t, int64(2), info.ActiveRequests)
+
+	r.DecrementLoad("worker-load")
+	info, _ = r.GetWorker("worker-load")
+	assert.Equal(t, int64(1), info.ActiveRequests)
+
+	// Decrement below zero is a no-op.
+	r.DecrementLoad("worker-load")
+	r.DecrementLoad("worker-load")
+	info, _ = r.GetWorker("worker-load")
+	assert.Equal(t, int64(0), info.ActiveRequests)
+
+	// Unknown worker is a no-op.
+	r.IncrementLoad("nonexistent")
+	r.DecrementLoad("nonexistent")
+}
+
+func TestWorkerRegistry_UpdateEntityLocation(t *testing.T) {
+	r := NewWorkerRegistry()
+	require.NoError(t, r.Register("worker-e", "key-1", nil))
+
+	r.UpdateEntityLocation("db/entity1", "worker-e")
+
+	// FindWorkerForEntity should return the worker that served the entity.
+	w := r.FindWorkerForEntity("db/entity1")
+	require.NotNil(t, w)
+	assert.Equal(t, "worker-e", w.WorkerID)
+
+	// Unknown entity returns nil.
+	assert.Nil(t, r.FindWorkerForEntity("db/unknown"))
+}
+
+func TestWorkerRegistry_FindWorkerForEntity_UnavailableWorker(t *testing.T) {
+	r := NewWorkerRegistry()
+	require.NoError(t, r.Register("worker-u", "key-1", nil))
+	r.UpdateEntityLocation("db/e1", "worker-u")
+
+	// Mark the worker as unavailable.
+	r.Unregister("worker-u")
+
+	// Should not return an unavailable worker.
+	assert.Nil(t, r.FindWorkerForEntity("db/e1"))
+}
+
+func TestWorkerRegistry_FindWorkerForEntity_OverloadedWorker(t *testing.T) {
+	r := NewWorkerRegistry()
+	require.NoError(t, r.Register("worker-ol", "key-1", nil))
+	r.UpdateEntityLocation("db/e2", "worker-ol")
+
+	// Simulate overload by pushing ActiveRequests above the threshold.
+	for i := 0; i <= maxWorkerActiveRequests; i++ {
+		r.IncrementLoad("worker-ol")
+	}
+
+	// Overloaded worker should not be returned for cache-aware routing.
+	assert.Nil(t, r.FindWorkerForEntity("db/e2"))
+}
+
+func TestWorkerRegistry_FindLeastLoadedWorker(t *testing.T) {
+	r := NewWorkerRegistry()
+
+	// No workers → nil.
+	assert.Nil(t, r.FindLeastLoadedWorker())
+
+	require.NoError(t, r.Register("worker-l1", "key-1", nil))
+	require.NoError(t, r.Register("worker-l2", "key-1", nil))
+
+	r.IncrementLoad("worker-l1")
+	r.IncrementLoad("worker-l1")
+
+	// worker-l2 has 0 active requests, so it should be selected.
+	w := r.FindLeastLoadedWorker()
+	require.NotNil(t, w)
+	assert.Equal(t, "worker-l2", w.WorkerID)
+
+	// After making worker-l1 unavailable only worker-l2 is eligible.
+	r.Unregister("worker-l2")
+	w = r.FindLeastLoadedWorker()
+	require.NotNil(t, w)
+	assert.Equal(t, "worker-l1", w.WorkerID)
+
+	// All unavailable → nil.
+	r.Unregister("worker-l1")
+	assert.Nil(t, r.FindLeastLoadedWorker())
+}

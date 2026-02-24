@@ -416,6 +416,9 @@ func TestProcess_PUT_CreateNew(t *testing.T) {
 	assert.Equal(t, "OK", resp.GetStatus())
 	assert.Equal(t, "1", resp.GetVersion())
 
+	// Wait for the asynchronous disk write to complete before inspecting the FS.
+	srv.WaitForPendingWrites()
+
 	// Verify the file was written to disk.
 	entityID := "chatdb_NewEntity"
 	assert.True(t, storage.FileExists(entityID), "encrypted file should exist on disk")
@@ -468,6 +471,9 @@ func TestProcess_PUT_VersionIncrement(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "OK", resp.GetStatus())
 	assert.Equal(t, "4", resp.GetVersion(), "version should be incremented to 4")
+
+	// Wait for the asynchronous disk write before verifying the metadata.
+	srv.WaitForPendingWrites()
 
 	// Verify the metadata on disk.
 	fileData, err := storage.ReadFile(entityID)
@@ -547,6 +553,9 @@ func TestProcess_PUT_MetadataFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "OK", resp.GetStatus())
 
+	// Wait for the asynchronous disk write before verifying the metadata.
+	srv.WaitForPendingWrites()
+
 	fileData, err := storage.ReadFile("mydb_MetaKey")
 	require.NoError(t, err)
 	meta := fileData.Metadata
@@ -578,6 +587,10 @@ func TestProcess_PUT_then_GET(t *testing.T) {
 	putResp, err := srv.Process(context.Background(), putReq)
 	require.NoError(t, err)
 	assert.Equal(t, "OK", putResp.GetStatus())
+
+	// Wait for the asynchronous disk write to complete before clearing the
+	// cache, otherwise the subsequent GET would find no data on disk.
+	srv.WaitForPendingWrites()
 
 	// Clear cache to force a disk read on the subsequent GET.
 	srv.cache.Clear()

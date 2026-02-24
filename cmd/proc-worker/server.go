@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"delta-db/api/proto"
@@ -34,6 +35,13 @@ type ProcWorkerServer struct {
 	lockMgr   *fs.LockManager
 	cache     *cache.Cache
 	validator *schema.Validator
+
+	// pendingWrites tracks in-flight asynchronous disk-write goroutines.
+	// Processing Workers answer a request as soon as the cache is updated;
+	// the actual encrypted write to the shared filesystem happens in a
+	// background goroutine. WaitForPendingWrites blocks until all goroutines
+	// have finished (useful in tests and during graceful shutdown).
+	pendingWrites sync.WaitGroup
 }
 
 // NewProcWorkerServer creates a ProcWorkerServer for the given worker, storage
@@ -63,7 +71,8 @@ func (s *ProcWorkerServer) Subscribe(_ context.Context, _ *proto.SubscribeReques
 // GET flow:
 //  1. Check pkg/cache; if hit, return metadata + data.
 //  2. On cache miss, obtain a shared lock via pkg/fs.
-//  3. Load the .meta.json and .json.enc files from the shared filesystem.
+//  3. Load only the specific entity's .meta.json and .json.enc files from the
+//     shared filesystem — no other entity's files are read (selective I/O).
 //  4. Decrypt using the memory-resident key received from the Main Worker.
 //  5. Store the decrypted JSON in cache and release the lock.
 //  6. Return the plaintext JSON to the caller.
@@ -71,10 +80,13 @@ func (s *ProcWorkerServer) Subscribe(_ context.Context, _ *proto.SubscribeReques
 // PUT flow:
 //  1. Validate incoming JSON against the correct schema.
 //  2. Obtain exclusive lock via pkg/fs.
-//  3. Increment version in metadata.
+//  3. Determine next version (prefer in-memory cache over disk to account for
+//     any in-flight async writes that have not yet hit the filesystem).
 //  4. Encrypt JSON into a new blob.
-//  5. Atomic write to disk (Write temp -> rename).
-//  6. Update cache and release lock.
+//  5. Update cache with new version and plaintext.
+//  6. Release lock and return response to the caller immediately.
+//  7. Write to disk asynchronously in a background goroutine so the caller is
+//     not blocked by filesystem I/O.
 func (s *ProcWorkerServer) Process(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
 	if req.GetDatabaseName() == "" || req.GetEntityKey() == "" {
 		return nil, status.Error(codes.InvalidArgument, "database_name and entity_key are required")
@@ -178,7 +190,11 @@ func (s *ProcWorkerServer) processGET(_ context.Context, _ *proto.ProcessRequest
 }
 
 // processPUT handles the PUT flow: validate → exclusive lock → version increment →
-// encrypt → atomic write → update cache → release lock.
+// encrypt → update cache → release lock → respond → async disk write.
+//
+// The caller receives a response as soon as the in-memory cache is updated.
+// The encrypted payload is then written to the shared filesystem in a
+// background goroutine so that disk I/O never delays the response.
 func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessRequest, entityID string) (*proto.ProcessResponse, error) {
 	if len(req.GetPayload()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "payload is required for PUT operations")
@@ -209,26 +225,32 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 	s.worker.mu.RUnlock()
 
 	// Step 2: Acquire exclusive lock to prevent concurrent writes.
+	// We release this lock manually (not via defer) so we can respond to the
+	// caller before the disk write takes place.
 	if _, err := s.lockMgr.AcquireLock(entityID, fs.LockExclusive); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to acquire exclusive lock: %v", err)
 	}
-	defer s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
 
-	// Step 3: Determine next version by reading the current metadata (if any).
+	// Step 3: Determine next version.
+	// Prefer the in-memory cache over the disk so that pending async writes
+	// (not yet flushed to the filesystem) are taken into account.
 	nextVersion := 1
-	if existing, err := s.storage.ReadFile(entityID); err == nil {
+	if v, _ := strconv.Atoi(s.cache.GetVersion(entityID)); v > 0 {
+		nextVersion = v + 1
+	} else if existing, err := s.storage.ReadFile(entityID); err == nil {
 		nextVersion = existing.Metadata.Version + 1
 	}
 
 	// Step 4: Encrypt the JSON payload.
-	// Security: if encryption fails, reject the write (fail closed per guidelines).
+	// Security: if encryption fails, release the lock and reject the write.
 	encResult, err := pkgcrypto.Encrypt(key, req.GetPayload())
 	if err != nil {
+		s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
 		log.Printf("[%s] encryption failed for %s", s.worker.config.WorkerID, entityID)
 		return nil, status.Error(codes.Internal, "encryption failed")
 	}
 
-	// Step 5: Atomic write to disk (storage.WriteFile uses temp → rename).
+	// Prepare the metadata that will accompany the encrypted blob on disk.
 	metadata := fs.FileMetadata{
 		KeyID:     keyID,
 		Algorithm: "AES-GCM",
@@ -241,19 +263,71 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 		Database:  req.GetDatabaseName(),
 		EntityKey: req.GetEntityKey(),
 	}
-	if err := s.storage.WriteFile(entityID, encResult.Ciphertext, metadata); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to write file: %v", err)
-	}
-
-	// Step 6: Update cache and release lock (lock released via defer above).
 	versionStr := strconv.Itoa(nextVersion)
+
+	// Step 5: Update the in-memory cache so subsequent reads are served from
+	// memory without waiting for the disk write to complete.
 	s.cache.Set(entityID, req.GetPayload(), versionStr)
 	log.Printf("[%s] cached %s (version=%s)", s.worker.config.WorkerID, entityID, versionStr)
+
+	// Step 6: Release the exclusive lock — the cache is now consistent.
+	s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
+
+	// Step 7: Persist to disk asynchronously.  The caller already has a
+	// successful response; disk I/O must not delay it.
+	//
+	// Trade-off: the goroutine re-acquires the exclusive lock for the disk
+	// write.  In the window between the main handler releasing the lock and the
+	// goroutine acquiring it a subsequent PUT may run and itself schedule an
+	// async write.  The stale-write guard below ensures the goroutine with the
+	// lower version number skips the write, so at worst there is brief extra
+	// lock contention but data integrity is preserved.  A serialised write
+	// queue would eliminate the contention entirely but adds significant
+	// complexity for a benefit that only matters under very high concurrent
+	// write rates to the same entity.
+	writeBlob := encResult.Ciphertext // captured for the goroutine
+	s.pendingWrites.Add(1)
+	go func() {
+		defer s.pendingWrites.Done()
+
+		if _, err := s.lockMgr.AcquireLock(entityID, fs.LockExclusive); err != nil {
+			log.Printf("[%s] async write: failed to acquire lock for %s: %v",
+				s.worker.config.WorkerID, entityID, err)
+			return
+		}
+		defer s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
+
+		// Stale-write guard: if a newer version was already written to disk
+		// (possible when goroutines from rapid sequential PUTs reorder), skip
+		// this write to avoid overwriting newer data.
+		if existing, err := s.storage.ReadFile(entityID); err == nil {
+			if existing.Metadata.Version >= nextVersion {
+				log.Printf("[%s] async write: skipping stale write for %s (disk v%d >= write v%d)",
+					s.worker.config.WorkerID, entityID, existing.Metadata.Version, nextVersion)
+				return
+			}
+		}
+
+		if err := s.storage.WriteFile(entityID, writeBlob, metadata); err != nil {
+			log.Printf("[%s] async write: failed to write %s: %v",
+				s.worker.config.WorkerID, entityID, err)
+			return
+		}
+		log.Printf("[%s] async write: persisted %s (version=%s)",
+			s.worker.config.WorkerID, entityID, versionStr)
+	}()
 
 	return &proto.ProcessResponse{
 		Status:  "OK",
 		Version: versionStr,
 	}, nil
+}
+
+// WaitForPendingWrites blocks until all in-flight asynchronous disk-write
+// goroutines have finished.  It is intended for use in tests and graceful
+// shutdown sequences to ensure data is fully persisted before proceeding.
+func (s *ProcWorkerServer) WaitForPendingWrites() {
+	s.pendingWrites.Wait()
 }
 
 // Serve starts the ProcWorkerServer's gRPC listener on addr and blocks until
