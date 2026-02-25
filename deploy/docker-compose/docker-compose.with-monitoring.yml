@@ -26,6 +26,7 @@ services:
       - "9090:9090"    # Prometheus metrics
     environment:
       MASTER_KEY: "${MASTER_KEY:-}"
+      ADMIN_KEY: "${ADMIN_KEY:-}"
     command:
       - "-grpc-addr=0.0.0.0:50051"
       - "-rest-addr=0.0.0.0:8080"

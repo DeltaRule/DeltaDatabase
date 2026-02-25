@@ -4,14 +4,61 @@ Authentication and authorization logic for DeltaDatabase.
 
 ## Overview
 
-The `auth` package provides authentication and token management for both Processing Workers and REST API clients. It implements:
+The `auth` package provides authentication and token management for both
+Processing Workers and REST API clients.  It implements:
 
-- **Token Management**: Generate, validate, and revoke short-lived session tokens
-- **Worker Authentication**: Register and authenticate Processing Workers
-- **Token Types**: Separate token types for workers (gRPC) and clients (REST API)
-- **Automatic Cleanup**: Background cleanup of expired tokens
+- **Admin key** — a single master key (set at startup) that bypasses all RBAC.
+  Works like a PostgreSQL superuser password or MinIO root access key.
+- **API Key Manager** — create/validate/delete named RBAC keys with configurable
+  permissions and optional expiry.  Keys are persisted to a JSON file on the
+  shared filesystem so they survive restarts.
+- **Token Manager** — short-lived session tokens issued by `POST /api/login`
+  for the browser UI (not required for direct API access).
+- **Worker Authenticator** — credential management for Processing Workers.
+
+## Authentication Priority
+
+Every `Authorization: Bearer <value>` header is checked in this order:
+
+1. **Admin key** — matches the value set with `-admin-key` → full access, no
+   RBAC checks.
+2. **API key** — secret issued by `POST /api/keys` → access limited to the
+   permissions granted at creation time.
+3. **Session token** — short-lived token from `POST /api/login` → read + write
+   access (frontend use only).
 
 ## Components
+
+### KeyManager
+
+Manages persistent RBAC API keys:
+
+```go
+km, err := auth.NewKeyManager("/shared/db/_auth/keys.json")
+
+// Create a key with read+write permissions expiring in 7 days
+expires := time.Now().Add(7 * 24 * time.Hour)
+secret, key, err := km.CreateKey("ci-deploy", []auth.Permission{
+    auth.PermRead,
+    auth.PermWrite,
+}, &expires)
+// secret is shown once: "dk_abc123…"
+
+// Validate a request's Bearer token
+apiKey, err := km.ValidateKey(bearerTokenFromRequest)
+
+// List, delete
+keys := km.ListKeys()
+err = km.DeleteKey(key.ID)
+```
+
+Permissions:
+
+| Constant | Value | Grants |
+|---|---|---|
+| `auth.PermRead` | `"read"` | `GET /entity/…` |
+| `auth.PermWrite` | `"write"` | `PUT /entity/…`, `PUT /schema/…` |
+| `auth.PermAdmin` | `"admin"` | All of the above + key management |
 
 ### TokenManager
 
@@ -45,10 +92,6 @@ err := wa.RegisterWorker("worker-1", "password", tags)
 
 // Authenticate worker
 creds, err := wa.AuthenticateWorker("worker-1", "password")
-
-// Disable/enable workers
-err = wa.DisableWorker("worker-1")
-err = wa.EnableWorker("worker-1")
 ```
 
 ## Token Lifecycle
@@ -61,15 +104,17 @@ err = wa.EnableWorker("worker-1")
 
 ## Security Features
 
-- Cryptographically secure random tokens (32 bytes, base64-encoded)
-- SHA-256 password hashing
+- Cryptographically secure random tokens (32 bytes, hex/base64-encoded)
+- SHA-256 hashing — raw secrets are never stored
 - Thread-safe operations with read-write locks
 - Automatic token expiration
-- Worker enable/disable functionality
+- Atomic file writes for key persistence (`.tmp` + rename)
+- API key secrets prefixed with `dk_` for easy identification
 
 ## Testing
 
 Run unit tests:
+
 ```bash
 go test ./internal/auth/
 go test ./internal/auth/ -v

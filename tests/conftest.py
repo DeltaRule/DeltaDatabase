@@ -94,6 +94,7 @@ def live_server(tmp_path_factory):
             f"-grpc-addr={main_grpc_addr}",
             f"-rest-addr={main_rest_addr}",
             f"-shared-fs={db_dir}",
+            "-admin-key=test-admin-key",
         ],
         cwd=str(REPO_ROOT),
         stdout=log_fp,
@@ -128,7 +129,7 @@ def live_server(tmp_path_factory):
     try:
         r = _requests.post(
             rest_url + "/api/login",
-            json={"client_id": "test-session"},
+            json={"key": "test-admin-key"},
             timeout=5,
         )
         token = r.json()["token"]
@@ -145,6 +146,7 @@ def live_server(tmp_path_factory):
         "shared_root": root,
         "db_dir": db_dir,
         "token": token,
+        "admin_key": "test-admin-key",
         "log_path": str(log_file),
     }
 
@@ -169,6 +171,8 @@ def settings(pytestconfig, live_server):
         "shared_fs": str(live_server["shared_root"]),
         "log_path": live_server["log_path"],
         "token": live_server["token"],
+        # admin_key can be used directly as a Bearer token — no /api/login needed.
+        "admin_key": live_server["admin_key"],
     }
 
 

@@ -166,11 +166,11 @@
 <div id="login-overlay">
   <div class="login-box">
     <h2>DeltaDatabase</h2>
-    <p>Management UI — enter your client ID to continue</p>
+    <p>Management UI — enter your admin key or API key to continue</p>
     <div id="login-alert" class="alert"></div>
     <div class="field">
-      <label>Client ID</label>
-      <input id="login-client-id" type="text" placeholder="e.g. admin" value="admin">
+      <label>Key</label>
+      <input id="login-key" type="password" placeholder="admin key or API key">
     </div>
     <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="doLogin()">Login</button>
   </div>
@@ -193,6 +193,7 @@
     <a href="#" data-page="workers" onclick="showPage('workers',this)">⚙️ Workers</a>
     <a href="#" data-page="entities" onclick="showPage('entities',this)">📦 Entities</a>
     <a href="#" data-page="schemas" onclick="showPage('schemas',this)">📋 Schemas</a>
+    <a href="#" data-page="apikeys" onclick="showPage('apikeys',this)">🔑 API Keys</a>
     <a href="#" data-page="explorer" onclick="showPage('explorer',this)">🔍 Explorer</a>
   </nav>
 
@@ -326,6 +327,73 @@
       </div>
     </div>
 
+    <!-- API Keys --------------------------------------------------- -->
+    <div id="page-apikeys" class="page">
+      <h2>API Keys</h2>
+
+      <!-- Create new key -->
+      <div class="card">
+        <h3>Create New Key</h3>
+        <div class="field">
+          <label>Name</label>
+          <input id="key-name" type="text" placeholder="e.g. ci-deploy-key">
+        </div>
+        <div class="field">
+          <label>Permissions</label>
+          <div style="display:flex;gap:16px;padding:8px 0">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="perm-read" checked> read
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="perm-write"> write
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="perm-admin"> admin
+            </label>
+          </div>
+        </div>
+        <div class="field">
+          <label>Expires In (optional, e.g. 24h, 7d, 30d)</label>
+          <input id="key-expires" type="text" placeholder="leave blank = never expires">
+        </div>
+        <button class="btn btn-success" onclick="createAPIKey()">Create Key</button>
+        <div id="key-create-alert" class="alert mt8"></div>
+        <div id="key-secret-wrap" style="display:none;margin-top:12px">
+          <div style="background:#0f172a;border:1px solid #22c55e;border-radius:6px;padding:12px">
+            <p style="color:#22c55e;font-size:.85rem;margin-bottom:8px">
+              ⚠️ Copy your new key now — it won't be shown again!
+            </p>
+            <pre id="key-secret" class="result show" style="margin:0;background:transparent;border:none"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- List / revoke keys -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <h3 style="margin:0">Existing Keys</h3>
+          <button class="btn btn-primary btn-sm" onclick="loadAPIKeys()">↺ Refresh</button>
+        </div>
+        <div id="keys-alert" class="alert"></div>
+        <table style="width:100%;border-collapse:collapse" id="keys-table">
+          <thead>
+            <tr style="border-bottom:1px solid #334155;color:#64748b;font-size:.8rem;text-align:left">
+              <th style="padding:6px 8px">Name</th>
+              <th style="padding:6px 8px">ID</th>
+              <th style="padding:6px 8px">Permissions</th>
+              <th style="padding:6px 8px">Created</th>
+              <th style="padding:6px 8px">Expires</th>
+              <th style="padding:6px 8px">Status</th>
+              <th style="padding:6px 8px"></th>
+            </tr>
+          </thead>
+          <tbody id="keys-tbody">
+            <tr><td colspan="7" class="text-muted" style="padding:12px 8px">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Explorer --------------------------------------------------- -->
     <div id="page-explorer" class="page">
       <h2>API Explorer</h2>
@@ -404,16 +472,16 @@ function hideResult(elId) {
 
 // ── Auth ───────────────────────────────────────────────────────────
 async function doLogin() {
-  const clientId = document.getElementById('login-client-id').value.trim();
-  if (!clientId) {
-    showAlert('login-alert', 'error', 'Client ID is required.');
+  const key = document.getElementById('login-key').value.trim();
+  if (!key) {
+    showAlert('login-alert', 'error', 'Key is required.');
     return;
   }
   try {
     const res = await fetch(apiBase() + '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId })
+      body: JSON.stringify({ key })
     });
     if (!res.ok) {
       const body = await res.text();
@@ -422,9 +490,9 @@ async function doLogin() {
     }
     const data = await res.json();
     TOKEN = data.token;
-    CLIENT_ID = clientId;
+    CLIENT_ID = data.client_id || key.substring(0, 8) + '…';
     document.getElementById('login-overlay').classList.add('hidden');
-    document.getElementById('header-client').textContent = '👤 ' + clientId;
+    document.getElementById('header-client').textContent = '👤 ' + CLIENT_ID;
     hideAlert('login-alert');
     initDashboard();
   } catch (e) {
@@ -448,6 +516,7 @@ function showPage(name, link) {
   if (name === 'workers') loadWorkers();
   if (name === 'dashboard') initDashboard();
   if (name === 'schemas') loadSchemas();
+  if (name === 'apikeys') loadAPIKeys();
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────
@@ -861,6 +930,94 @@ function esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── API Key Management ─────────────────────────────────────────────
+async function loadAPIKeys() {
+  hideAlert('keys-alert');
+  try {
+    const res = await apiFetch('/api/keys');
+    if (!res.ok) {
+      showAlert('keys-alert', 'error', 'Failed to load keys: ' + res.status);
+      return;
+    }
+    const keys = await res.json();
+    const tbody = document.getElementById('keys-tbody');
+    if (!keys || keys.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="padding:12px 8px">No API keys found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = keys.map(k => {
+      const perms = (k.permissions || []).join(', ');
+      const created = k.created_at ? new Date(k.created_at).toLocaleDateString() : '—';
+      const expires = k.expires_at ? new Date(k.expires_at).toLocaleDateString() : 'never';
+      const status = k.enabled ? '<span style="color:#22c55e">●</span> active' : '<span style="color:#ef4444">●</span> disabled';
+      return `<tr style="border-bottom:1px solid #1e293b">
+        <td style="padding:8px">${esc(k.name)}</td>
+        <td style="padding:8px;font-family:monospace;font-size:.8rem;color:#64748b">${esc(k.id)}</td>
+        <td style="padding:8px">${esc(perms)}</td>
+        <td style="padding:8px;font-size:.85rem">${created}</td>
+        <td style="padding:8px;font-size:.85rem">${expires}</td>
+        <td style="padding:8px;font-size:.85rem">${status}</td>
+        <td style="padding:8px"><button class="btn btn-danger btn-sm" onclick="deleteAPIKey('${esc(k.id)}','${esc(k.name)}')">Delete</button></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    showAlert('keys-alert', 'error', 'Network error: ' + e.message);
+  }
+}
+
+async function createAPIKey() {
+  hideAlert('key-create-alert');
+  document.getElementById('key-secret-wrap').style.display = 'none';
+
+  const name = document.getElementById('key-name').value.trim();
+  if (!name) { showAlert('key-create-alert', 'error', 'Name is required.'); return; }
+
+  const permissions = [];
+  if (document.getElementById('perm-read').checked) permissions.push('read');
+  if (document.getElementById('perm-write').checked) permissions.push('write');
+  if (document.getElementById('perm-admin').checked) permissions.push('admin');
+  if (permissions.length === 0) { showAlert('key-create-alert', 'error', 'Select at least one permission.'); return; }
+
+  const expiresIn = document.getElementById('key-expires').value.trim();
+  const body = { name, permissions };
+  if (expiresIn) body.expires_in = expiresIn;
+
+  try {
+    const res = await apiFetch('/api/keys', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      showAlert('key-create-alert', 'error', 'Failed: ' + txt);
+      return;
+    }
+    const data = await res.json();
+    document.getElementById('key-secret').textContent = data.secret;
+    document.getElementById('key-secret-wrap').style.display = 'block';
+    document.getElementById('key-name').value = '';
+    document.getElementById('key-expires').value = '';
+    showAlert('key-create-alert', 'success', `Key "${data.name}" created!`);
+    loadAPIKeys();
+  } catch (e) {
+    showAlert('key-create-alert', 'error', 'Network error: ' + e.message);
+  }
+}
+
+async function deleteAPIKey(id, name) {
+  if (!confirm(`Delete key "${name}" (${id})? This cannot be undone.`)) return;
+  try {
+    const res = await apiFetch('/api/keys/' + encodeURIComponent(id), { method: 'DELETE' });
+    if (!res.ok) {
+      showAlert('keys-alert', 'error', 'Delete failed: ' + res.status);
+      return;
+    }
+    loadAPIKeys();
+  } catch (e) {
+    showAlert('keys-alert', 'error', 'Network error: ' + e.message);
+  }
 }
 
 // ── Bootstrap ──────────────────────────────────────────────────────
