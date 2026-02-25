@@ -25,6 +25,8 @@ func main() {
 	workerTTL := flag.Duration("worker-ttl", 1*time.Hour, "Worker token TTL")
 	clientTTL := flag.Duration("client-ttl", 24*time.Hour, "Client token TTL")
 	entityCacheSize := flag.Int("entity-cache-size", 1024, "Max number of entities in the in-memory LRU cache")
+	adminKey := flag.String("admin-key", os.Getenv("ADMIN_KEY"), "Master admin Bearer key (bypasses all RBAC); defaults to $ADMIN_KEY")
+	keyStorePath := flag.String("key-store", "", "Path to the API key JSON store (default: <shared-fs>/_auth/keys.json)")
 
 	// S3-compatible storage flags (optional).
 	s3Endpoint  := flag.String("s3-endpoint",   "", "S3-compatible endpoint (enables S3 backend for templates)")
@@ -114,6 +116,8 @@ func main() {
 		WorkerTokenTTL:  *workerTTL,
 		ClientTokenTTL:  *clientTTL,
 		EntityCacheSize: *entityCacheSize,
+		AdminKey:        *adminKey,
+		KeyStorePath:    *keyStorePath,
 	}
 
 	// Create and start Main Worker server
@@ -155,8 +159,11 @@ func PrintUsage() {
 	flag.PrintDefaults()
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  # Local shared filesystem (default):")
-	fmt.Println("  main-worker -grpc-addr=:50051 -rest-addr=:8080")
+	fmt.Println("  # Local shared filesystem with admin key:")
+	fmt.Println("  main-worker -grpc-addr=:50051 -rest-addr=:8080 -admin-key=mysecretkey")
+	fmt.Println()
+	fmt.Println("  # Using environment variable for admin key:")
+	fmt.Println("  ADMIN_KEY=mysecretkey main-worker -grpc-addr=:50051 -rest-addr=:8080")
 	fmt.Println()
 	fmt.Println("  # S3-compatible backend (MinIO):")
 	fmt.Println("  main-worker -grpc-addr=:50051 -rest-addr=:8080 \\")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"delta-db/api/proto"
+	"delta-db/internal/auth"
 	"delta-db/pkg/crypto"
 
 	"github.com/stretchr/testify/assert"
@@ -529,5 +531,284 @@ func TestConcurrentSubscriptions(t *testing.T) {
 			err := <-results
 			assert.NoError(t, err)
 		}
+	})
+}
+
+// ── Helper ──────────────────────────────────────────────────────────────────
+
+// createTestConfigWithAdminKey creates a test config with a pre-set admin key.
+func createTestConfigWithAdminKey(t *testing.T, adminKey string) *Config {
+	t.Helper()
+	key, _ := crypto.GenerateKey(32)
+	return &Config{
+		GRPCAddr:       ":0",
+		RESTAddr:       ":0",
+		SharedFSPath:   t.TempDir(),
+		MasterKey:      key,
+		KeyID:          "test-key-1",
+		WorkerTokenTTL: 1 * time.Hour,
+		ClientTokenTTL: 24 * time.Hour,
+		AdminKey:       adminKey,
+	}
+}
+
+// adminBearer returns an "Authorization: Bearer <adminKey>" header value.
+func adminBearer(adminKey string) string { return "Bearer " + adminKey }
+
+// ── TestHandleAPIKeys ────────────────────────────────────────────────────────
+
+func TestHandleAPIKeys(t *testing.T) {
+	const adminKey = "test-admin-key"
+	config := createTestConfigWithAdminKey(t, adminKey)
+	server, err := NewMainWorkerServer(config)
+	require.NoError(t, err)
+
+	t.Run("GET lists empty keys initially", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var keys []map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &keys))
+		assert.Empty(t, keys)
+	})
+
+	t.Run("GET requires admin permission", func(t *testing.T) {
+		// Create a read-only key.
+		secret, _, _ := server.keyManager.CreateKey("readonly", []auth.Permission{auth.PermRead}, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		req.Header.Set("Authorization", "Bearer "+secret)
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("GET unauthorized without token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("POST creates key and returns secret", func(t *testing.T) {
+		body, _ := json.Marshal(createKeyRequest{
+			Name:        "my-api-key",
+			Permissions: []auth.Permission{auth.PermRead, auth.PermWrite},
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp createKeyResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		assert.NotEmpty(t, resp.Secret)
+		assert.True(t, len(resp.Secret) > 5 && resp.Secret[:3] == "dk_")
+		assert.Equal(t, "my-api-key", resp.Name)
+		assert.Nil(t, resp.ExpiresAt)
+	})
+
+	t.Run("POST creates key with expiry", func(t *testing.T) {
+		body, _ := json.Marshal(createKeyRequest{
+			Name:        "expiring-key",
+			Permissions: []auth.Permission{auth.PermRead},
+			ExpiresIn:   "24h",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp createKeyResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		require.NotNil(t, resp.ExpiresAt)
+		assert.True(t, resp.ExpiresAt.After(time.Now()))
+	})
+
+	t.Run("POST creates key with days expiry", func(t *testing.T) {
+		body, _ := json.Marshal(createKeyRequest{
+			Name:        "week-key",
+			Permissions: []auth.Permission{auth.PermRead},
+			ExpiresIn:   "7d",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp createKeyResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		require.NotNil(t, resp.ExpiresAt)
+		// Should expire roughly 7 days from now.
+		assert.True(t, resp.ExpiresAt.After(time.Now().Add(6*24*time.Hour)))
+	})
+
+	t.Run("POST rejects missing name", func(t *testing.T) {
+		body, _ := json.Marshal(createKeyRequest{Permissions: []auth.Permission{auth.PermRead}})
+		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("POST rejects empty permissions", func(t *testing.T) {
+		body, _ := json.Marshal(createKeyRequest{Name: "no-perms"})
+		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("POST rejects invalid expires_in", func(t *testing.T) {
+		body, _ := json.Marshal(createKeyRequest{
+			Name:        "bad-expiry",
+			Permissions: []auth.Permission{auth.PermRead},
+			ExpiresIn:   "notaduration",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("GET lists created keys", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var keys []map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &keys))
+		assert.NotEmpty(t, keys)
+	})
+
+	t.Run("method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/keys", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	})
+}
+
+// ── TestHandleAPIKeyByID ─────────────────────────────────────────────────────
+
+func TestHandleAPIKeyByID(t *testing.T) {
+	const adminKey = "test-admin-key"
+	config := createTestConfigWithAdminKey(t, adminKey)
+	server, err := NewMainWorkerServer(config)
+	require.NoError(t, err)
+
+	// Pre-create a key.
+	_, createdKey, err := server.keyManager.CreateKey("deletable", []auth.Permission{auth.PermRead}, nil)
+	require.NoError(t, err)
+
+	t.Run("DELETE removes key", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/keys/"+createdKey.ID, nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeyByID(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, 0, server.keyManager.Count())
+	})
+
+	t.Run("DELETE returns 404 for missing key", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/keys/nonexistent", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeyByID(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("DELETE requires admin permission", func(t *testing.T) {
+		// Create a key to try to delete.
+		_, k, _ := server.keyManager.CreateKey("victim", []auth.Permission{auth.PermRead}, nil)
+		// Try to delete with a read-only key.
+		roSecret, _, _ := server.keyManager.CreateKey("ro", []auth.Permission{auth.PermRead}, nil)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/keys/"+k.ID, nil)
+		req.Header.Set("Authorization", "Bearer "+roSecret)
+		w := httptest.NewRecorder()
+		server.handleAPIKeyByID(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/keys/someid", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAPIKeyByID(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	})
+}
+
+// ── TestAdminKeyAuth ─────────────────────────────────────────────────────────
+
+func TestAdminKeyAuth(t *testing.T) {
+	const adminKey = "my-super-secret"
+	config := createTestConfigWithAdminKey(t, adminKey)
+	server, err := NewMainWorkerServer(config)
+	require.NoError(t, err)
+
+	t.Run("admin key grants full access to entity PUT", func(t *testing.T) {
+		body := bytes.NewReader([]byte(`{"testkey": "testvalue"}`))
+		req := httptest.NewRequest(http.MethodPut, "/entity/mydb", body)
+		req.Header.Set("Authorization", "Bearer "+adminKey)
+		w := httptest.NewRecorder()
+		server.handleEntity(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("wrong admin key is rejected", func(t *testing.T) {
+		body := bytes.NewReader([]byte(`{"k": "v"}`))
+		req := httptest.NewRequest(http.MethodPut, "/entity/mydb", body)
+		req.Header.Set("Authorization", "Bearer wrongkey")
+		w := httptest.NewRecorder()
+		server.handleEntity(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("read-only API key is rejected for entity PUT", func(t *testing.T) {
+		secret, _, _ := server.keyManager.CreateKey("ro", []auth.Permission{auth.PermRead}, nil)
+		body := bytes.NewReader([]byte(`{"k": "v"}`))
+		req := httptest.NewRequest(http.MethodPut, "/entity/mydb", body)
+		req.Header.Set("Authorization", "Bearer "+secret)
+		w := httptest.NewRecorder()
+		server.handleEntity(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("write API key is accepted for entity PUT", func(t *testing.T) {
+		secret, _, _ := server.keyManager.CreateKey("rw", []auth.Permission{auth.PermRead, auth.PermWrite}, nil)
+		body := bytes.NewReader([]byte(`{"k": "v"}`))
+		req := httptest.NewRequest(http.MethodPut, "/entity/mydb", body)
+		req.Header.Set("Authorization", "Bearer "+secret)
+		w := httptest.NewRecorder()
+		server.handleEntity(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }

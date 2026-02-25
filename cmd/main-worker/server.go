@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -34,6 +36,8 @@ type MainWorkerServer struct {
 	// Authentication and token management
 	tokenManager  *auth.TokenManager
 	workerAuth    *auth.WorkerAuthenticator
+	keyManager    *auth.KeyManager // persistent API key store with RBAC
+	adminKeyHash  string           // SHA-256 of the raw admin key (empty = disabled)
 
 	// Worker registry tracks Processing Worker status.
 	registry *routing.WorkerRegistry
@@ -68,17 +72,17 @@ type MainWorkerServer struct {
 type Config struct {
 	// gRPC server configuration
 	GRPCAddr string
-	
+
 	// REST API configuration
 	RESTAddr string
-	
+
 	// Shared filesystem path
 	SharedFSPath string
-	
+
 	// Token TTLs
 	WorkerTokenTTL time.Duration
 	ClientTokenTTL time.Duration
-	
+
 	// Master encryption key (32 bytes for AES-256)
 	MasterKey []byte
 	KeyID     string
@@ -90,6 +94,15 @@ type Config struct {
 	// MetricsAddr is the address for the Prometheus /metrics HTTP endpoint
 	// (e.g. ":9090").  An empty string disables the metrics server.
 	MetricsAddr string
+
+	// AdminKey is the master Bearer key that bypasses all RBAC checks.
+	// When empty, access is controlled entirely by RBAC API keys.
+	AdminKey string
+
+	// KeyStorePath is the path to the JSON file that persists API keys.
+	// When empty the key store lives in memory only (keys are lost on restart).
+	// Defaults to <SharedFSPath>/_auth/keys.json when SharedFSPath is set.
+	KeyStorePath string
 }
 
 // NewMainWorkerServer creates a new Main Worker server instance.
@@ -97,7 +110,7 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	// Validate master key
 	if len(config.MasterKey) == 0 {
 		// Generate a new master key if not provided
@@ -108,11 +121,11 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 		config.MasterKey = key
 		log.Printf("Generated new master encryption key")
 	}
-	
+
 	if len(config.MasterKey) != 32 {
 		return nil, fmt.Errorf("master key must be 32 bytes, got %d", len(config.MasterKey))
 	}
-	
+
 	if config.KeyID == "" {
 		config.KeyID = "main-key-v1"
 	}
@@ -120,12 +133,29 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 	if config.EntityCacheSize <= 0 {
 		config.EntityCacheSize = 1024
 	}
-	
+
+	// Derive key store path from SharedFSPath when not explicitly set.
+	if config.KeyStorePath == "" && config.SharedFSPath != "" {
+		config.KeyStorePath = filepath.Join(config.SharedFSPath, "_auth", "keys.json")
+	}
+
 	// Initialize token manager
 	tokenManager := auth.NewTokenManager(config.WorkerTokenTTL, config.ClientTokenTTL)
-	
+
 	// Initialize worker authenticator
 	workerAuth := auth.NewWorkerAuthenticator()
+
+	// Initialize API key manager (persisted to disk).
+	keyManager, err := auth.NewKeyManager(config.KeyStorePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize key manager: %w", err)
+	}
+
+	// Hash the admin key so we can compare without storing the raw value.
+	adminKeyHash := ""
+	if config.AdminKey != "" {
+		adminKeyHash = hashAdminKey(config.AdminKey)
+	}
 
 	// Initialise LRU entity store.
 	// TTL = 0: entries are kept until LRU eviction — no time-based expiry.
@@ -136,16 +166,18 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create entity store: %w", err)
 	}
-	
+
 	server := &MainWorkerServer{
-		tokenManager:  tokenManager,
-		workerAuth:    workerAuth,
-		registry:      routing.NewWorkerRegistry(),
-		entityStore:   entityStore,
-		masterKey:     config.MasterKey,
-		masterKeyID:   config.KeyID,
-		config:        config,
-		metrics:       metrics.NewMainWorkerMetrics(),
+		tokenManager: tokenManager,
+		workerAuth:   workerAuth,
+		keyManager:   keyManager,
+		adminKeyHash: adminKeyHash,
+		registry:     routing.NewWorkerRegistry(),
+		entityStore:  entityStore,
+		masterKey:    config.MasterKey,
+		masterKeyID:  config.KeyID,
+		config:       config,
+		metrics:      metrics.NewMainWorkerMetrics(),
 	}
 
 	// Initialize schema validator (non-fatal: schema endpoints disabled if it fails).
@@ -407,6 +439,9 @@ func (s *MainWorkerServer) Run() error {
 		mux.HandleFunc("/admin/schemas", s.handleAdminSchemas)
 		mux.HandleFunc("/schema/", s.handleSchema)
 		mux.HandleFunc("/entity/", s.handleEntity)
+		// API key management endpoints
+		mux.HandleFunc("/api/keys", s.handleAPIKeys)
+		mux.HandleFunc("/api/keys/", s.handleAPIKeyByID)
 
 		log.Printf("Main Worker REST server listening on %s", s.config.RESTAddr)
 		if err := http.ListenAndServe(s.config.RESTAddr, s.instrumentHTTP(mux)); err != nil && err != http.ErrServerClosed {
@@ -476,6 +511,10 @@ func normalisePath(p string) string {
 		return "/admin/workers"
 	case p == "/admin/schemas":
 		return "/admin/schemas"
+	case p == "/api/keys":
+		return "/api/keys"
+	case strings.HasPrefix(p, "/api/keys/"):
+		return "/api/keys/:id"
 	case strings.HasPrefix(p, "/schema/"):
 		return "/schema/:id"
 	case strings.HasPrefix(p, "/entity/"):
@@ -499,14 +538,14 @@ func (s *MainWorkerServer) handleHealth(w http.ResponseWriter, r *http.Request) 
 
 // handleAdminWorkers serves the GET /admin/workers endpoint.
 // It returns the list of all registered Processing Workers and their status.
-// Requires a valid Bearer token.
+// Requires admin permission.
 func (s *MainWorkerServer) handleAdminWorkers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	if _, ok := s.extractBearerToken(w, r); !ok {
+	if !s.requirePermission(w, r, auth.PermAdmin) {
 		return
 	}
 
@@ -516,26 +555,77 @@ func (s *MainWorkerServer) handleAdminWorkers(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(workers) //nolint:errcheck
 }
 
-// extractBearerToken extracts and validates a client Bearer token from the
-// Authorization header.  It returns the token string on success, or writes a
-// 401 response and returns ("", false) on failure.
-func (s *MainWorkerServer) extractBearerToken(w http.ResponseWriter, r *http.Request) (string, bool) {
+// extractBearerToken extracts the raw Bearer token from the Authorization
+// header.  It validates the token in the following priority order:
+//
+//  1. Admin key — bypasses all RBAC checks.
+//  2. API key — validated via the KeyManager; RBAC permissions apply.
+//  3. Session token — short-lived token issued by POST /api/login.
+//
+// On success it returns the raw token string and the resolved permissions.
+// On failure it writes a 401 response and returns ("", nil, false).
+func (s *MainWorkerServer) extractBearerToken(w http.ResponseWriter, r *http.Request) (string, []auth.Permission, bool) {
 	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return "", nil, false
+	}
 	bearerToken := strings.TrimPrefix(authHeader, "Bearer ")
-	if !strings.HasPrefix(authHeader, "Bearer ") || bearerToken == "" {
+	if bearerToken == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return "", false
+		return "", nil, false
 	}
-	if _, err := s.tokenManager.ValidateClientToken(bearerToken); err != nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return "", false
+
+	// 1. Admin key check — full access.
+	if s.adminKeyHash != "" && hashAdminKey(bearerToken) == s.adminKeyHash {
+		return bearerToken, auth.AllPermissions, true
 	}
-	return bearerToken, true
+
+	// 2. Persistent API key check — RBAC permissions from the key record.
+	if apiKey, err := s.keyManager.ValidateKey(bearerToken); err == nil {
+		return bearerToken, apiKey.Permissions, true
+	}
+
+	// 3. Session token check — issued by POST /api/login.
+	if _, err := s.tokenManager.ValidateClientToken(bearerToken); err == nil {
+		// Session tokens are issued with read+write by handleLogin; grant those.
+		return bearerToken, []auth.Permission{auth.PermRead, auth.PermWrite}, true
+	}
+
+	http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+	return "", nil, false
+}
+
+// requirePermission is like extractBearerToken but also enforces that the
+// caller holds a specific permission.  Returns false (and writes 401/403) on
+// any auth or authorisation failure.
+func (s *MainWorkerServer) requirePermission(w http.ResponseWriter, r *http.Request, perm auth.Permission) bool {
+	_, perms, ok := s.extractBearerToken(w, r)
+	if !ok {
+		return false
+	}
+	for _, p := range perms {
+		if p == perm || p == auth.PermAdmin {
+			return true
+		}
+	}
+	http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+	return false
 }
 
 // handleEntity handles GET and PUT requests for /entity/{db}[?key=...].
 func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.extractBearerToken(w, r); !ok {
+	switch r.Method {
+	case http.MethodGet:
+		if !s.requirePermission(w, r, auth.PermRead) {
+			return
+		}
+	case http.MethodPut:
+		if !s.requirePermission(w, r, auth.PermWrite) {
+			return
+		}
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -651,7 +741,7 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 		w.Write(data) //nolint:errcheck
 
 	case http.MethodPut:
-		if _, ok := s.extractBearerToken(w, r); !ok {
+		if !s.requirePermission(w, r, auth.PermWrite) {
 			return
 		}
 		// Limit schema body to 1 MiB.
@@ -688,10 +778,142 @@ func (s *MainWorkerServer) GetStats() map[string]interface{} {
 		"entity_cache_hits":       cacheStats.Hits,
 		"entity_cache_misses":     cacheStats.Misses,
 		"entity_cache_evictions":  cacheStats.Evicts,
+		"api_keys":                s.keyManager.Count(),
 	}
 }
 
 // Helper function to generate RSA key pair for testing
 func GenerateTestKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	return crypto.GenerateRSAKeyPair(2048)
+}
+
+// ── API Key Management Endpoints ────────────────────────────────────────────
+
+// createKeyRequest is the JSON body for POST /api/keys.
+type createKeyRequest struct {
+	Name        string           `json:"name"`
+	Permissions []auth.Permission `json:"permissions"`
+	// ExpiresIn is an optional duration string (e.g. "24h", "7d").
+	// When omitted the key never expires.
+	ExpiresIn string `json:"expires_in,omitempty"`
+}
+
+// createKeyResponse is the JSON body returned by POST /api/keys.
+// The Secret is shown only once.
+type createKeyResponse struct {
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Secret      string           `json:"secret"` // raw key — shown only once
+	Permissions []auth.Permission `json:"permissions"`
+	ExpiresAt   *time.Time       `json:"expires_at,omitempty"`
+	CreatedAt   time.Time        `json:"created_at"`
+}
+
+// handleAPIKeys serves POST /api/keys (create) and GET /api/keys (list).
+// Both operations require admin permission.
+func (s *MainWorkerServer) handleAPIKeys(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		if !s.requirePermission(w, r, auth.PermAdmin) {
+			return
+		}
+		keys := s.keyManager.ListKeys()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(keys) //nolint:errcheck
+
+	case http.MethodPost:
+		if !s.requirePermission(w, r, auth.PermAdmin) {
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<16) // 64 KiB max
+		var req createKeyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"bad_json"}`, http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" {
+			http.Error(w, `{"error":"name is required"}`, http.StatusBadRequest)
+			return
+		}
+		if len(req.Permissions) == 0 {
+			http.Error(w, `{"error":"permissions are required"}`, http.StatusBadRequest)
+			return
+		}
+
+		var expiresAt *time.Time
+		if req.ExpiresIn != "" {
+			d, err := time.ParseDuration(req.ExpiresIn)
+			if err != nil {
+				// Try plain days notation: "7d"
+				if len(req.ExpiresIn) > 1 && req.ExpiresIn[len(req.ExpiresIn)-1] == 'd' {
+					var days int
+					if _, err2 := fmt.Sscanf(req.ExpiresIn[:len(req.ExpiresIn)-1], "%d", &days); err2 == nil {
+						d = time.Duration(days) * 24 * time.Hour
+						err = nil
+					}
+				}
+				if err != nil {
+					http.Error(w, `{"error":"invalid expires_in (use Go duration e.g. 24h or 7d)"}`, http.StatusBadRequest)
+					return
+				}
+			}
+			t := time.Now().Add(d)
+			expiresAt = &t
+		}
+
+		secret, key, err := s.keyManager.CreateKey(req.Name, req.Permissions, expiresAt)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		log.Printf("Created API key %q (id=%s permissions=%v)", key.Name, key.ID, key.Permissions)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(createKeyResponse{ //nolint:errcheck
+			ID:          key.ID,
+			Name:        key.Name,
+			Secret:      secret,
+			Permissions: key.Permissions,
+			ExpiresAt:   key.ExpiresAt,
+			CreatedAt:   key.CreatedAt,
+		})
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleAPIKeyByID serves DELETE /api/keys/{id} (delete key).
+// Requires admin permission.
+func (s *MainWorkerServer) handleAPIKeyByID(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/keys/")
+	if id == "" {
+		http.Error(w, `{"error":"key id is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !s.requirePermission(w, r, auth.PermAdmin) {
+		return
+	}
+
+	if err := s.keyManager.DeleteKey(id); err != nil {
+		http.Error(w, `{"error":"key not found"}`, http.StatusNotFound)
+		return
+	}
+	log.Printf("Deleted API key id=%s", id)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
+}
+
+// hashAdminKey returns the hex-encoded SHA-256 of the raw admin key string.
+func hashAdminKey(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }

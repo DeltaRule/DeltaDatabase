@@ -94,6 +94,7 @@ def live_server(tmp_path_factory):
             f"-grpc-addr={main_grpc_addr}",
             f"-rest-addr={main_rest_addr}",
             f"-shared-fs={db_dir}",
+            "-admin-key=test-admin-key",
         ],
         cwd=str(REPO_ROOT),
         stdout=log_fp,
@@ -128,7 +129,7 @@ def live_server(tmp_path_factory):
     try:
         r = _requests.post(
             rest_url + "/api/login",
-            json={"client_id": "test-session"},
+            json={"key": "test-admin-key"},
             timeout=5,
         )
         token = r.json()["token"]
