@@ -266,6 +266,8 @@ Response:
 | `-key-store` | `<shared-fs>/_auth/keys.json` | Path to the RBAC API key JSON store |
 | `-worker-ttl` | `1h` | TTL for Processing Worker session tokens |
 | `-client-ttl` | `24h` | TTL for frontend session tokens (`/api/login`) |
+| `-grpc-max-recv-msg-size` | `4194304` (4 MiB) | Maximum gRPC message size in bytes the server will accept |
+| `-rest-max-body-size` | `1048576` (1 MiB) | Maximum HTTP request body size in bytes for entity and schema PUT endpoints |
 | `-s3-endpoint` | *(empty)* | S3-compatible endpoint, e.g. `minio:9000`; enables S3 backend |
 | `-s3-access-key` | *(empty)* | S3 access key ID (or `S3_ACCESS_KEY` env var) |
 | `-s3-secret-key` | *(empty)* | S3 secret access key (or `S3_SECRET_KEY` env var) |
@@ -283,6 +285,7 @@ Response:
 | `-shared-fs` | `./shared/db` | Path to the shared filesystem root (ignored when `-s3-endpoint` is set) |
 | `-cache-size` | `256` | Maximum number of cached entities |
 | `-cache-ttl` | `0` | Time-to-live per cache entry (`0` = LRU-only eviction, no time-based expiry) |
+| `-grpc-max-recv-msg-size` | `4194304` (4 MiB) | Maximum gRPC message size in bytes this worker will accept. Should match the Main Worker's setting |
 | `-s3-endpoint` | *(empty)* | S3-compatible endpoint, e.g. `minio:9000`; enables S3 backend |
 | `-s3-access-key` | *(empty)* | S3 access key ID (or `S3_ACCESS_KEY` env var) |
 | `-s3-secret-key` | *(empty)* | S3 secret access key (or `S3_SECRET_KEY` env var) |

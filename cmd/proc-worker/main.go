@@ -22,6 +22,7 @@ func main() {
 	metricsAddr := flag.String("metrics-addr", "",            "Prometheus metrics server address (e.g. :9091); empty = disabled")
 	cacheSize := flag.Int("cache-size",    256,               "Maximum number of entries in the in-memory cache")
 	cacheTTL  := flag.Duration("cache-ttl", 0,                "TTL for cached entries (0 = LRU-only eviction, no time-based expiry)")
+	grpcMaxRecvMsgSize := flag.Int("grpc-max-recv-msg-size", 4*1024*1024, "Maximum gRPC message size in bytes that this worker will accept (default 4 MiB)")
 
 	// S3-compatible storage flags (all optional; when -s3-endpoint is provided
 	// the shared filesystem backend is replaced with S3-compatible object storage).
@@ -107,11 +108,12 @@ func main() {
 
 	// Build configuration.
 	config := &ProcConfig{
-		MainAddr:     *mainAddr,
-		WorkerID:     *workerID,
-		SharedFSPath: *sharedFS,
-		MetricsAddr:  *metricsAddr,
-		Tags:         map[string]string{"grpc_addr": *grpcAddr},
+		MainAddr:       *mainAddr,
+		WorkerID:       *workerID,
+		SharedFSPath:   *sharedFS,
+		MetricsAddr:    *metricsAddr,
+		Tags:           map[string]string{"grpc_addr": *grpcAddr},
+		MaxRecvMsgSize: *grpcMaxRecvMsgSize,
 	}
 
 	// Create the Processing Worker.

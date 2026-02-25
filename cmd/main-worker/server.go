@@ -104,6 +104,14 @@ type Config struct {
 	// When empty the key store lives in memory only (keys are lost on restart).
 	// Defaults to <SharedFSPath>/_auth/keys.json when SharedFSPath is set.
 	KeyStorePath string
+
+	// MaxRecvMsgSize is the maximum gRPC message size (bytes) the server will
+	// accept.  Defaults to 4 MiB when zero.
+	MaxRecvMsgSize int
+
+	// MaxRequestBodySize is the maximum HTTP request body size (bytes) accepted
+	// by entity and schema PUT endpoints.  Defaults to 1 MiB when zero.
+	MaxRequestBodySize int64
 }
 
 // NewMainWorkerServer creates a new Main Worker server instance.
@@ -133,6 +141,14 @@ func NewMainWorkerServer(config *Config) (*MainWorkerServer, error) {
 
 	if config.EntityCacheSize <= 0 {
 		config.EntityCacheSize = 1024
+	}
+
+	if config.MaxRecvMsgSize <= 0 {
+		config.MaxRecvMsgSize = 4 * 1024 * 1024 // 4 MiB
+	}
+
+	if config.MaxRequestBodySize <= 0 {
+		config.MaxRequestBodySize = 1 * 1024 * 1024 // 1 MiB
 	}
 
 	// Derive key store path from SharedFSPath when not explicitly set.
@@ -384,7 +400,10 @@ func (s *MainWorkerServer) routeGETToProcWorker(ctx context.Context, req *proto.
 			conn, err := grpc.NewClient(
 				addr,
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpc.WithDefaultCallOptions(grpc.ForceCodec(proto.JSONCodec{})),
+				grpc.WithDefaultCallOptions(
+					grpc.ForceCodec(proto.JSONCodec{}),
+					grpc.MaxCallRecvMsgSize(s.config.MaxRecvMsgSize),
+				),
 			)
 			if err == nil {
 				defer conn.Close()
@@ -459,7 +478,7 @@ func (s *MainWorkerServer) Run() error {
 	}
 
 	// Create gRPC server.
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(s.config.MaxRecvMsgSize))
 
 	// Register the MainWorker service.
 	proto.RegisterMainWorkerServer(grpcServer, s)
@@ -676,8 +695,8 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 		w.Write(entry.Data) //nolint:errcheck
 
 	case http.MethodPut:
-		// Limit request body to 1 MiB to prevent resource exhaustion.
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		// Limit request body to prevent resource exhaustion.
+		r.Body = http.MaxBytesReader(w, r.Body, s.config.MaxRequestBodySize)
 		var payload map[string]json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, `{"error":"bad_json"}`, http.StatusBadRequest)
@@ -761,8 +780,8 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 		if !s.requirePermission(w, r, auth.PermWrite) {
 			return
 		}
-		// Limit schema body to 1 MiB.
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		// Limit schema body to prevent resource exhaustion.
+		r.Body = http.MaxBytesReader(w, r.Body, s.config.MaxRequestBodySize)
 		var body json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, `{"error":"bad_json"}`, http.StatusBadRequest)
