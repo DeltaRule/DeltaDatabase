@@ -35,6 +35,26 @@ After a write, the entity is immediately available in cache for subsequent reads
 
 ---
 
+## Delete Path (DELETE)
+
+```
+Client DELETE request
+      │
+      ▼
+Main Worker (auth + routing)
+      │
+      ▼
+Processing Worker
+  1. Acquire exclusive lock
+  2. ✅ Evict entity from LRU cache
+  3. Remove .json.enc + .meta.json from storage
+  4. Release lock
+```
+
+After a delete, the entity is immediately removed from cache and any subsequent GET returns `404`.
+
+---
+
 ## Read Path (GET)
 
 ```

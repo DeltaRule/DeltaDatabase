@@ -77,7 +77,7 @@ func (s *ProcWorkerServer) Subscribe(_ context.Context, _ *proto.SubscribeReques
 	return nil, status.Error(codes.Unimplemented, "Subscribe is not handled by the Processing Worker")
 }
 
-// Process handles GET and PUT operations for database entities.
+// Process handles GET, PUT, and DELETE operations for database entities.
 //
 // GET flow:
 //  1. Check pkg/cache; if hit, return metadata + data.
@@ -98,6 +98,12 @@ func (s *ProcWorkerServer) Subscribe(_ context.Context, _ *proto.SubscribeReques
 //  6. Release lock and return response to the caller immediately.
 //  7. Write to disk asynchronously in a background goroutine so the caller is
 //     not blocked by filesystem I/O.
+//
+// DELETE flow:
+//  1. Obtain exclusive lock via pkg/fs.
+//  2. Evict the entity from the in-memory cache.
+//  3. Delete the entity's .json.enc and .meta.json files from disk.
+//  4. Release lock and return response to the caller.
 func (s *ProcWorkerServer) Process(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
 	if req.GetDatabaseName() == "" || req.GetEntityKey() == "" {
 		return nil, status.Error(codes.InvalidArgument, "database_name and entity_key are required")
@@ -143,9 +149,20 @@ func (s *ProcWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 		s.metrics.ProcessDurationSeconds.WithLabelValues(op).Observe(time.Since(start).Seconds())
 		s.updateCacheMetrics()
 		return resp, err
+	case "DELETE":
+		log.Printf("[%s] DELETE %s", s.worker.config.WorkerID, entityID)
+		resp, err := s.processDELETE(entityID)
+		statusLabel := "success"
+		if err != nil {
+			statusLabel = "error"
+		}
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, statusLabel).Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op).Observe(time.Since(start).Seconds())
+		s.updateCacheMetrics()
+		return resp, err
 	default:
 		return nil, status.Errorf(codes.InvalidArgument,
-			"unsupported operation %q: must be GET or PUT", op)
+			"unsupported operation %q: must be GET, PUT, or DELETE", op)
 	}
 }
 
@@ -381,6 +398,27 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 		Status:  "OK",
 		Version: versionStr,
 	}, nil
+}
+
+// processDELETE handles the DELETE flow: exclusive lock → evict cache → delete from disk → release lock.
+func (s *ProcWorkerServer) processDELETE(entityID string) (*proto.ProcessResponse, error) {
+	// Acquire exclusive lock to prevent concurrent reads/writes during deletion.
+	if _, err := s.lockMgr.AcquireLock(entityID, fs.LockExclusive); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to acquire exclusive lock: %v", err)
+	}
+	defer s.lockMgr.ReleaseLock(entityID) //nolint:errcheck
+
+	// Evict from in-memory cache.
+	s.cache.Evict(entityID)
+
+	// Delete from disk. If the file doesn't exist, treat it as success.
+	if err := s.storage.DeleteFile(entityID); err != nil {
+		log.Printf("[%s] failed to delete %s from disk: %v", s.worker.config.WorkerID, entityID, err)
+		return nil, status.Errorf(codes.Internal, "failed to delete entity: %v", err)
+	}
+	log.Printf("[%s] deleted %s", s.worker.config.WorkerID, entityID)
+
+	return &proto.ProcessResponse{Status: "OK"}, nil
 }
 
 // WaitForPendingWrites blocks until all in-flight asynchronous disk-write

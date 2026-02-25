@@ -9,6 +9,12 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`DELETE /entity/{database}?key={entityKey}`** — new endpoint to delete a single entity by key.
+  Requires `write` permission. The entity is evicted from the in-memory cache and its encrypted
+  files are removed from the shared filesystem. Documented in the OpenAPI spec, REST API reference,
+  quick start guide, caching model, and security model pages.
+
 ---
 
 ## [0.1.1-alpha] — 2026-02-25

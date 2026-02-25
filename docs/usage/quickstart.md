@@ -138,6 +138,17 @@ curl -s "http://127.0.0.1:8080/entity/mydb?key=hello_world" \
 {"message": "Hello from DeltaDatabase!", "count": 1}
 ```
 
+### Delete the entity
+
+```bash
+curl -s -X DELETE "http://127.0.0.1:8080/entity/mydb?key=hello_world" \
+  -H "Authorization: Bearer mysecretadminkey"
+```
+
+```json
+{"status": "ok"}
+```
+
 ### Create a scoped API key
 
 ```bash
@@ -194,7 +205,7 @@ Enter your **admin key** or an **API key** in the login screen.
 |-----|-------------|
 | Dashboard | Live health status and worker count |
 | Workers | All registered Processing Workers |
-| Entities | GET and PUT entities through a form |
+| Entities | GET, PUT, and DELETE entities through a form |
 | Schemas | Manage JSON Schema templates; export as Pydantic or TypeScript |
 | API Keys | Create, list, and delete RBAC API keys |
 | Explorer | Send custom requests and view response and timing |

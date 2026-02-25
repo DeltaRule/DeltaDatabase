@@ -130,6 +130,8 @@ Entity keys, database names, and schema IDs are validated to reject:
 
 Every `PUT /entity/{database}` request is validated against the registered JSON Schema before being encrypted and stored. Validation failures return HTTP `400` and nothing is written to disk.
 
+`DELETE /entity/{database}` requests bypass schema validation (no payload is involved) and require `write` permission.
+
 ---
 
 ## Log Redaction

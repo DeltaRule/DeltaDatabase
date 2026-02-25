@@ -319,10 +319,10 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 	}
 
 	// Validate operation
-	if op != "GET" && op != "PUT" {
+	if op != "GET" && op != "PUT" && op != "DELETE" {
 		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
 		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
-		return nil, status.Error(codes.InvalidArgument, "operation must be GET or PUT")
+		return nil, status.Error(codes.InvalidArgument, "operation must be GET, PUT, or DELETE")
 	}
 
 	if op == "GET" {
@@ -335,6 +335,15 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 		s.metrics.ProcessDurationSeconds.WithLabelValues(op, statusLabel).Observe(time.Since(start).Seconds())
 		s.updateCacheMetrics()
 		return resp, err
+	}
+
+	if op == "DELETE" {
+		storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
+		s.entityStore.Evict(storeKey)
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "success").Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "success").Observe(time.Since(start).Seconds())
+		s.updateCacheMetrics()
+		return &proto.ProcessResponse{Status: "OK"}, nil
 	}
 
 	// PUT: cache immediately (LRU evicts the least-recently-used entry if full).
@@ -649,7 +658,7 @@ func (s *MainWorkerServer) requirePermission(w http.ResponseWriter, r *http.Requ
 	return false
 }
 
-// handleEntity handles GET and PUT requests for /entity/{db}[?key=...].
+// handleEntity handles GET, PUT, and DELETE requests for /entity/{db}[?key=...].
 func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -657,6 +666,10 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	case http.MethodPut:
+		if !s.requirePermission(w, r, auth.PermWrite) {
+			return
+		}
+	case http.MethodDelete:
 		if !s.requirePermission(w, r, auth.PermWrite) {
 			return
 		}
@@ -719,6 +732,23 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 		for key, value := range payload {
 			s.entityStore.Set(db+"/"+key, value, "1")
 		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
+
+	case http.MethodDelete:
+		key := r.URL.Query().Get("key")
+		if key == "" {
+			http.Error(w, `{"error":"missing key"}`, http.StatusBadRequest)
+			return
+		}
+		// Reject path-traversal characters in the entity key.
+		if strings.ContainsAny(key, `/\`) || strings.Contains(key, "..") {
+			http.Error(w, `{"error":"invalid key"}`, http.StatusBadRequest)
+			return
+		}
+		storeKey := db + "/" + key
+		s.entityStore.Evict(storeKey)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
