@@ -5,6 +5,8 @@ All endpoints are served by the **Main Worker** at the configured `-rest-addr` (
 
 Entity endpoints require an `Authorization: Bearer <token>` header. See [Authentication](authentication) for how to obtain credentials.
 
+> **OpenAPI spec:** A machine-readable [OpenAPI 3.0 specification](https://github.com/DeltaRule/DeltaDatabase/blob/main/api/openapi.yaml) is available at `api/openapi.yaml` in the repository root. You can import it into tools such as Swagger UI, Postman, or Insomnia to explore and test the API interactively.
+
 ---
 
 ## Authentication

@@ -169,8 +169,9 @@ DeltaDatabase Processing Worker
 Encrypted JSON on disk
 ```
 
-The Flask app holds a single DeltaDatabase Bearer token (refreshed automatically
-on expiry) and maps every application concept — users, chats, config — to
+The Flask app holds a single DeltaDatabase API key (`DELTA_DB_API_KEY`) and
+uses it directly as a Bearer token on every request — no login step, no token
+expiry, no re-authentication needed. It maps every application concept — users, chats, config — to
 DeltaDatabase entities. No SQL, no Redis, no separate session store.
 
 ---

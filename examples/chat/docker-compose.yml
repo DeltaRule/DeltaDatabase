@@ -23,6 +23,7 @@ services:
     #   dockerfile: deploy/docker/Dockerfile.all-in-one
     container_name: deltachat-db
     environment:
+      ADMIN_KEY: "${ADMIN_KEY:-changeme-in-production}"
       MASTER_KEY: "${MASTER_KEY:-}"
       SHARED_FS: /shared/db
     volumes:
@@ -43,7 +44,7 @@ services:
       - "5000:5000"
     environment:
       DELTA_DB_URL: "http://deltadatabase:8080"
-      DELTA_DB_CLIENT_ID: "chat-app"
+      DELTA_DB_API_KEY: "${ADMIN_KEY:-changeme-in-production}"
       FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-changeme-in-production}"
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
