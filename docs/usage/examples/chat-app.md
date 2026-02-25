@@ -14,27 +14,27 @@ tested with [Playwright](https://playwright.dev/).
 
 ### Sign in
 
-![Login page](https://github.com/user-attachments/assets/93a76ef1-8830-4843-b770-eb0f35419459)
+![Login page](screenshots/login.png)
 
 ### Register
 
-![Register page](https://github.com/user-attachments/assets/05f961f8-e7aa-4e79-bc5f-14c1942ec4c2)
+![Register page](screenshots/register.png)
 
 ### Chat (empty state)
 
-![Chat empty state](https://github.com/user-attachments/assets/e3527f4a-7aaf-4765-9541-e26aa977c00a)
+![Chat empty state](screenshots/chat-empty.png)
 
 ### Chat (conversation)
 
-![Chat with messages](https://github.com/user-attachments/assets/602a1918-d8fc-4b53-87bd-7ad60ae870a1)
+![Chat with messages](screenshots/chat-conversation.png)
 
 ### Settings
 
-![Settings page](https://github.com/user-attachments/assets/5163d37e-6161-4054-92f2-25a22607e1cb)
+![Settings page](screenshots/settings.png)
 
 ### Admin Panel
 
-![Admin panel](https://github.com/user-attachments/assets/c23bd889-d4b2-4787-bd2c-26a4b77fd968)
+![Admin panel](screenshots/admin.png)
 
 ---
 

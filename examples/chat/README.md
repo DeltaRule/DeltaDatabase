@@ -4,6 +4,20 @@ A full-stack AI chat application that uses **DeltaDatabase** as its only storage
 backend. Built with [Flask](https://flask.palletsprojects.com/) and tested with
 [Playwright](https://playwright.dev/).
 
+## Screenshots
+
+| Login | Register |
+|---|---|
+| ![Login](../../docs/usage/examples/screenshots/login.png) | ![Register](../../docs/usage/examples/screenshots/register.png) |
+
+| Chat (empty) | Chat (conversation) |
+|---|---|
+| ![Chat empty](../../docs/usage/examples/screenshots/chat-empty.png) | ![Chat conversation](../../docs/usage/examples/screenshots/chat-conversation.png) |
+
+| Settings | Admin Panel |
+|---|---|
+| ![Settings](../../docs/usage/examples/screenshots/settings.png) | ![Admin](../../docs/usage/examples/screenshots/admin.png) |
+
 ## Features
 
 | Feature | Details |
