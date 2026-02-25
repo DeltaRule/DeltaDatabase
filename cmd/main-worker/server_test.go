@@ -575,6 +575,22 @@ func TestHandleAPIKeys(t *testing.T) {
 		assert.Empty(t, keys)
 	})
 
+	t.Run("GET returns 200 empty array without auth when no keys exist", func(t *testing.T) {
+		// Fresh server with zero keys.  Even without an Authorization header the
+		// endpoint must return 200 [] so the browser UI shows "No API keys found."
+		// rather than "Failed to load keys: 401/403".
+		fresh, err := NewMainWorkerServer(createTestConfigWithAdminKey(t, adminKey))
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		w := httptest.NewRecorder()
+		fresh.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+		assert.JSONEq(t, "[]", strings.TrimSpace(w.Body.String()))
+	})
+
 	t.Run("GET requires admin permission", func(t *testing.T) {
 		// Create a read-only key.
 		secret, _, _ := server.keyManager.CreateKey("readonly", []auth.Permission{auth.PermRead}, nil)

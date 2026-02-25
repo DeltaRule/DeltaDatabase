@@ -823,6 +823,15 @@ type createKeyResponse struct {
 func (s *MainWorkerServer) handleAPIKeys(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		// When no API keys exist yet, return an empty array immediately without
+		// requiring admin auth.  This prevents the UI from showing a "failed to
+		// fetch keys" error in the first-run / empty state — instead callers
+		// (including the browser UI) see a clean 200 [] response.
+		if s.keyManager.Count() == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("[]\n")) //nolint:errcheck
+			return
+		}
 		if !s.requirePermission(w, r, auth.PermAdmin) {
 			return
 		}

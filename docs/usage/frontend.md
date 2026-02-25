@@ -7,7 +7,7 @@ This page walks through every screen with screenshots and explains how to use ea
 
 ## Login
 
-![Login screen](https://github.com/user-attachments/assets/04731bd5-04ef-45ea-9ba6-db3c74bc2c8f)
+![Login screen](https://github.com/user-attachments/assets/f91ea2aa-a97a-4635-900b-2332c43bf0b9)
 
 When you open the UI you are presented with a login screen.
 
@@ -33,7 +33,7 @@ curl -s -X POST http://localhost:8080/api/login \
 
 ## Dashboard
 
-![Dashboard](https://github.com/user-attachments/assets/f8c4bccd-05b8-4f6c-8176-b08b7b838f59)
+![Dashboard](https://github.com/user-attachments/assets/9669120a-76b2-46f8-9fda-8e1200852606)
 
 The **Dashboard** is the first screen after login. It shows:
 
@@ -46,6 +46,8 @@ The header always shows your current session identity (e.g. `👤 admin`) and a 
 ---
 
 ## Workers
+
+![Workers page](https://github.com/user-attachments/assets/62ca11ae-46de-4b7b-8c01-7bcdcdcdff34)
 
 The **Workers** tab lists all registered Processing Workers returned by `GET /admin/workers`.
 
@@ -65,7 +67,7 @@ Use the **↻ Refresh** button to reload the list at any time.
 
 ## Entities
 
-![Entities page](https://github.com/user-attachments/assets/cd3062da-8b26-46ad-8d9a-e491c01d0fca)
+![Entities page](https://github.com/user-attachments/assets/5a5c702c-56bb-4760-946c-97010259381c)
 
 The **Entities** tab lets you read and write JSON entities directly from the browser.
 
@@ -90,7 +92,7 @@ Multiple entities can be written in a single PUT by including multiple top-level
 
 ## Schemas
 
-![Schemas page](https://github.com/user-attachments/assets/b948e883-0ee7-4519-962d-a3bacf28ccd0)
+![Schemas page](https://github.com/user-attachments/assets/00832ac7-16dc-4f62-b9c1-e5a0c372551b)
 
 The **Schemas** tab manages [JSON Schema](https://json-schema.org/) templates used to validate entity data.
 
@@ -118,7 +120,7 @@ Click **Copy** to copy the generated code to the clipboard, or **⬇ Download** 
 
 ## API Keys
 
-![API Keys page](https://github.com/user-attachments/assets/584841ec-4bc3-48f6-a15a-cfa1ff33a7c8)
+![API Keys page](https://github.com/user-attachments/assets/31410a76-25b7-4061-ade8-92031333c319)
 
 The **API Keys** tab manages persistent RBAC API keys backed by `POST /api/keys` and `DELETE /api/keys/{id}`.
 
@@ -144,6 +146,8 @@ Lists all API keys with their ID, permissions, creation date, expiry, and enable
 ---
 
 ## Explorer
+
+![Explorer page](https://github.com/user-attachments/assets/e6ef9c4a-ca84-4231-953e-ddde05938490)
 
 The **Explorer** tab is a lightweight HTTP client for testing any API endpoint.
 

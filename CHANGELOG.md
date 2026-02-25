@@ -9,6 +9,12 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.1.0-alpha.1] — 2026-02-25
+
+> ⚠️ **Pre-release / Alpha** — APIs and storage formats may change without notice.
+
 ### Added
 - **Admin key authentication** — start the Main Worker with `-admin-key` (or `$ADMIN_KEY` env var)
   for a single master credential that bypasses all RBAC checks, analogous to a PostgreSQL superuser
@@ -41,10 +47,13 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 - **ReadTheDocs documentation link** added to `README.md`
   (<https://deltadatabase.readthedocs.io/en/latest/>)
 - **Changelog** (`CHANGELOG.md`) referenced from the documentation
-- **Management UI Guide** (`docs/usage/frontend.md`) — new documentation page with screenshots
+- **Management UI Guide** (`docs/usage/frontend.md`) — documentation page with screenshots
   of every UI tab and detailed usage instructions.
 
 ### Fixed
+- **`GET /api/keys` empty-state** — when no API keys exist the endpoint now returns `200 []`
+  instead of `401`/`403`, so the Management UI shows "No API keys found." rather than
+  "Failed to load keys" on a fresh install or after all keys are deleted.
 - **`docker-compose.one-main-multiple-workers.yml`** — the `ADMIN_KEY` environment variable was
   missing from the `main-worker` service. It is now passed through correctly so that the admin key
   set in `.env` or the host environment is honoured in multi-worker deployments.
@@ -62,3 +71,5 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 ### Removed
 - GitHub Actions workflow for deploying docs to GitHub Pages
   (documentation is now hosted on ReadTheDocs)
+
+[0.1.0-alpha.1]: https://github.com/DeltaRule/DeltaDatabase/releases/tag/v0.1.0-alpha.1
