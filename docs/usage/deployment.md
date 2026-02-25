@@ -3,6 +3,19 @@
 
 DeltaDatabase supports several deployment topologies, from a single all-in-one container to a cloud-native Kubernetes cluster with autoscaling.
 
+Pre-built images are published to Docker Hub automatically on every merge to `main` and on every release tag:
+
+**Docker Hub:** [https://hub.docker.com/r/donti/deltadatabase](https://hub.docker.com/r/donti/deltadatabase)
+
+| Image tag | Description |
+|-----------|-------------|
+| `donti/deltadatabase:all-in-one-latest` | Both workers in one container (latest `main`) |
+| `donti/deltadatabase:main-worker-latest` | Main Worker only (latest `main`) |
+| `donti/deltadatabase:proc-worker-latest` | Processing Worker only (latest `main`) |
+| `donti/deltadatabase:all-in-one-v0.1.1-alpha` | Pinned release |
+| `donti/deltadatabase:main-worker-v0.1.1-alpha` | Pinned release |
+| `donti/deltadatabase:proc-worker-v0.1.1-alpha` | Pinned release |
+
 ---
 
 ## Deployment Topologies
@@ -32,11 +45,8 @@ The REST API is available at **http://localhost:8080**.
 ### Plain Docker
 
 ```bash
-# Build
-docker build \
-  -f deploy/docker/Dockerfile.all-in-one \
-  -t deltadatabase/all-in-one:latest \
-  .
+# Pull the latest image
+docker pull donti/deltadatabase:all-in-one-latest
 
 # Run with a persistent master key and admin key
 MASTER_KEY=$(openssl rand -hex 32)
@@ -47,7 +57,10 @@ docker run -d \
   -e MASTER_KEY="${MASTER_KEY}" \
   -e ADMIN_KEY="${ADMIN_KEY}" \
   -v delta_data:/shared/db \
-  deltadatabase/all-in-one:latest
+  donti/deltadatabase:all-in-one-latest
+
+# Pin to a specific release instead:
+#   docker run ... donti/deltadatabase:all-in-one-v0.1.1-alpha
 ```
 
 ### Container Architecture
@@ -76,7 +89,7 @@ The simplest production-like setup: two separate containers.
 ```bash
 docker compose \
   -f deploy/docker-compose/docker-compose.one-main-one-worker.yml \
-  up --build
+  up
 ```
 
 ---
@@ -89,12 +102,12 @@ Horizontal scale-out for higher throughput. All Processing Workers share the sam
 # Start with 3 Processing Workers (default)
 docker compose \
   -f deploy/docker-compose/docker-compose.one-main-multiple-workers.yml \
-  up --build
+  up
 
 # Scale to 5 workers
 docker compose \
   -f deploy/docker-compose/docker-compose.one-main-multiple-workers.yml \
-  up --build --scale proc-worker=5
+  up --scale proc-worker=5
 ```
 
 ### Architecture
@@ -123,20 +136,22 @@ Processing Workers start at 1 replica and scale up to 10 based on CPU utilisatio
 
 - Kubernetes cluster v1.26+ with the Metrics Server installed.
 - A ReadWriteMany StorageClass (NFS, Azure Files, AWS EFS, or Longhorn with RWX).
-- A container registry accessible from the cluster.
 
-### Build and Push Images
+### Images
 
-```bash
-REGISTRY=ghcr.io/myorg
+The Kubernetes manifests already reference the pre-built Docker Hub images:
 
-docker build -f deploy/docker/Dockerfile.main-worker \
-  -t ${REGISTRY}/delta-main-worker:latest .
-docker build -f deploy/docker/Dockerfile.proc-worker \
-  -t ${REGISTRY}/delta-proc-worker:latest .
+```
+donti/deltadatabase:main-worker-latest
+donti/deltadatabase:proc-worker-latest
+```
 
-docker push ${REGISTRY}/delta-main-worker:latest
-docker push ${REGISTRY}/delta-proc-worker:latest
+To pin a specific release, edit the `image:` field in
+`deploy/kubernetes/main-worker.yaml` and `deploy/kubernetes/proc-worker.yaml`:
+
+```yaml
+# e.g. pin to v0.1.1-alpha
+image: donti/deltadatabase:main-worker-v0.1.1-alpha
 ```
 
 ### Deploy
@@ -197,7 +212,7 @@ Replace the shared POSIX filesystem with any S3-compatible object store. No Read
 ### Quick Start with MinIO
 
 ```bash
-docker compose -f deploy/docker-compose/docker-compose.with-s3.yml up --build
+docker compose -f deploy/docker-compose/docker-compose.with-s3.yml up
 ```
 
 This starts MinIO, the Main Worker, and 3 Processing Workers all configured to use the S3 backend.

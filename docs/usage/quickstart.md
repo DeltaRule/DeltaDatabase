@@ -4,31 +4,50 @@
 Get DeltaDatabase running in under 5 minutes.
 
 !!! tip
-    **Recommended:** Use Docker for the easiest experience. The binary approach is shown below for local development.
+    **Recommended:** Use Docker for the easiest experience. Pre-built images are available on Docker Hub — no clone or build step required.
     
 ---
 
-## Option A — Docker (Recommended)
+## Option A — Docker Hub (Fastest)
 
-The quickest way to run DeltaDatabase is with the all-in-one Docker Compose file:
+Pull and run the pre-built all-in-one image directly from Docker Hub:
 
 ```bash
-# Clone the repository
+# Latest build from main
+docker run -d \
+  --name deltadatabase \
+  -p 8080:8080 \
+  -e ADMIN_KEY=mysecretadminkey \
+  -v delta_data:/shared/db \
+  donti/deltadatabase:all-in-one-latest
+
+# Pin to a specific release
+docker run -d \
+  --name deltadatabase \
+  -p 8080:8080 \
+  -e ADMIN_KEY=mysecretadminkey \
+  -v delta_data:/shared/db \
+  donti/deltadatabase:all-in-one-v0.1.1-alpha
+```
+
+Or with Docker Compose (images pulled automatically from Docker Hub):
+
+```bash
+# Clone only for the Compose file — no build needed
 git clone https://github.com/DeltaRule/DeltaDatabase.git
 cd DeltaDatabase
 
-# Set an admin key (required for the Management UI and API key management)
 export ADMIN_KEY=mysecretadminkey
-
-# Start everything (Main Worker + Processing Worker in one container)
 docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
 ```
 
 The REST API is available at **http://localhost:8080** and the web UI at **http://localhost:8080/**.
 
+See **[Docker Hub →](https://hub.docker.com/r/donti/deltadatabase)** for all available tags.
+
 ---
 
-## Option B — Pre-built Binaries
+## Option B — Binary (Local Development)
 
 ### 1. Create the shared filesystem directory
 

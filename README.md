@@ -7,6 +7,7 @@
 [![License](https://img.shields.io/badge/license-DeltaDatabase%20v1.0-blue)](LICENSE)
 [![Go version](https://img.shields.io/badge/go-1.25%2B-00ADD8)](go.mod)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-blue)](https://deltadatabase.readthedocs.io/en/latest/)
+[![Docker Hub](https://img.shields.io/badge/docker-donti%2Fdeltadatabase-2496ED?logo=docker)](https://hub.docker.com/r/donti/deltadatabase)
 
 ---
 
@@ -127,6 +128,16 @@ object store.  Both backends are interchangeable at startup time via flags:
 > environment variables, shared volumes, and graceful restarts for you —
 > no manual binary setup required.
 
+Pre-built images are published automatically to **[Docker Hub → donti/deltadatabase](https://hub.docker.com/r/donti/deltadatabase)**
+on every merge to `main` and on every release tag.
+
+| Image tag | Description |
+|-----------|-------------|
+| `donti/deltadatabase:all-in-one-latest` | Both workers, always latest |
+| `donti/deltadatabase:main-worker-latest` | Main Worker, always latest |
+| `donti/deltadatabase:proc-worker-latest` | Processing Worker, always latest |
+| `donti/deltadatabase:all-in-one-v0.1.1-alpha` | Pinned release |
+
 | Scenario | Guide | Recommendation |
 |----------|-------|---------------|
 | Local dev / CI | [All-in-one container](examples/01-all-in-one.md) | Simplest — one `docker compose up` |
@@ -135,9 +146,14 @@ object store.  Both backends are interchangeable at startup time via flags:
 | Cloud / auto-scaling | [Kubernetes + HPA](examples/04-kubernetes-autoscaling.md) | ⭐ **Recommended for production** |
 | Cloud storage | [S3-compatible storage](examples/05-s3-compatible-storage.md) | No shared PVC needed |
 
-**Get started in one command (all-in-one):**
+**Get started in one command — images pulled automatically from Docker Hub:**
 
 ```bash
+# No clone required — just point Compose at the file from the repo, or:
+docker run -d -p 8080:8080 -e ADMIN_KEY=changeme -v delta_data:/shared/db \
+  donti/deltadatabase:all-in-one-latest
+
+# Or with Docker Compose (also uses the pre-built image):
 docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
 ```
 

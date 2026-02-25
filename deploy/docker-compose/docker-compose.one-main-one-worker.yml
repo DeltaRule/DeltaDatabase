@@ -1,13 +1,17 @@
 # Docker Compose — Option 3: 1 Main Worker + 1 Processing Worker
 #
-# Build:  docker compose -f deploy/docker-compose/docker-compose.one-main-one-worker.yml build
 # Run:    docker compose -f deploy/docker-compose/docker-compose.one-main-one-worker.yml up
+#
+# Uses pre-built images from Docker Hub: https://hub.docker.com/r/donti/deltadatabase
+# To pin a specific release use e.g.: image: donti/deltadatabase:main-worker-v0.1.1-alpha
+# To build locally instead: comment out `image:` lines and uncomment the `build:` blocks.
 
 services:
   main-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.main-worker
+    image: donti/deltadatabase:main-worker-latest
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.main-worker
     container_name: delta-main-worker
     ports:
       - "8080:8080"    # REST API
@@ -31,9 +35,10 @@ services:
       start_period: 10s
 
   proc-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.proc-worker
+    image: donti/deltadatabase:proc-worker-latest
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.proc-worker
     container_name: delta-proc-worker-1
     depends_on:
       main-worker:

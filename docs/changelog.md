@@ -9,7 +9,20 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.1.1-alpha] — 2026-02-25
+
+> ⚠️ **Pre-release / Alpha** — APIs and storage formats may change without notice.
+
 ### Added
+- **Docker Hub CI/CD** — a GitHub Actions workflow (`.github/workflows/docker-publish.yml`) now
+  automatically builds and pushes all three images to
+  [hub.docker.com/r/donti/deltadatabase](https://hub.docker.com/r/donti/deltadatabase) on every
+  merge to `main` and on every `v*` release tag:
+  - `donti/deltadatabase:main-worker-latest` / `donti/deltadatabase:main-worker-<version>`
+  - `donti/deltadatabase:proc-worker-latest` / `donti/deltadatabase:proc-worker-<version>`
+  - `donti/deltadatabase:all-in-one-latest` / `donti/deltadatabase:all-in-one-<version>`
 - **Redesigned Management UI** — the built-in web UI has been rewritten as a multi-page application:
   - `index.html` — standalone login page with gradient background, password visibility toggle, and dev-mode support.
   - `app.html` — full management SPA with sidebar navigation, top bar, and page routing in vanilla JS.
@@ -21,6 +34,12 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 - **Mobile-responsive layout** — sidebar collapses on screens < 768 px; a hamburger button opens it as an overlay.
 - **Explorer quick links** for `GET /api/databases` and `GET /api/me`.
 - Tests for `handleDatabases` and `handleMe` covering auth, method rejection, and data correctness.
+
+### Changed
+- All Docker Compose files now use pre-built Docker Hub images by default instead of a local build
+  context. The `build:` blocks are retained as commented-out fallbacks for local development.
+- Kubernetes manifests updated to reference `donti/deltadatabase:main-worker-latest` and
+  `donti/deltadatabase:proc-worker-latest` with `imagePullPolicy: Always`.
 
 ---
 
