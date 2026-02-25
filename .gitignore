@@ -14,3 +14,6 @@ __pycache__/
 node_modules/
 playwright-report/
 test-results/
+
+# MkDocs build output
+site/
