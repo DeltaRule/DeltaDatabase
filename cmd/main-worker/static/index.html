@@ -1,1034 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DeltaDatabase — Management UI</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
-    min-height: 100vh;
-  }
-
-  /* ── Layout ─────────────────────────────────────────── */
-  header {
-    background: #1e293b;
-    border-bottom: 1px solid #334155;
-    padding: 0 24px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  header h1 { font-size: 1.1rem; font-weight: 700; color: #38bdf8; letter-spacing: .05em; }
-  header .header-right { display: flex; align-items: center; gap: 12px; font-size: .85rem; color: #94a3b8; }
-  header .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #ef4444; display: inline-block;
-  }
-  header .status-dot.ok { background: #22c55e; }
-
-  main { display: flex; height: calc(100vh - 56px); }
-
-  nav {
-    width: 200px; min-width: 200px;
-    background: #1e293b;
-    border-right: 1px solid #334155;
-    padding: 16px 0;
-  }
-  nav a {
-    display: block; padding: 10px 20px;
-    color: #94a3b8; text-decoration: none; font-size: .9rem;
-    border-left: 3px solid transparent;
-    transition: all .15s;
-  }
-  nav a:hover, nav a.active {
-    background: #0f172a; color: #e2e8f0;
-    border-left-color: #38bdf8;
-  }
-
-  .content { flex: 1; overflow-y: auto; padding: 24px; }
-
-  /* ── Pages ────────────────────────────────────────── */
-  .page { display: none; }
-  .page.active { display: block; }
-
-  h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 20px; color: #f1f5f9; }
-  h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #cbd5e1; }
-
-  /* ── Cards ───────────────────────────────────────── */
-  .card {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 16px;
-  }
-  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
-  .stat { text-align: center; }
-  .stat .value { font-size: 2rem; font-weight: 700; color: #38bdf8; }
-  .stat .label { font-size: .8rem; color: #64748b; margin-top: 4px; }
-
-  /* ── Forms ───────────────────────────────────────── */
-  .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: .8rem; color: #94a3b8; margin-bottom: 4px; }
-  input, textarea, select {
-    width: 100%; padding: 8px 12px;
-    background: #0f172a; border: 1px solid #334155;
-    border-radius: 6px; color: #e2e8f0; font-size: .9rem;
-    outline: none; transition: border-color .15s;
-  }
-  input:focus, textarea:focus, select:focus { border-color: #38bdf8; }
-  textarea { min-height: 120px; font-family: 'Cascadia Code', 'Fira Code', monospace; resize: vertical; }
-
-  .btn {
-    padding: 8px 18px; border: none; border-radius: 6px;
-    font-size: .9rem; cursor: pointer; font-weight: 500;
-    transition: all .15s;
-  }
-  .btn-primary { background: #0284c7; color: #fff; }
-  .btn-primary:hover { background: #0369a1; }
-  .btn-success { background: #16a34a; color: #fff; }
-  .btn-success:hover { background: #15803d; }
-  .btn-danger { background: #dc2626; color: #fff; }
-  .btn-danger:hover { background: #b91c1c; }
-  .btn-sm { padding: 4px 12px; font-size: .8rem; }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
-
-  /* ── Table ───────────────────────────────────────── */
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-  th { text-align: left; padding: 8px 12px; color: #64748b; font-weight: 600; border-bottom: 1px solid #334155; }
-  td { padding: 10px 12px; border-bottom: 1px solid #1e293b; vertical-align: top; }
-  tr:hover td { background: #1e293b; }
-  .badge {
-    display: inline-block; padding: 2px 8px; border-radius: 99px;
-    font-size: .75rem; font-weight: 600;
-  }
-  .badge-green { background: #14532d; color: #86efac; }
-  .badge-red { background: #450a0a; color: #fca5a5; }
-  .badge-gray { background: #1e293b; color: #94a3b8; }
-
-  /* ── Alert / result box ──────────────────────────── */
-  .alert {
-    padding: 12px 16px; border-radius: 6px;
-    font-size: .875rem; margin-bottom: 12px; display: none;
-  }
-  .alert.show { display: block; }
-  .alert-error { background: #450a0a; border: 1px solid #991b1b; color: #fca5a5; }
-  .alert-success { background: #052e16; border: 1px solid #166534; color: #86efac; }
-  .alert-info { background: #082f49; border: 1px solid #0369a1; color: #7dd3fc; }
-
-  pre.result {
-    background: #020617; border: 1px solid #334155;
-    border-radius: 6px; padding: 16px;
-    font-family: 'Cascadia Code', 'Fira Code', monospace;
-    font-size: .8rem; color: #7dd3fc;
-    white-space: pre-wrap; word-break: break-all;
-    max-height: 360px; overflow-y: auto;
-    display: none;
-  }
-  pre.result.show { display: block; }
-
-  /* ── Login overlay ───────────────────────────────── */
-  #login-overlay {
-    position: fixed; inset: 0;
-    background: #0f172a;
-    display: flex; align-items: center; justify-content: center;
-    z-index: 100;
-  }
-  #login-overlay.hidden { display: none; }
-  .login-box {
-    background: #1e293b; border: 1px solid #334155;
-    border-radius: 12px; padding: 40px;
-    width: 360px;
-  }
-  .login-box h2 { text-align: center; margin-bottom: 8px; }
-  .login-box p { text-align: center; color: #64748b; font-size: .85rem; margin-bottom: 24px; }
-
-  /* ── Utility ──────────────────────────────────────── */
-  .flex { display: flex; gap: 8px; align-items: flex-end; }
-  .flex > * { flex: 1; }
-  .flex > .btn { flex: 0 0 auto; }
-  .mt8 { margin-top: 8px; }
-  .mb16 { margin-bottom: 16px; }
-  .text-muted { color: #64748b; font-size: .8rem; }
-  .mono { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: .8rem; word-break: break-all; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeltaDatabase — Sign In</title>
+  <link rel="stylesheet" href="/css/delta.css" />
+  <style>
+    .eye-btn {
+      position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: #64748b; padding: .25rem; transition: color .15s;
+    }
+    .eye-btn:hover { color: #94a3b8; }
+    .input-wrap { position: relative; }
+    .logo-icon svg { stroke: #fff; }
+  </style>
 </head>
 <body>
+  <div class="login-page">
+    <div class="login-container">
 
-<!-- Login overlay -------------------------------------------------- -->
-<div id="login-overlay">
-  <div class="login-box">
-    <h2>DeltaDatabase</h2>
-    <p>Management UI — enter your admin key or API key to continue</p>
-    <div id="login-alert" class="alert"></div>
-    <div class="field">
-      <label>Key</label>
-      <input id="login-key" type="password" placeholder="admin key or API key">
+      <!-- Logo -->
+      <div class="logo-wrap">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z"/>
+            <path d="M4 7c0 2 1.5 3 3.5 3h9C18.5 10 20 9 20 7"/>
+            <path d="M4 12c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3"/>
+          </svg>
+        </div>
+        <div class="logo-title">DeltaDatabase</div>
+        <div class="logo-sub">Encrypted JSON Database</div>
+      </div>
+
+      <!-- Card -->
+      <div class="login-card">
+        <h2>Sign in</h2>
+        <p>Enter your admin key or API key to continue</p>
+
+        <div id="alert" class="alert hidden" style="margin-bottom:.875rem"></div>
+
+        <div class="field">
+          <label class="label">Authentication Key</label>
+          <div class="input-wrap">
+            <input id="keyInput" type="password" placeholder="Enter your key…" autocomplete="current-password" />
+            <button type="button" class="eye-btn" id="eyeBtn" onclick="toggleKey()" title="Toggle visibility">
+              <svg id="eyeOpen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg id="eyeClosed" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button id="loginBtn" onclick="doLogin()" class="btn btn-primary btn-block" style="margin-bottom:1rem">
+          Sign In
+        </button>
+
+        <div class="divider"><span>or dev mode</span></div>
+
+        <div class="field">
+          <label class="label">Client ID (no authentication)</label>
+          <input id="clientIdInput" type="text" placeholder="e.g. my-app" />
+        </div>
+        <button onclick="doDevLogin()" class="btn btn-ghost btn-block">
+          Dev Mode Sign In
+        </button>
+      </div>
+
+      <p class="login-footer">DeltaDatabase Management UI &mdash; Encrypted at rest</p>
     </div>
-    <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="doLogin()">Login</button>
   </div>
-</div>
 
-<!-- App shell ------------------------------------------------------ -->
-<header>
-  <h1>⬡ DeltaDatabase</h1>
-  <div class="header-right">
-    <span id="header-status-dot" class="status-dot"></span>
-    <span id="header-status-text">connecting…</span>
-    <span id="header-client" style="color:#e2e8f0"></span>
-    <button class="btn btn-sm btn-danger" onclick="doLogout()">Logout</button>
-  </div>
-</header>
-
-<main>
-  <nav>
-    <a href="#" class="active" data-page="dashboard" onclick="showPage('dashboard',this)">🏠 Dashboard</a>
-    <a href="#" data-page="workers" onclick="showPage('workers',this)">⚙️ Workers</a>
-    <a href="#" data-page="entities" onclick="showPage('entities',this)">📦 Entities</a>
-    <a href="#" data-page="schemas" onclick="showPage('schemas',this)">📋 Schemas</a>
-    <a href="#" data-page="apikeys" onclick="showPage('apikeys',this)">🔑 API Keys</a>
-    <a href="#" data-page="explorer" onclick="showPage('explorer',this)">🔍 Explorer</a>
-  </nav>
-
-  <div class="content">
-
-    <!-- Dashboard -------------------------------------------------- -->
-    <div id="page-dashboard" class="page active">
-      <h2>Dashboard</h2>
-      <div class="card-grid" id="dashboard-stats"></div>
-      <div class="card">
-        <h3>System Health</h3>
-        <div id="health-result" class="text-muted">Loading…</div>
-      </div>
-    </div>
-
-    <!-- Workers ---------------------------------------------------- -->
-    <div id="page-workers" class="page">
-      <h2>Processing Workers</h2>
-      <div class="card">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-          <button class="btn btn-primary btn-sm" onclick="loadWorkers()">↻ Refresh</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Worker ID</th><th>Status</th><th>Key ID</th><th>Last Seen</th><th>Tags</th>
-              </tr>
-            </thead>
-            <tbody id="workers-tbody">
-              <tr><td colspan="5" class="text-muted">Loading…</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Entities --------------------------------------------------- -->
-    <div id="page-entities" class="page">
-      <h2>Entities</h2>
-      <div class="card mb16">
-        <h3>Get Entity</h3>
-        <div class="flex">
-          <div class="field" style="flex:1">
-            <label>Database</label>
-            <input id="get-db" type="text" placeholder="chatdb">
-          </div>
-          <div class="field" style="flex:1">
-            <label>Key</label>
-            <input id="get-key" type="text" placeholder="Chat_id">
-          </div>
-          <button class="btn btn-primary" onclick="getEntity()">GET</button>
-        </div>
-        <div id="get-alert" class="alert mt8"></div>
-        <pre id="get-result" class="result mt8"></pre>
-      </div>
-
-      <div class="card">
-        <h3>Put Entity</h3>
-        <div class="field">
-          <label>Database</label>
-          <input id="put-db" type="text" placeholder="chatdb">
-        </div>
-        <div class="field">
-          <label>JSON Body <span class="text-muted">(e.g. {"Chat_id": {"chat":[{"type":"assistant","text":"Hello"}]}})</span></label>
-          <textarea id="put-body" placeholder='{"Chat_id": {"chat":[{"type":"assistant","text":"Hello"}]}}'></textarea>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px">
-          <button class="btn btn-success" onclick="putEntity()">PUT</button>
-        </div>
-        <div id="put-alert" class="alert mt8"></div>
-        <pre id="put-result" class="result mt8"></pre>
-      </div>
-    </div>
-
-    <!-- Schemas ---------------------------------------------------- -->
-    <div id="page-schemas" class="page">
-      <h2>JSON Schemas</h2>
-
-      <div class="card mb16">
-        <h3>Available Schemas</h3>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-          <button class="btn btn-primary btn-sm" onclick="loadSchemas()">↻ Refresh</button>
-        </div>
-        <div id="schemas-list" class="text-muted">Loading…</div>
-      </div>
-
-      <div class="card">
-        <h3>Create / Edit Schema</h3>
-        <div class="field">
-          <label>Schema ID <span class="text-muted">(e.g. chat.v1 or user_credentials.v1)</span></label>
-          <input id="schema-id" type="text" placeholder="myschema.v1">
-        </div>
-        <div class="field">
-          <label>JSON Schema <span class="text-muted">(JSON Schema draft-07)</span></label>
-          <textarea id="schema-body" style="min-height:200px" placeholder='{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "name": { "type": "string" }
-  },
-  "required": ["name"]
-}'></textarea>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-          <button class="btn btn-primary" onclick="loadSchemaIntoEditor()">Load</button>
-          <button class="btn btn-success" onclick="saveSchema()">Save</button>
-        </div>
-        <div id="schema-alert" class="alert mt8"></div>
-        <pre id="schema-result" class="result mt8"></pre>
-      </div>
-
-      <div class="card">
-        <h3>Export Schema</h3>
-        <p class="text-muted mb16">Generate typed models from the schema loaded in the editor above.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-          <button class="btn btn-primary" onclick="exportAsPydantic()">🐍 Export as Pydantic</button>
-          <button class="btn btn-primary" onclick="exportAsTypeScript()">🔷 Export as TypeScript</button>
-        </div>
-        <div id="export-alert" class="alert mt8"></div>
-        <div id="export-result-wrap" style="display:none;margin-top:8px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span id="export-filename" class="text-muted mono"></span>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-sm btn-primary" onclick="copyExport()">Copy</button>
-              <button class="btn btn-sm btn-success" onclick="downloadExport()">⬇ Download</button>
-            </div>
-          </div>
-          <pre id="export-result" class="result show" style="max-height:480px"></pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- API Keys --------------------------------------------------- -->
-    <div id="page-apikeys" class="page">
-      <h2>API Keys</h2>
-
-      <!-- Create new key -->
-      <div class="card">
-        <h3>Create New Key</h3>
-        <div class="field">
-          <label>Name</label>
-          <input id="key-name" type="text" placeholder="e.g. ci-deploy-key">
-        </div>
-        <div class="field">
-          <label>Permissions</label>
-          <div style="display:flex;gap:16px;padding:8px 0">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input type="checkbox" id="perm-read" checked> read
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input type="checkbox" id="perm-write"> write
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input type="checkbox" id="perm-admin"> admin
-            </label>
-          </div>
-        </div>
-        <div class="field">
-          <label>Expires In (optional, e.g. 24h, 7d, 30d)</label>
-          <input id="key-expires" type="text" placeholder="leave blank = never expires">
-        </div>
-        <button class="btn btn-success" onclick="createAPIKey()">Create Key</button>
-        <div id="key-create-alert" class="alert mt8"></div>
-        <div id="key-secret-wrap" style="display:none;margin-top:12px">
-          <div style="background:#0f172a;border:1px solid #22c55e;border-radius:6px;padding:12px">
-            <p style="color:#22c55e;font-size:.85rem;margin-bottom:8px">
-              ⚠️ Copy your new key now — it won't be shown again!
-            </p>
-            <pre id="key-secret" class="result show" style="margin:0;background:transparent;border:none"></pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- List / revoke keys -->
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <h3 style="margin:0">Existing Keys</h3>
-          <button class="btn btn-primary btn-sm" onclick="loadAPIKeys()">↺ Refresh</button>
-        </div>
-        <div id="keys-alert" class="alert"></div>
-        <table style="width:100%;border-collapse:collapse" id="keys-table">
-          <thead>
-            <tr style="border-bottom:1px solid #334155;color:#64748b;font-size:.8rem;text-align:left">
-              <th style="padding:6px 8px">Name</th>
-              <th style="padding:6px 8px">ID</th>
-              <th style="padding:6px 8px">Permissions</th>
-              <th style="padding:6px 8px">Created</th>
-              <th style="padding:6px 8px">Expires</th>
-              <th style="padding:6px 8px">Status</th>
-              <th style="padding:6px 8px"></th>
-            </tr>
-          </thead>
-          <tbody id="keys-tbody">
-            <tr><td colspan="7" class="text-muted" style="padding:12px 8px">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Explorer --------------------------------------------------- -->
-    <div id="page-explorer" class="page">
-      <h2>API Explorer</h2>
-      <div class="card">
-        <h3>Raw Request</h3>
-        <div class="flex">
-          <div class="field" style="flex:0 0 90px">
-            <label>Method</label>
-            <select id="exp-method">
-              <option>GET</option>
-              <option>PUT</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Path</label>
-            <input id="exp-path" type="text" placeholder="/health">
-          </div>
-          <button class="btn btn-primary" onclick="runExplorer()">Send</button>
-        </div>
-        <div class="field">
-          <label>Body (JSON, for PUT)</label>
-          <textarea id="exp-body" placeholder='{"key": "value"}'></textarea>
-        </div>
-        <div id="exp-alert" class="alert mt8"></div>
-        <div class="text-muted mb16 mt8" id="exp-info"></div>
-        <pre id="exp-result" class="result"></pre>
-      </div>
-
-      <div class="card">
-        <h3>Quick Endpoints</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="quickReq('GET','/health')">GET /health</button>
-          <button class="btn btn-primary btn-sm" onclick="quickReq('GET','/admin/workers')">GET /admin/workers</button>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /content -->
-</main>
-
-<script>
-// ── State ──────────────────────────────────────────────────────────
-let TOKEN = null;
-let CLIENT_ID = null;
-
-// ── Helpers ────────────────────────────────────────────────────────
-function apiBase() { return window.location.origin; }
-
-async function apiFetch(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
-  const res = await fetch(apiBase() + path, { ...opts, headers });
-  return res;
-}
-
-function showAlert(elId, type, msg) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  el.className = 'alert show alert-' + type;
-  el.textContent = msg;
-}
-function hideAlert(elId) {
-  const el = document.getElementById(elId);
-  if (el) { el.className = 'alert'; el.textContent = ''; }
-}
-function showResult(elId, data) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  el.className = 'result show';
-  el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-}
-function hideResult(elId) {
-  const el = document.getElementById(elId);
-  if (el) { el.className = 'result'; el.textContent = ''; }
-}
-
-// ── Auth ───────────────────────────────────────────────────────────
-async function doLogin() {
-  const key = document.getElementById('login-key').value.trim();
-  if (!key) {
-    showAlert('login-alert', 'error', 'Key is required.');
-    return;
-  }
-  try {
-    const res = await fetch(apiBase() + '/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key })
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      showAlert('login-alert', 'error', 'Login failed: ' + body);
-      return;
+  <script>
+    if (sessionStorage.getItem('delta_token')) {
+      window.location.replace('/app.html');
     }
-    const data = await res.json();
-    TOKEN = data.token;
-    CLIENT_ID = data.client_id || key.substring(0, 8) + '…';
-    document.getElementById('login-overlay').classList.add('hidden');
-    document.getElementById('header-client').textContent = '👤 ' + CLIENT_ID;
-    hideAlert('login-alert');
-    initDashboard();
-  } catch (e) {
-    showAlert('login-alert', 'error', 'Network error: ' + e.message);
-  }
-}
 
-function doLogout() {
-  TOKEN = null;
-  CLIENT_ID = null;
-  document.getElementById('login-overlay').classList.remove('hidden');
-  document.getElementById('header-client').textContent = '';
-}
-
-// ── Navigation ─────────────────────────────────────────────────────
-function showPage(name, link) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  if (link) link.classList.add('active');
-  if (name === 'workers') loadWorkers();
-  if (name === 'dashboard') initDashboard();
-  if (name === 'schemas') loadSchemas();
-  if (name === 'apikeys') loadAPIKeys();
-}
-
-// ── Dashboard ──────────────────────────────────────────────────────
-async function initDashboard() {
-  // health
-  try {
-    const res = await apiFetch('/health');
-    const data = await res.json();
-    document.getElementById('health-result').innerHTML =
-      '<span class="badge badge-green">● OK</span> ' +
-      '<span class="text-muted">' + JSON.stringify(data) + '</span>';
-    const dot = document.getElementById('header-status-dot');
-    dot.className = 'status-dot ok';
-    document.getElementById('header-status-text').textContent = 'healthy';
-  } catch (e) {
-    document.getElementById('health-result').innerHTML =
-      '<span class="badge badge-red">● Error</span> ' + e.message;
-    document.getElementById('header-status-dot').className = 'status-dot';
-    document.getElementById('header-status-text').textContent = 'unreachable';
-  }
-
-  // workers count
-  try {
-    const res = await apiFetch('/admin/workers');
-    const workers = await res.json();
-    const avail = (workers || []).filter(w => w.status === 'Available').length;
-    document.getElementById('dashboard-stats').innerHTML = `
-      <div class="card stat">
-        <div class="value">${(workers||[]).length}</div>
-        <div class="label">Registered Workers</div>
-      </div>
-      <div class="card stat">
-        <div class="value">${avail}</div>
-        <div class="label">Available Workers</div>
-      </div>
-    `;
-  } catch(_) {}
-}
-
-// ── Workers ────────────────────────────────────────────────────────
-async function loadWorkers() {
-  const tbody = document.getElementById('workers-tbody');
-  tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading…</td></tr>';
-  try {
-    const res = await apiFetch('/admin/workers');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const workers = await res.json();
-    if (!workers || workers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No workers registered.</td></tr>';
-      return;
+    function showAlert(type, msg) {
+      const el = document.getElementById('alert');
+      el.className = 'alert ' + (type === 'error' ? 'alert-error' : 'alert-success');
+      el.textContent = msg;
     }
-    tbody.innerHTML = workers.map(w => `
-      <tr>
-        <td class="mono">${esc(w.worker_id)}</td>
-        <td><span class="badge ${w.status === 'Available' ? 'badge-green' : 'badge-red'}">${esc(w.status)}</span></td>
-        <td class="mono">${esc(w.key_id || '—')}</td>
-        <td class="text-muted">${w.last_seen ? new Date(w.last_seen).toLocaleString() : '—'}</td>
-        <td class="mono">${w.tags ? JSON.stringify(w.tags) : '—'}</td>
-      </tr>
-    `).join('');
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="5" class="badge badge-red">Error: ${esc(e.message)}</td></tr>`;
-  }
-}
 
-// ── Entities ───────────────────────────────────────────────────────
-async function getEntity() {
-  hideAlert('get-alert'); hideResult('get-result');
-  const db = document.getElementById('get-db').value.trim();
-  const key = document.getElementById('get-key').value.trim();
-  if (!db || !key) { showAlert('get-alert', 'error', 'Database and Key are required.'); return; }
-  try {
-    const res = await apiFetch('/entity/' + encodeURIComponent(db) + '?key=' + encodeURIComponent(key));
-    const body = await res.text();
-    if (!res.ok) {
-      showAlert('get-alert', 'error', 'HTTP ' + res.status + ': ' + body);
-      return;
+    function toggleKey() {
+      const inp = document.getElementById('keyInput');
+      const open = document.getElementById('eyeOpen');
+      const closed = document.getElementById('eyeClosed');
+      if (inp.type === 'password') {
+        inp.type = 'text'; open.classList.add('hidden'); closed.classList.remove('hidden');
+      } else {
+        inp.type = 'password'; open.classList.remove('hidden'); closed.classList.add('hidden');
+      }
     }
-    showAlert('get-alert', 'success', 'Found!');
-    showResult('get-result', JSON.parse(body));
-  } catch (e) {
-    showAlert('get-alert', 'error', 'Error: ' + e.message);
-  }
-}
 
-async function putEntity() {
-  hideAlert('put-alert'); hideResult('put-result');
-  const db = document.getElementById('put-db').value.trim();
-  const rawBody = document.getElementById('put-body').value.trim();
-  if (!db) { showAlert('put-alert', 'error', 'Database is required.'); return; }
-  let payload;
-  try { payload = JSON.parse(rawBody); } catch(_) {
-    showAlert('put-alert', 'error', 'Invalid JSON body.');
-    return;
-  }
-  try {
-    const res = await apiFetch('/entity/' + encodeURIComponent(db), {
-      method: 'PUT',
-      body: JSON.stringify(payload)
-    });
-    const body = await res.text();
-    if (!res.ok) {
-      showAlert('put-alert', 'error', 'HTTP ' + res.status + ': ' + body);
-      return;
+    async function doLogin() {
+      const key = document.getElementById('keyInput').value.trim();
+      if (!key) { showAlert('error', 'Please enter your key.'); return; }
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true; btn.textContent = 'Signing in…';
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key })
+        });
+        const data = await r.json();
+        if (!r.ok) { showAlert('error', data.error || 'Login failed.'); return; }
+        sessionStorage.setItem('delta_token', data.token);
+        sessionStorage.setItem('delta_client', data.client_id);
+        sessionStorage.setItem('delta_perms', JSON.stringify(data.permissions || []));
+        window.location.replace('/app.html');
+      } catch (e) {
+        showAlert('error', 'Network error — is the server reachable?');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Sign In';
+      }
     }
-    showAlert('put-alert', 'success', 'Stored successfully.');
-    showResult('put-result', JSON.parse(body));
-  } catch (e) {
-    showAlert('put-alert', 'error', 'Error: ' + e.message);
-  }
-}
 
-// ── Schemas ────────────────────────────────────────────────────────
-async function loadSchemas() {
-  const el = document.getElementById('schemas-list');
-  el.textContent = 'Loading…';
-  try {
-    const res = await apiFetch('/admin/schemas');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const schemas = await res.json();
-    if (!schemas || schemas.length === 0) {
-      el.innerHTML = '<span class="text-muted">No schemas defined yet.</span>';
-      return;
+    async function doDevLogin() {
+      const cid = document.getElementById('clientIdInput').value.trim();
+      if (!cid) { showAlert('error', 'Please enter a Client ID.'); return; }
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: cid })
+        });
+        const data = await r.json();
+        if (!r.ok) { showAlert('error', data.error || 'Dev login failed.'); return; }
+        sessionStorage.setItem('delta_token', data.token);
+        sessionStorage.setItem('delta_client', data.client_id);
+        sessionStorage.setItem('delta_perms', JSON.stringify(data.permissions || []));
+        window.location.replace('/app.html');
+      } catch (e) {
+        showAlert('error', 'Network error — is the server reachable?');
+      }
     }
-    el.innerHTML = schemas.map(id => `
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #334155">
-        <span class="mono" style="flex:1">${esc(id)}</span>
-        <button class="btn btn-primary btn-sm" onclick="loadSchemaByID(${JSON.stringify(id)})">Edit</button>
-      </div>
-    `).join('');
-  } catch (e) {
-    el.innerHTML = `<span class="badge badge-red">Error: ${esc(e.message)}</span>`;
-  }
-}
 
-async function loadSchemaByID(schemaID) {
-  document.getElementById('schema-id').value = schemaID;
-  hideAlert('schema-alert'); hideResult('schema-result');
-  try {
-    const res = await apiFetch('/schema/' + encodeURIComponent(schemaID));
-    if (!res.ok) { showAlert('schema-alert', 'error', 'HTTP ' + res.status); return; }
-    const body = await res.text();
-    document.getElementById('schema-body').value = JSON.stringify(JSON.parse(body), null, 2);
-    showAlert('schema-alert', 'info', 'Schema loaded into editor.');
-  } catch (e) {
-    showAlert('schema-alert', 'error', 'Error: ' + e.message);
-  }
-}
-
-async function loadSchemaIntoEditor() {
-  const schemaID = document.getElementById('schema-id').value.trim();
-  if (!schemaID) { showAlert('schema-alert', 'error', 'Schema ID is required.'); return; }
-  await loadSchemaByID(schemaID);
-}
-
-async function saveSchema() {
-  hideAlert('schema-alert'); hideResult('schema-result');
-  const schemaID = document.getElementById('schema-id').value.trim();
-  const rawBody  = document.getElementById('schema-body').value.trim();
-  if (!schemaID) { showAlert('schema-alert', 'error', 'Schema ID is required.'); return; }
-  let parsed;
-  try { parsed = JSON.parse(rawBody); } catch (_) {
-    showAlert('schema-alert', 'error', 'Invalid JSON schema.');
-    return;
-  }
-  try {
-    const res = await apiFetch('/schema/' + encodeURIComponent(schemaID), {
-      method: 'PUT',
-      body: JSON.stringify(parsed)
-    });
-    const body = await res.text();
-    if (!res.ok) {
-      showAlert('schema-alert', 'error', 'HTTP ' + res.status + ': ' + body);
-      return;
-    }
-    showAlert('schema-alert', 'success', 'Schema "' + schemaID + '" saved successfully.');
-    showResult('schema-result', JSON.parse(body));
-    loadSchemas();
-  } catch (e) {
-    showAlert('schema-alert', 'error', 'Error: ' + e.message);
-  }
-}
-
-// ── Explorer ───────────────────────────────────────────────────────
-function quickReq(method, path) {
-  document.getElementById('exp-method').value = method;
-  document.getElementById('exp-path').value = path;
-  document.getElementById('exp-body').value = '';
-  showPage('explorer', document.querySelector('[data-page="explorer"]'));
-  runExplorer();
-}
-
-async function runExplorer() {
-  hideAlert('exp-alert'); hideResult('exp-result');
-  const method = document.getElementById('exp-method').value;
-  const path   = document.getElementById('exp-path').value.trim();
-  const rawBody = document.getElementById('exp-body').value.trim();
-  if (!path) { showAlert('exp-alert', 'error', 'Path is required.'); return; }
-
-  const opts = { method };
-  if (method !== 'GET' && rawBody) {
-    try { JSON.parse(rawBody); } catch (_) {
-      showAlert('exp-alert', 'error', 'Invalid JSON body.'); return;
-    }
-    opts.body = rawBody;
-  }
-
-  const t0 = Date.now();
-  try {
-    const res = await apiFetch(path, opts);
-    const ms = Date.now() - t0;
-    const body = await res.text();
-    document.getElementById('exp-info').textContent =
-      method + ' ' + path + '  →  HTTP ' + res.status + '  (' + ms + ' ms)';
-    showAlert('exp-alert', res.ok ? 'success' : 'error',
-      res.ok ? 'Success (' + res.status + ')' : 'Error: HTTP ' + res.status);
-    try { showResult('exp-result', JSON.parse(body)); }
-    catch(_) { showResult('exp-result', body); }
-  } catch (e) {
-    document.getElementById('exp-info').textContent = '';
-    showAlert('exp-alert', 'error', 'Network error: ' + e.message);
-  }
-}
-
-// ── Export ─────────────────────────────────────────────────────────
-let _exportFilename = '';
-
-// Convert a schema ID like "user.v1" or "chat_messages.v1" to a PascalCase
-// class name like "UserSchema" or "ChatMessagesSchema".
-function schemaIdToModelName(schemaId) {
-  // Strip version suffix (e.g. ".v1"), then trim leading/trailing separators.
-  const base = (schemaId || '')
-    .replace(/\.[^.]+$/, '')
-    .replace(/^[._\-\s]+|[._\-\s]+$/g, '');
-  if (!base) return 'Schema';
-  return base.split(/[._\-\s]+/)
-    .filter(Boolean)
-    .map(w => w[0].toUpperCase() + w.slice(1))
-    .join('') + 'Schema';
-}
-
-// Convert a PascalCase name like "UserSchema" to snake_case "user_schema"
-// for use in Python filenames.
-function toSnakeCase(name) {
-  return name.replace(/([A-Z])/g, (m, p1, offset) => (offset ? '_' : '') + p1.toLowerCase());
-}
-
-// ── Pydantic export ─────────────────────────────────────────────────
-// Recursively build Pydantic BaseModel class definitions into `out`.
-function buildPydanticClass(name, schema, out) {
-  const props = schema.properties || {};
-  const req   = new Set(schema.required || []);
-
-  function pyType(pName, ps) {
-    if (!ps || typeof ps !== 'object') return 'Any';
-    if (ps.enum) {
-      return 'Literal[' + ps.enum.map(v => JSON.stringify(v)).join(', ') + ']';
-    }
-    const t = ps.type;
-    if (t === 'string') {
-      if (ps.format === 'date-time') return 'datetime';
-      if (ps.format === 'email')     return 'EmailStr';
-      return 'str';
-    }
-    if (t === 'integer') return 'int';
-    if (t === 'number')  return 'float';
-    if (t === 'boolean') return 'bool';
-    if (t === 'array') {
-      const itemType = pyType(pName + '_item', ps.items || {});
-      return 'List[' + itemType + ']';
-    }
-    if (t === 'object') {
-      const nestedName = name + (pName ? pName[0].toUpperCase() + pName.slice(1) : 'Nested');
-      buildPydanticClass(nestedName, ps, out);
-      return nestedName;
-    }
-    return 'Any';
-  }
-
-  const lines = ['class ' + name + '(BaseModel):'];
-  if (schema.description) lines.push('    """' + schema.description + '"""');
-  const entries = Object.entries(props);
-  if (!entries.length) {
-    lines.push('    pass');
-  } else {
-    for (const [k, v] of entries) {
-      const safe = k.replace(/[^a-zA-Z0-9_]/g, '_') || '_field';
-      const pt   = pyType(k, v);
-      if (req.has(k)) lines.push('    ' + safe + ': ' + pt);
-      else            lines.push('    ' + safe + ': Optional[' + pt + '] = None');
-    }
-  }
-  out.push(lines.join('\n'));
-}
-
-async function exportAsPydantic() {
-  hideAlert('export-alert');
-  const rawSchema = document.getElementById('schema-body').value.trim();
-  const schemaId  = document.getElementById('schema-id').value.trim() || 'Schema';
-  if (!rawSchema) { showAlert('export-alert', 'error', 'Load a schema into the editor first.'); return; }
-  let schema;
-  try { schema = JSON.parse(rawSchema); } catch (_) {
-    showAlert('export-alert', 'error', 'Invalid JSON in editor.'); return;
-  }
-  const modelName = schemaIdToModelName(schemaId);
-  const classes   = [];
-  buildPydanticClass(modelName, schema, classes);
-
-  const raw = JSON.stringify(schema);
-  const imports = [
-    'from __future__ import annotations',
-    'from typing import Any, List, Literal, Optional',
-    'from pydantic import BaseModel',
-  ];
-  if (raw.includes('"date-time"')) imports.push('from datetime import datetime');
-  if (raw.includes('"email"'))     imports.push('from pydantic import EmailStr');
-
-  const code = imports.join('\n') + '\n\n\n' + classes.join('\n\n\n');
-  showExportResult(code, toSnakeCase(modelName) + '.py');
-  showAlert('export-alert', 'success', 'Pydantic model generated successfully.');
-}
-
-// ── TypeScript export ───────────────────────────────────────────────
-// Recursively build TypeScript interface declarations into `out`.
-function buildTsInterface(name, schema, out) {
-  const props = schema.properties || {};
-  const req   = new Set(schema.required || []);
-
-  function tsType(pName, ps) {
-    if (!ps || typeof ps !== 'object') return 'unknown';
-    if (ps.enum) {
-      return ps.enum.map(v => JSON.stringify(v)).join(' | ');
-    }
-    const t = ps.type;
-    if (t === 'string')                   return 'string';
-    if (t === 'integer' || t === 'number') return 'number';
-    if (t === 'boolean')                  return 'boolean';
-    if (t === 'null')                     return 'null';
-    if (t === 'array') {
-      const it = tsType(pName + 'Item', ps.items || {});
-      return (it.includes('|') ? '(' + it + ')' : it) + '[]';
-    }
-    if (t === 'object') {
-      const nestedName = name + (pName ? pName[0].toUpperCase() + pName.slice(1) : 'Nested');
-      buildTsInterface(nestedName, ps, out);
-      return nestedName;
-    }
-    return 'unknown';
-  }
-
-  const lines = [];
-  if (schema.description) lines.push('/** ' + schema.description + ' */');
-  lines.push('export interface ' + name + ' {');
-  for (const [k, v] of Object.entries(props)) {
-    const safe = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k) ? k : '"' + k + '"';
-    const tt   = tsType(k, v);
-    const opt  = req.has(k) ? '' : '?';
-    lines.push('  ' + safe + opt + ': ' + tt + ';');
-  }
-  lines.push('}');
-  out.push(lines.join('\n'));
-}
-
-async function exportAsTypeScript() {
-  hideAlert('export-alert');
-  const rawSchema = document.getElementById('schema-body').value.trim();
-  const schemaId  = document.getElementById('schema-id').value.trim() || 'Schema';
-  if (!rawSchema) { showAlert('export-alert', 'error', 'Load a schema into the editor first.'); return; }
-  let schema;
-  try { schema = JSON.parse(rawSchema); } catch (_) {
-    showAlert('export-alert', 'error', 'Invalid JSON in editor.'); return;
-  }
-  const ifaceName   = schemaIdToModelName(schemaId);
-  const interfaces  = [];
-  buildTsInterface(ifaceName, schema, interfaces);
-  const code = '// Generated by DeltaDatabase\n\n' + interfaces.join('\n\n');
-  showExportResult(code, ifaceName + '.ts');
-  showAlert('export-alert', 'success', 'TypeScript types generated successfully.');
-}
-
-// ── Export helpers ──────────────────────────────────────────────────
-function showExportResult(code, filename) {
-  _exportFilename = filename;
-  document.getElementById('export-filename').textContent = filename;
-  document.getElementById('export-result').textContent   = code;
-  document.getElementById('export-result-wrap').style.display = 'block';
-}
-
-function copyExport() {
-  const code = document.getElementById('export-result').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    showAlert('export-alert', 'success', 'Copied to clipboard!');
-  }).catch(() => {
-    showAlert('export-alert', 'error', 'Copy failed — please select and copy manually.');
-  });
-}
-
-function downloadExport() {
-  const code = document.getElementById('export-result').textContent;
-  const blob = new Blob([code], { type: 'text/plain' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = _exportFilename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ── Escape HTML ────────────────────────────────────────────────────
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-// ── API Key Management ─────────────────────────────────────────────
-async function loadAPIKeys() {
-  hideAlert('keys-alert');
-  try {
-    const res = await apiFetch('/api/keys');
-    if (!res.ok) {
-      showAlert('keys-alert', 'error', 'Failed to load keys: ' + res.status);
-      return;
-    }
-    const keys = await res.json();
-    const tbody = document.getElementById('keys-tbody');
-    if (!keys || keys.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="padding:12px 8px">No API keys found.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = keys.map(k => {
-      const perms = (k.permissions || []).join(', ');
-      const created = k.created_at ? new Date(k.created_at).toLocaleDateString() : '—';
-      const expires = k.expires_at ? new Date(k.expires_at).toLocaleDateString() : 'never';
-      const status = k.enabled ? '<span style="color:#22c55e">●</span> active' : '<span style="color:#ef4444">●</span> disabled';
-      return `<tr style="border-bottom:1px solid #1e293b">
-        <td style="padding:8px">${esc(k.name)}</td>
-        <td style="padding:8px;font-family:monospace;font-size:.8rem;color:#64748b">${esc(k.id)}</td>
-        <td style="padding:8px">${esc(perms)}</td>
-        <td style="padding:8px;font-size:.85rem">${created}</td>
-        <td style="padding:8px;font-size:.85rem">${expires}</td>
-        <td style="padding:8px;font-size:.85rem">${status}</td>
-        <td style="padding:8px"><button class="btn btn-danger btn-sm" onclick="deleteAPIKey('${esc(k.id)}','${esc(k.name)}')">Delete</button></td>
-      </tr>`;
-    }).join('');
-  } catch (e) {
-    showAlert('keys-alert', 'error', 'Network error: ' + e.message);
-  }
-}
-
-async function createAPIKey() {
-  hideAlert('key-create-alert');
-  document.getElementById('key-secret-wrap').style.display = 'none';
-
-  const name = document.getElementById('key-name').value.trim();
-  if (!name) { showAlert('key-create-alert', 'error', 'Name is required.'); return; }
-
-  const permissions = [];
-  if (document.getElementById('perm-read').checked) permissions.push('read');
-  if (document.getElementById('perm-write').checked) permissions.push('write');
-  if (document.getElementById('perm-admin').checked) permissions.push('admin');
-  if (permissions.length === 0) { showAlert('key-create-alert', 'error', 'Select at least one permission.'); return; }
-
-  const expiresIn = document.getElementById('key-expires').value.trim();
-  const body = { name, permissions };
-  if (expiresIn) body.expires_in = expiresIn;
-
-  try {
-    const res = await apiFetch('/api/keys', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const txt = await res.text();
-      showAlert('key-create-alert', 'error', 'Failed: ' + txt);
-      return;
-    }
-    const data = await res.json();
-    document.getElementById('key-secret').textContent = data.secret;
-    document.getElementById('key-secret-wrap').style.display = 'block';
-    document.getElementById('key-name').value = '';
-    document.getElementById('key-expires').value = '';
-    showAlert('key-create-alert', 'success', `Key "${data.name}" created!`);
-    loadAPIKeys();
-  } catch (e) {
-    showAlert('key-create-alert', 'error', 'Network error: ' + e.message);
-  }
-}
-
-async function deleteAPIKey(id, name) {
-  if (!confirm(`Delete key "${name}" (${id})? This cannot be undone.`)) return;
-  try {
-    const res = await apiFetch('/api/keys/' + encodeURIComponent(id), { method: 'DELETE' });
-    if (!res.ok) {
-      showAlert('keys-alert', 'error', 'Delete failed: ' + res.status);
-      return;
-    }
-    loadAPIKeys();
-  } catch (e) {
-    showAlert('keys-alert', 'error', 'Network error: ' + e.message);
-  }
-}
-
-// ── Bootstrap ──────────────────────────────────────────────────────
-window.onload = () => {
-  // Check health silently; show login overlay
-  fetch(apiBase() + '/health')
-    .then(r => {
-      const dot = document.getElementById('header-status-dot');
-      if (r.ok) { dot.className = 'status-dot ok'; document.getElementById('header-status-text').textContent = 'healthy'; }
-    }).catch(() => {});
-};
-</script>
+    document.getElementById('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    document.getElementById('clientIdInput').addEventListener('keydown', e => { if (e.key === 'Enter') doDevLogin(); });
+  </script>
 </body>
 </html>

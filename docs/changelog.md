@@ -9,6 +9,19 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Redesigned Management UI** — the built-in web UI has been rewritten as a multi-page application:
+  - `index.html` — standalone login page with gradient background, password visibility toggle, and dev-mode support.
+  - `app.html` — full management SPA with sidebar navigation, top bar, and page routing in vanilla JS.
+  - `css/delta.css` — a self-contained design system (dark theme, custom properties, responsive grid); no CDN dependencies.
+- **`GET /api/databases`** — new authenticated endpoint that returns a sorted list of database names currently held in the entity cache. Requires `read` permission.
+- **`GET /api/me`** — new authenticated endpoint that returns the caller's `client_id`, full `permissions` array, and `is_admin` flag. Useful for building permission-aware UIs.
+- **Database dropdown** on the Databases and Entities pages, populated from `GET /api/databases`.
+- **Database cards** — clickable cards on the Databases page that open the Entities page pre-filtered for the selected database.
+- **Mobile-responsive layout** — sidebar collapses on screens < 768 px; a hamburger button opens it as an overlay.
+- **Explorer quick links** for `GET /api/databases` and `GET /api/me`.
+- Tests for `handleDatabases` and `handleMe` covering auth, method rejection, and data correctness.
+
 ---
 
 ## [0.1.0-alpha.1] — 2026-02-25
