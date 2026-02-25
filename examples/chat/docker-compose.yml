@@ -11,13 +11,13 @@
 #
 # Uses the pre-built DeltaDatabase image from Docker Hub:
 #   https://hub.docker.com/r/donti/deltadatabase
-# To pin a specific release: image: donti/deltadatabase:all-in-one-v0.1.1-alpha
+# To pin a specific release: image: donti/deltadatabase:v0.1.1-alpha-aio
 # To build the DeltaDatabase image locally instead: comment out `image:` and
 #   uncomment the `build:` block below.
 
 services:
   deltadatabase:
-    image: donti/deltadatabase:all-in-one-latest
+    image: donti/deltadatabase:latest-aio
     # build:
     #   context: ../..
     #   dockerfile: deploy/docker/Dockerfile.all-in-one

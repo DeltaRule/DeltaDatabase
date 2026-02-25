@@ -9,12 +9,12 @@ Pre-built images are published to Docker Hub automatically on every merge to `ma
 
 | Image tag | Description |
 |-----------|-------------|
-| `donti/deltadatabase:all-in-one-latest` | Both workers in one container (latest `main`) |
-| `donti/deltadatabase:main-worker-latest` | Main Worker only (latest `main`) |
-| `donti/deltadatabase:proc-worker-latest` | Processing Worker only (latest `main`) |
-| `donti/deltadatabase:all-in-one-v0.1.1-alpha` | Pinned release |
-| `donti/deltadatabase:main-worker-v0.1.1-alpha` | Pinned release |
-| `donti/deltadatabase:proc-worker-v0.1.1-alpha` | Pinned release |
+| `donti/deltadatabase:latest-aio` | Both workers in one container (latest `main`) |
+| `donti/deltadatabase:latest-main` | Main Worker only (latest `main`) |
+| `donti/deltadatabase:latest-proc` | Processing Worker only (latest `main`) |
+| `donti/deltadatabase:v0.1.1-alpha-aio` | Pinned release |
+| `donti/deltadatabase:v0.1.1-alpha-main` | Pinned release |
+| `donti/deltadatabase:v0.1.1-alpha-proc` | Pinned release |
 
 ---
 
@@ -46,7 +46,7 @@ The REST API is available at **http://localhost:8080**.
 
 ```bash
 # Pull the latest image
-docker pull donti/deltadatabase:all-in-one-latest
+docker pull donti/deltadatabase:latest-aio
 
 # Run with a persistent master key and admin key
 MASTER_KEY=$(openssl rand -hex 32)
@@ -57,10 +57,10 @@ docker run -d \
   -e MASTER_KEY="${MASTER_KEY}" \
   -e ADMIN_KEY="${ADMIN_KEY}" \
   -v delta_data:/shared/db \
-  donti/deltadatabase:all-in-one-latest
+  donti/deltadatabase:latest-aio
 
 # Pin to a specific release instead:
-#   docker run ... donti/deltadatabase:all-in-one-v0.1.1-alpha
+#   docker run ... donti/deltadatabase:v0.1.1-alpha-aio
 ```
 
 ### Container Architecture
@@ -142,8 +142,8 @@ Processing Workers start at 1 replica and scale up to 10 based on CPU utilisatio
 The Kubernetes manifests already reference the pre-built Docker Hub images:
 
 ```
-donti/deltadatabase:main-worker-latest
-donti/deltadatabase:proc-worker-latest
+donti/deltadatabase:latest-main
+donti/deltadatabase:latest-proc
 ```
 
 To pin a specific release, edit the `image:` field in
@@ -151,7 +151,7 @@ To pin a specific release, edit the `image:` field in
 
 ```yaml
 # e.g. pin to v0.1.1-alpha
-image: donti/deltadatabase:main-worker-v0.1.1-alpha
+image: donti/deltadatabase:v0.1.1-alpha-main
 ```
 
 ### Deploy

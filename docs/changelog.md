@@ -20,9 +20,9 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
   automatically builds and pushes all three images to
   [hub.docker.com/r/donti/deltadatabase](https://hub.docker.com/r/donti/deltadatabase) on every
   merge to `main` and on every `v*` release tag:
-  - `donti/deltadatabase:main-worker-latest` / `donti/deltadatabase:main-worker-<version>`
-  - `donti/deltadatabase:proc-worker-latest` / `donti/deltadatabase:proc-worker-<version>`
-  - `donti/deltadatabase:all-in-one-latest` / `donti/deltadatabase:all-in-one-<version>`
+  - `donti/deltadatabase:latest-main` / `donti/deltadatabase:<version>-main`
+  - `donti/deltadatabase:latest-proc` / `donti/deltadatabase:<version>-proc`
+  - `donti/deltadatabase:latest-aio` / `donti/deltadatabase:<version>-aio`
 - **Redesigned Management UI** — the built-in web UI has been rewritten as a multi-page application:
   - `index.html` — standalone login page with gradient background, password visibility toggle, and dev-mode support.
   - `app.html` — full management SPA with sidebar navigation, top bar, and page routing in vanilla JS.
@@ -38,8 +38,8 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 ### Changed
 - All Docker Compose files now use pre-built Docker Hub images by default instead of a local build
   context. The `build:` blocks are retained as commented-out fallbacks for local development.
-- Kubernetes manifests updated to reference `donti/deltadatabase:main-worker-latest` and
-  `donti/deltadatabase:proc-worker-latest` with `imagePullPolicy: Always`.
+- Kubernetes manifests updated to reference `donti/deltadatabase:latest-main` and
+  `donti/deltadatabase:latest-proc` with `imagePullPolicy: Always`.
 
 ---
 

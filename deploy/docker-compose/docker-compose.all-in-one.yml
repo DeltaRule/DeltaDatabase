@@ -6,12 +6,12 @@
 # entrypoint shell script (deploy/docker/entrypoint-all-in-one.sh).
 #
 # Uses the pre-built image from Docker Hub: https://hub.docker.com/r/donti/deltadatabase
-# To pin a specific release: image: donti/deltadatabase:all-in-one-v0.1.1-alpha
+# To pin a specific release: image: donti/deltadatabase:v0.1.1-alpha-aio
 # To build locally instead:  comment out the `image:` line and uncomment `build:` below.
 
 services:
   deltadatabase:
-    image: donti/deltadatabase:all-in-one-latest
+    image: donti/deltadatabase:latest-aio
     # build:
     #   context: ../..
     #   dockerfile: deploy/docker/Dockerfile.all-in-one

@@ -133,10 +133,10 @@ on every merge to `main` and on every release tag.
 
 | Image tag | Description |
 |-----------|-------------|
-| `donti/deltadatabase:all-in-one-latest` | Both workers, always latest |
-| `donti/deltadatabase:main-worker-latest` | Main Worker, always latest |
-| `donti/deltadatabase:proc-worker-latest` | Processing Worker, always latest |
-| `donti/deltadatabase:all-in-one-v0.1.1-alpha` | Pinned release |
+| `donti/deltadatabase:latest-aio` | Both workers, always latest |
+| `donti/deltadatabase:latest-main` | Main Worker, always latest |
+| `donti/deltadatabase:latest-proc` | Processing Worker, always latest |
+| `donti/deltadatabase:v0.1.1-alpha-aio` | Pinned release |
 
 | Scenario | Guide | Recommendation |
 |----------|-------|---------------|
@@ -151,7 +151,7 @@ on every merge to `main` and on every release tag.
 ```bash
 # No clone required — just point Compose at the file from the repo, or:
 docker run -d -p 8080:8080 -e ADMIN_KEY=changeme -v delta_data:/shared/db \
-  donti/deltadatabase:all-in-one-latest
+  donti/deltadatabase:latest-aio
 
 # Or with Docker Compose (also uses the pre-built image):
 docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up

@@ -12,14 +12,14 @@
 #   Prometheus: http://localhost:9095  (host port; Grafana reaches Prometheus via http://prometheus:9090 internally)
 #
 # Uses pre-built images from Docker Hub: https://hub.docker.com/r/donti/deltadatabase
-# To pin a specific release use e.g.: image: donti/deltadatabase:main-worker-v0.1.1-alpha
+# To pin a specific release use e.g.: image: donti/deltadatabase:v0.1.1-alpha-main
 # To build locally instead: comment out `image:` lines and uncomment the `build:` blocks.
 
 services:
 
   # ── Main Worker ─────────────────────────────────────────────────────────────
   main-worker:
-    image: donti/deltadatabase:main-worker-latest
+    image: donti/deltadatabase:latest-main
     # build:
     #   context: ../..
     #   dockerfile: deploy/docker/Dockerfile.main-worker
@@ -49,7 +49,7 @@ services:
 
   # ── Processing Worker ────────────────────────────────────────────────────────
   proc-worker:
-    image: donti/deltadatabase:proc-worker-latest
+    image: donti/deltadatabase:latest-proc
     # build:
     #   context: ../..
     #   dockerfile: deploy/docker/Dockerfile.proc-worker

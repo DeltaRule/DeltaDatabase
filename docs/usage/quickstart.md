@@ -19,7 +19,7 @@ docker run -d \
   -p 8080:8080 \
   -e ADMIN_KEY=mysecretadminkey \
   -v delta_data:/shared/db \
-  donti/deltadatabase:all-in-one-latest
+  donti/deltadatabase:latest-aio
 
 # Pin to a specific release
 docker run -d \
@@ -27,7 +27,7 @@ docker run -d \
   -p 8080:8080 \
   -e ADMIN_KEY=mysecretadminkey \
   -v delta_data:/shared/db \
-  donti/deltadatabase:all-in-one-v0.1.1-alpha
+  donti/deltadatabase:v0.1.1-alpha-aio
 ```
 
 Or with Docker Compose (images pulled automatically from Docker Hub):

@@ -1,20 +1,21 @@
 # Builds and pushes all DeltaDatabase Docker images to Docker Hub.
 #
+# Tag scheme (Python-style — qualifier first, short variant after the dash):
+#
+#   latest-main    — Main Worker,    rolling build from the main branch
+#   latest-proc    — Proc Worker,    rolling build from the main branch
+#   latest-aio     — All-in-One,     rolling build from the main branch
+#   v0.1.1-alpha-main  — Main Worker,    pinned to the v0.1.1-alpha release tag
+#   v0.1.1-alpha-proc  — Proc Worker,    pinned to the v0.1.1-alpha release tag
+#   v0.1.1-alpha-aio   — All-in-One,     pinned to the v0.1.1-alpha release tag
+#
 # Triggers:
-#   • Every push / merge to the `main` branch  → pushes :main-worker-latest, :proc-worker-latest, :all-in-one-latest
-#   • Every version tag push (v*)               → additionally pushes :main-worker-<version>, etc.
+#   • Every push / merge to the `main` branch  → pushes latest-* tags
+#   • Every version tag push (v*)               → additionally pushes <version>-* tags
 #
 # Required repository configuration:
 #   vars.DOCKERHUB_USERNAME  — Docker Hub username (e.g. donti)
 #   secrets.DOCKERHUB_TOKEN  — Docker Hub access token (read/write)
-#
-# Published images (on https://hub.docker.com/r/donti/deltadatabase):
-#   donti/deltadatabase:main-worker-latest        — always tracks the latest main branch
-#   donti/deltadatabase:main-worker-v0.1.1-alpha  — pinned release
-#   donti/deltadatabase:proc-worker-latest
-#   donti/deltadatabase:proc-worker-v0.1.1-alpha
-#   donti/deltadatabase:all-in-one-latest
-#   donti/deltadatabase:all-in-one-v0.1.1-alpha
 
 name: Docker Hub Publish
 
@@ -27,7 +28,7 @@ on:
 
 jobs:
   docker:
-    name: Build & push ${{ matrix.image_tag }}
+    name: Build & push ${{ matrix.variant }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -37,11 +38,11 @@ jobs:
       matrix:
         include:
           - dockerfile: deploy/docker/Dockerfile.main-worker
-            image_tag: main-worker
+            variant: main
           - dockerfile: deploy/docker/Dockerfile.proc-worker
-            image_tag: proc-worker
+            variant: proc
           - dockerfile: deploy/docker/Dockerfile.all-in-one
-            image_tag: all-in-one
+            variant: aio
 
     steps:
       - name: Checkout
@@ -60,27 +61,27 @@ jobs:
         id: tags
         run: |
           IMAGE="${{ vars.DOCKERHUB_USERNAME }}/deltadatabase"
-          TAG="${{ matrix.image_tag }}"
+          VARIANT="${{ matrix.variant }}"
 
-          # Always push the <component>-latest tag (e.g. :main-worker-latest) so it
-          # tracks the newest build from the main branch.
-          TAGS="${IMAGE}:${TAG}-latest"
+          # Rolling "latest" tag — qualifier first, then short variant name.
+          # e.g.  latest-main  |  latest-proc  |  latest-aio
+          TAGS="${IMAGE}:latest-${VARIANT}"
 
-          # When triggered by a version tag (v*), also push a versioned tag
-          # e.g. :main-worker-v0.1.1-alpha
+          # When triggered by a version tag (v*), also push a pinned release tag.
+          # e.g.  v0.1.1-alpha-main  |  v0.1.1-alpha-proc  |  v0.1.1-alpha-aio
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
-            TAGS="${TAGS},${IMAGE}:${TAG}-${VERSION}"
+            TAGS="${TAGS},${IMAGE}:${VERSION}-${VARIANT}"
           fi
 
           echo "tags=${TAGS}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push ${{ matrix.image_tag }}
+      - name: Build and push ${{ matrix.variant }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha,scope=${{ matrix.image_tag }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image_tag }}
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}

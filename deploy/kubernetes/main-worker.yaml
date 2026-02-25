@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: main-worker
-          image: donti/deltadatabase:main-worker-latest
+          image: donti/deltadatabase:latest-main
           imagePullPolicy: Always
           args:
             - "-grpc-addr=0.0.0.0:50051"
