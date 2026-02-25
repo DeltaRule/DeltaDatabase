@@ -27,6 +27,7 @@ nav:
       - JSON Schema Templates: usage/schemas.md
       - Deployment: usage/deployment.md
       - Security Model: usage/security.md
+      - Management UI: usage/frontend.md
       - Caching Model: usage/caching.md
       - Benchmark Results: usage/benchmarks.md
       - Examples:

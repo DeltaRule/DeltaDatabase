@@ -587,9 +587,18 @@ func (s *MainWorkerServer) extractBearerToken(w http.ResponseWriter, r *http.Req
 	}
 
 	// 3. Session token check — issued by POST /api/login.
-	if _, err := s.tokenManager.ValidateClientToken(bearerToken); err == nil {
-		// Session tokens are issued with read+write by handleLogin; grant those.
-		return bearerToken, []auth.Permission{auth.PermRead, auth.PermWrite}, true
+	// Use the roles stored on the token at login time so that admin and
+	// API-key sessions retain their correct permission set (e.g. admin
+	// sessions must reach /admin/workers and /api/keys).
+	if ct, err := s.tokenManager.ValidateClientToken(bearerToken); err == nil {
+		perms := make([]auth.Permission, 0, len(ct.Roles))
+		for _, r := range ct.Roles {
+			perms = append(perms, auth.Permission(r))
+		}
+		if len(perms) == 0 {
+			perms = []auth.Permission{auth.PermRead, auth.PermWrite}
+		}
+		return bearerToken, perms, true
 	}
 
 	http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)

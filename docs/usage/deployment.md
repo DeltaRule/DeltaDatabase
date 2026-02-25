@@ -38,12 +38,14 @@ docker build \
   -t deltadatabase/all-in-one:latest \
   .
 
-# Run with a persistent master key
+# Run with a persistent master key and admin key
 MASTER_KEY=$(openssl rand -hex 32)
+ADMIN_KEY=$(openssl rand -hex 24)
 docker run -d \
   --name deltadatabase \
   -p 8080:8080 \
   -e MASTER_KEY="${MASTER_KEY}" \
+  -e ADMIN_KEY="${ADMIN_KEY}" \
   -v delta_data:/shared/db \
   deltadatabase/all-in-one:latest
 ```
@@ -258,4 +260,29 @@ docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
 
 !!! warning
     Store the master key securely. If the key is lost, all stored data becomes permanently unrecoverable.
+
+---
+
+## Supply an Admin Key
+
+The admin key is the master Bearer credential for the Management UI and REST API. Without it, any caller can issue session tokens (dev mode only — not suitable for production).
+
+```bash
+# Generate once and save
+ADMIN_KEY=$(openssl rand -hex 24)
+echo "ADMIN_KEY=${ADMIN_KEY}" >> .env
+
+# Docker Compose picks up .env automatically
+docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
+```
+
+Use the admin key to log in to the Management UI at **http://localhost:8080/** or as a Bearer token in API calls:
+
+```bash
+curl -s http://localhost:8080/admin/workers \
+  -H "Authorization: Bearer ${ADMIN_KEY}"
+```
+
+!!! warning
+    Set a strong, randomly-generated admin key before exposing DeltaDatabase to any network. Store it in a secrets manager — never commit it to source control.
     
