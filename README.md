@@ -201,21 +201,15 @@ Open a second terminal:
 The worker subscribes to the Main Worker, receives the wrapped key, and
 registers itself as available.
 
-### 4. Obtain a client token
+### 4. Store an entity
+
+Use the admin key directly as a Bearer token — no separate login step needed:
 
 ```bash
-TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/login \
-  -H 'Content-Type: application/json' \
-  -d '{"client_id":"myapp"}' | jq -r .token)
+ADMIN_KEY=mysecretkey
 
-echo "Token: $TOKEN"
-```
-
-### 5. Store an entity
-
-```bash
 curl -s -X PUT http://127.0.0.1:8080/entity/chatdb \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ADMIN_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"session_001": {"messages": [{"role":"user","content":"Hello!"}]}}'
 ```
@@ -226,11 +220,11 @@ Response:
 {"status":"ok"}
 ```
 
-### 6. Retrieve the entity
+### 5. Retrieve the entity
 
 ```bash
 curl -s "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer $ADMIN_KEY"
 ```
 
 Response:
@@ -252,8 +246,10 @@ Response:
 | `-shared-fs` | `./shared/db` | Path to the shared filesystem root (ignored when `-s3-endpoint` is set) |
 | `-master-key` | *(auto-generated)* | Hex-encoded 32-byte AES master key |
 | `-key-id` | `main-key-v1` | Logical identifier for the master key |
+| `-admin-key` | *(from `$ADMIN_KEY`)* | Master admin Bearer key — bypasses all RBAC; set once at startup |
+| `-key-store` | `<shared-fs>/_auth/keys.json` | Path to the RBAC API key JSON store |
 | `-worker-ttl` | `1h` | TTL for Processing Worker session tokens |
-| `-client-ttl` | `24h` | TTL for client Bearer tokens |
+| `-client-ttl` | `24h` | TTL for frontend session tokens (`/api/login`) |
 | `-s3-endpoint` | *(empty)* | S3-compatible endpoint, e.g. `minio:9000`; enables S3 backend |
 | `-s3-access-key` | *(empty)* | S3 access key ID (or `S3_ACCESS_KEY` env var) |
 | `-s3-secret-key` | *(empty)* | S3 secret access key (or `S3_SECRET_KEY` env var) |
@@ -282,27 +278,73 @@ Response:
 
 ## REST API Reference
 
-All entity endpoints require an `Authorization: Bearer <token>` header.
+All entity endpoints require an `Authorization: Bearer <key>` header where
+`<key>` is either the admin key or an RBAC API key.  See [Authentication](#authentication).
 
 ### `POST /api/login`
 
-Obtain a client Bearer token.
+*(Frontend only)* Exchange an admin key or API key for a short-lived session
+token used by the web UI.
 
 **Request body:**
 
 ```json
-{ "client_id": "myapp" }
+{ "key": "mysecretkey" }
 ```
 
 **Response:**
 
 ```json
 {
-  "token":      "bWDQOfIs…",
-  "client_id":  "myapp",
-  "expires_at": "2026-02-25T12:00:00Z"
+  "token":       "bWDQOfIs…",
+  "client_id":   "admin",
+  "expires_at":  "2026-02-25T12:00:00Z",
+  "permissions": ["read","write","admin"]
 }
 ```
+
+> **Tip for non-browser clients:** skip `/api/login` entirely — use your admin
+> key or API key directly as the `Bearer` value on every request.
+
+---
+
+### `GET /api/keys`
+
+List all RBAC API keys. Requires `admin` permission.
+
+### `POST /api/keys`
+
+Create a new RBAC API key. Requires `admin` permission.
+
+**Request body:**
+
+```json
+{
+  "name":        "ci-deploy",
+  "permissions": ["read", "write"],
+  "expires_in":  "30d"
+}
+```
+
+`expires_in` accepts Go durations (`24h`, `168h`) or day shorthand (`7d`, `30d`).
+Omit to create a key that never expires.
+
+**Response** (secret shown once only):
+
+```json
+{
+  "id":          "a1b2c3d4",
+  "name":        "ci-deploy",
+  "secret":      "dk_…",
+  "permissions": ["read","write"],
+  "expires_at":  "2026-03-26T09:00:00Z",
+  "created_at":  "2026-02-25T09:00:00Z"
+}
+```
+
+### `DELETE /api/keys/{id}`
+
+Permanently delete a key by its ID. Requires `admin` permission.
 
 ---
 
@@ -321,7 +363,7 @@ Returns the system health status. No authentication required.
 ### `GET /admin/workers`
 
 Returns a list of all registered Processing Workers and their status.
-Requires a valid Bearer token.
+Requires `admin` permission.
 
 **Response:**
 
@@ -497,13 +539,11 @@ Schemas can also be defined directly through the REST API or the web
 management UI — no filesystem access required.
 
 ```bash
-# Save a schema via the API
-TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/login \
-  -H 'Content-Type: application/json' \
-  -d '{"client_id":"admin"}' | jq -r .token)
+# Save a schema via the API (use admin key directly — no login needed)
+ADMIN_KEY=mysecretkey
 
 curl -X PUT http://127.0.0.1:8080/schema/chat.v1 \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $ADMIN_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -538,14 +578,93 @@ when the Main Worker routes to a Processing Worker with schema awareness.
 
 ## Authentication
 
-DeltaDatabase uses a simple Bearer-token model for external clients:
+DeltaDatabase uses the same direct-key model as PostgreSQL and MinIO: you
+include the key on every request — **no separate login step is required** for
+API access.
 
-1. **Login** — `POST /api/login` with your `client_id` returns a token valid
-   for the configured `-client-ttl` (default 24 h).
-2. **Authorize** — Include the token as `Authorization: Bearer <token>` on
-   every `GET /entity/…` and `PUT /entity/…` request.
-3. **Refresh** — Tokens are not refreshable; obtain a new token by logging in
-   again before expiry.
+### Admin key
+
+Start the Main Worker with a master admin key:
+
+```bash
+main-worker -admin-key=mysecretkey
+# or via environment variable:
+ADMIN_KEY=mysecretkey main-worker
+```
+
+Use it directly as a Bearer token on every request — full access, no RBAC:
+
+```bash
+# Write an entity directly with the admin key
+curl -X PUT http://127.0.0.1:8080/entity/mydb \
+  -H "Authorization: Bearer mysecretkey" \
+  -H "Content-Type: application/json" \
+  -d '{"user:1": {"name": "Alice"}}'
+
+# Read it back
+curl http://127.0.0.1:8080/entity/mydb?key=user:1 \
+  -H "Authorization: Bearer mysecretkey"
+```
+
+### RBAC API keys
+
+Create scoped keys via the API (requires admin key):
+
+```bash
+# Create a read-only key that expires in 30 days
+curl -X POST http://127.0.0.1:8080/api/keys \
+  -H "Authorization: Bearer mysecretkey" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"readonly-ci","permissions":["read"],"expires_in":"30d"}'
+
+# The response includes the secret (shown once only):
+# {"id":"abc123","name":"readonly-ci","secret":"dk_…","permissions":["read"],…}
+```
+
+Use the returned secret directly as a Bearer token — no login needed:
+
+```bash
+curl http://127.0.0.1:8080/entity/mydb?key=user:1 \
+  -H "Authorization: Bearer dk_…"
+```
+
+Available permissions: `read`, `write`, `admin` (full key management).
+
+| Endpoint | Required permission |
+|---|---|
+| `GET /entity/…` | `read` |
+| `PUT /entity/…` | `write` |
+| `GET /admin/workers` | `admin` |
+| `GET /api/keys` | `admin` |
+| `POST /api/keys` | `admin` |
+| `DELETE /api/keys/{id}` | `admin` |
+| `PUT /schema/…` | `write` |
+
+### Frontend / browser login
+
+The web UI at `/` uses `POST /api/login` to exchange a key for a short-lived
+session token (so the raw key is never stored in browser storage):
+
+```json
+POST /api/login
+{"key": "mysecretkey"}
+→ {"token": "…", "client_id": "admin", "expires_at": "…", "permissions": ["admin"]}
+```
+
+> **Note:** `/api/login` is purely for the browser UI.  All other clients
+> (curl, SDKs, CI pipelines) should use the admin key or an API key directly.
+
+### Key persistence
+
+API keys are stored in `<shared-fs>/_auth/keys.json` and survive restarts.
+Override the path with `-key-store=/path/to/keys.json`.
+
+### Keycloak integration
+
+See [`deploy/docker-compose/docker-compose.with-keycloak.yml`](deploy/docker-compose/docker-compose.with-keycloak.yml)
+for a ready-to-run Keycloak + DeltaDatabase setup that lets you use Keycloak
+as an external identity provider. Keycloak sits in front of the Main Worker
+and translates OIDC tokens to DeltaDatabase Bearer tokens.
 
 Processing Workers use a separate RSA + token-based handshake with the Main
 Worker (see [Architecture](#architecture)).
@@ -617,35 +736,17 @@ type Session struct {
 type ChatClient struct {
     httpClient *http.Client
     baseURL    string
-    token      string
+    apiKey     string // admin key or RBAC API key — used directly on every request
 }
 
-// NewChatClient logs in and returns a ready-to-use client.
-func NewChatClient(baseURL, clientID string) (*ChatClient, error) {
-    c := &ChatClient{httpClient: &http.Client{}, baseURL: baseURL}
-    if err := c.login(clientID); err != nil {
-        return nil, err
+// NewChatClient returns a ready-to-use client authenticated with apiKey.
+// No login step is required — just like connecting to PostgreSQL or MinIO.
+func NewChatClient(baseURL, apiKey string) *ChatClient {
+    return &ChatClient{
+        httpClient: &http.Client{},
+        baseURL:    baseURL,
+        apiKey:     apiKey,
     }
-    return c, nil
-}
-
-func (c *ChatClient) login(clientID string) error {
-    body, _ := json.Marshal(map[string]string{"client_id": clientID})
-    resp, err := c.httpClient.Post(c.baseURL+"/api/login",
-        "application/json", bytes.NewReader(body))
-    if err != nil {
-        return err
-    }
-    defer resp.Body.Close()
-
-    var result struct {
-        Token string `json:"token"`
-    }
-    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-        return err
-    }
-    c.token = result.Token
-    return nil
 }
 
 func (c *ChatClient) doRequest(method, path string, body io.Reader) (*http.Response, error) {
@@ -653,7 +754,7 @@ func (c *ChatClient) doRequest(method, path string, body io.Reader) (*http.Respo
     if err != nil {
         return nil, err
     }
-    req.Header.Set("Authorization", "Bearer "+c.token)
+    req.Header.Set("Authorization", "Bearer "+c.apiKey)
     if body != nil {
         req.Header.Set("Content-Type", "application/json")
     }
@@ -713,12 +814,10 @@ func (c *ChatClient) AppendMessage(sessionID string, msg Message) error {
 }
 
 func main() {
-    // --- 1. Connect and authenticate ---
-    client, err := NewChatClient(baseURL, "demo-app")
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println("Logged in successfully")
+    // --- 1. Connect — use the admin key directly, no login step needed ---
+    apiKey := "mysecretkey"  // set via -admin-key flag at startup
+    client := NewChatClient(baseURL, apiKey)
+    fmt.Println("Connected to DeltaDatabase")
 
     sessionID := "session_001"
 
@@ -788,23 +887,11 @@ DATABASE = "chatdb"
 class DeltaChatClient:
     """Simple chat-session client backed by DeltaDatabase."""
 
-    def __init__(self, base_url: str, client_id: str) -> None:
+    def __init__(self, base_url: str, api_key: str) -> None:
         self.base_url = base_url
         self.session = requests.Session()
-        self._login(client_id)
-
-    # ── Auth ────────────────────────────────────────────────────────
-
-    def _login(self, client_id: str) -> None:
-        resp = self.session.post(
-            f"{self.base_url}/api/login",
-            json={"client_id": client_id},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        token = resp.json()["token"]
-        self.session.headers.update({"Authorization": f"Bearer {token}"})
-        print(f"Logged in as '{client_id}'")
+        # Use the API key (or admin key) directly — no login step required.
+        self.session.headers.update({"Authorization": f"Bearer {api_key}"})
 
     # ── Session helpers ─────────────────────────────────────────────
 
@@ -846,7 +933,8 @@ class DeltaChatClient:
 # ── Main ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    client = DeltaChatClient(BASE_URL, "python-demo")
+    ADMIN_KEY = "mysecretkey"  # set via -admin-key flag at startup
+    client = DeltaChatClient(BASE_URL, ADMIN_KEY)
 
     session_id = "py_session_001"
 
@@ -900,13 +988,7 @@ A complete shell-script walkthrough using only `curl` and `jq`:
 BASE="http://127.0.0.1:8080"
 DB="chatdb"
 SESSION="bash_session_001"
-
-# ── 1. Login ──────────────────────────────────────────────────────
-TOKEN=$(curl -sf -X POST "$BASE/api/login" \
-  -H 'Content-Type: application/json' \
-  -d '{"client_id":"bash-demo"}' | jq -r .token)
-
-echo "Token: ${TOKEN:0:20}…"
+ADMIN_KEY="mysecretkey"   # set via -admin-key flag at startup
 
 # ── Helper: append one message ────────────────────────────────────
 append_message() {
@@ -914,7 +996,7 @@ append_message() {
 
   # Fetch current session (empty object if not found yet)
   existing=$(curl -sf "$BASE/entity/$DB?key=$SESSION" \
-    -H "Authorization: Bearer $TOKEN" 2>/dev/null || echo '{"messages":[]}')
+    -H "Authorization: Bearer $ADMIN_KEY" 2>/dev/null || echo '{"messages":[]}')
 
   # Build updated payload using jq
   updated=$(echo "$existing" | jq \
@@ -923,7 +1005,7 @@ append_message() {
 
   # PUT back
   curl -sf -X PUT "$BASE/entity/$DB" \
-    -H "Authorization: Bearer $TOKEN" \
+    -H "Authorization: Bearer $ADMIN_KEY" \
     -H 'Content-Type: application/json' \
     -d "{\"$SESSION\": $updated}" > /dev/null
 
@@ -940,7 +1022,7 @@ append_message "assistant" "In the shared filesystem under shared/db/files/ as e
 echo ""
 echo "=== Full session ==="
 curl -sf "$BASE/entity/$DB?key=$SESSION" \
-  -H "Authorization: Bearer $TOKEN" | jq .
+  -H "Authorization: Bearer $ADMIN_KEY" | jq .
 ```
 
 Expected output:
@@ -998,10 +1080,8 @@ a worker crashes between the rename and a kernel writeback flush.
 View the registered workers at any time:
 
 ```bash
-TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/login \
-  -H 'Content-Type: application/json' \
-  -d '{"client_id":"myapp"}' | jq -r .token)
-curl -s -H "Authorization: Bearer ${TOKEN}" http://127.0.0.1:8080/admin/workers | jq .
+ADMIN_KEY=mysecretkey
+curl -s -H "Authorization: Bearer $ADMIN_KEY" http://127.0.0.1:8080/admin/workers | jq .
 ```
 
 ---

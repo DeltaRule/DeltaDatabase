@@ -146,6 +146,7 @@ def live_server(tmp_path_factory):
         "shared_root": root,
         "db_dir": db_dir,
         "token": token,
+        "admin_key": "test-admin-key",
         "log_path": str(log_file),
     }
 
@@ -170,6 +171,8 @@ def settings(pytestconfig, live_server):
         "shared_fs": str(live_server["shared_root"]),
         "log_path": live_server["log_path"],
         "token": live_server["token"],
+        # admin_key can be used directly as a Bearer token — no /api/login needed.
+        "admin_key": live_server["admin_key"],
     }
 
 

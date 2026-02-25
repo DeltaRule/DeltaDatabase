@@ -21,6 +21,7 @@ services:
       # supply a pre-existing 32-byte hex key:
       #   MASTER_KEY=<64-char hex string>
       MASTER_KEY: "${MASTER_KEY:-}"
+      ADMIN_KEY: "${ADMIN_KEY:-}"
       SHARED_FS: /shared/db
     volumes:
       - shared_data:/shared/db

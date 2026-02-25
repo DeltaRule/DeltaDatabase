@@ -4,6 +4,7 @@
 set -e
 
 MASTER_KEY="${MASTER_KEY:-}"
+ADMIN_KEY="${ADMIN_KEY:-}"
 SHARED_FS="${SHARED_FS:-/shared/db}"
 
 echo "[entrypoint] Starting Main Worker…"
@@ -11,7 +12,8 @@ main-worker \
   -grpc-addr=0.0.0.0:50051 \
   -rest-addr=0.0.0.0:8080 \
   -shared-fs="${SHARED_FS}" \
-  ${MASTER_KEY:+-master-key="${MASTER_KEY}"} &
+  ${MASTER_KEY:+-master-key="${MASTER_KEY}"} \
+  ${ADMIN_KEY:+-admin-key="${ADMIN_KEY}"} &
 MAIN_PID=$!
 
 # Give the Main Worker a moment to bind its ports before the worker connects.

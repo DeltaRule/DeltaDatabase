@@ -764,13 +764,17 @@ func TestHandleAPIKeyByID(t *testing.T) {
 
 // ── TestAdminKeyAuth ─────────────────────────────────────────────────────────
 
+// TestAdminKeyAuth verifies that the admin key and API keys work directly as
+// Bearer tokens — exactly like a Postgres password or MinIO access key.
+// No call to POST /api/login is required.
 func TestAdminKeyAuth(t *testing.T) {
 	const adminKey = "my-super-secret"
 	config := createTestConfigWithAdminKey(t, adminKey)
 	server, err := NewMainWorkerServer(config)
 	require.NoError(t, err)
 
-	t.Run("admin key grants full access to entity PUT", func(t *testing.T) {
+	t.Run("admin key grants full access to entity PUT without login", func(t *testing.T) {
+		// Use the raw admin key directly — no session token, no /api/login.
 		body := bytes.NewReader([]byte(`{"testkey": "testvalue"}`))
 		req := httptest.NewRequest(http.MethodPut, "/entity/mydb", body)
 		req.Header.Set("Authorization", "Bearer "+adminKey)
@@ -778,6 +782,22 @@ func TestAdminKeyAuth(t *testing.T) {
 		server.handleEntity(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("admin key grants full access to entity GET without login", func(t *testing.T) {
+		// Seed a value first.
+		putBody := bytes.NewReader([]byte(`{"directget": "hi"}`))
+		putReq := httptest.NewRequest(http.MethodPut, "/entity/mydb", putBody)
+		putReq.Header.Set("Authorization", "Bearer "+adminKey)
+		server.handleEntity(httptest.NewRecorder(), putReq)
+
+		// Now GET it — still with the raw admin key, no session.
+		getReq := httptest.NewRequest(http.MethodGet, "/entity/mydb?key=directget", nil)
+		getReq.Header.Set("Authorization", "Bearer "+adminKey)
+		getW := httptest.NewRecorder()
+		server.handleEntity(getW, getReq)
+
+		assert.Equal(t, http.StatusOK, getW.Code)
 	})
 
 	t.Run("wrong admin key is rejected", func(t *testing.T) {
@@ -801,8 +821,10 @@ func TestAdminKeyAuth(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 
-	t.Run("write API key is accepted for entity PUT", func(t *testing.T) {
+	t.Run("write API key works directly for entity PUT without login", func(t *testing.T) {
+		// Create an API key with write permission.
 		secret, _, _ := server.keyManager.CreateKey("rw", []auth.Permission{auth.PermRead, auth.PermWrite}, nil)
+		// Use the raw API key secret directly — no session token.
 		body := bytes.NewReader([]byte(`{"k": "v"}`))
 		req := httptest.NewRequest(http.MethodPut, "/entity/mydb", body)
 		req.Header.Set("Authorization", "Bearer "+secret)
@@ -810,5 +832,19 @@ func TestAdminKeyAuth(t *testing.T) {
 		server.handleEntity(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("admin key manages API keys directly without login", func(t *testing.T) {
+		// Create a key using the raw admin key — no session token.
+		body, _ := json.Marshal(createKeyRequest{
+			Name:        "direct-create",
+			Permissions: []auth.Permission{auth.PermRead},
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/keys", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+adminKey)
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
 	})
 }
