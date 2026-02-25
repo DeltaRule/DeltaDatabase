@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Chat – DeltaChat{% endblock %}
+{% block body %}
+<div class="app-layout">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-logo">💬 DeltaChat</span>
+      <form method="post" action="{{ url_for('new_chat') }}" style="display:inline">
+        <button type="submit" class="btn btn--ghost btn--sm" title="New chat" id="new-chat-btn">＋</button>
+      </form>
+    </div>
+
+    <nav class="chat-list" id="chat-list">
+      {% for c in chats %}
+        <a href="{{ url_for('chat_view', chat_id=c.id) }}"
+           class="chat-item {% if chat_id == c.id %}chat-item--active{% endif %}"
+           data-id="{{ c.id }}">
+          <span class="chat-item-title" id="title-{{ c.id }}">{{ c.title }}</span>
+          <button class="chat-item-delete btn btn--ghost btn--xs"
+                  data-id="{{ c.id }}" title="Delete chat" aria-label="Delete">🗑</button>
+        </a>
+      {% else %}
+        <p class="sidebar-empty">No chats yet.<br/>Press ＋ to start.</p>
+      {% endfor %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="{{ url_for('settings') }}" class="sidebar-link">⚙ Settings</a>
+      {% if session.get('is_admin') %}
+        <a href="{{ url_for('admin') }}" class="sidebar-link">🛡 Admin</a>
+      {% endif %}
+      <form method="post" action="{{ url_for('logout') }}" style="display:inline">
+        <button type="submit" class="sidebar-link sidebar-link--btn">⏏ Sign out</button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- ── Main area ────────────────────────────────────────────── -->
+  <main class="chat-main">
+    {% if current_chat %}
+      <header class="chat-header">
+        <h2 class="chat-title" id="chat-header-title">{{ current_chat.title }}</h2>
+        <div class="chat-model-select">
+          <label for="model-select" class="sr-only">Model</label>
+          <select id="model-select" class="select">
+            {% for m in models %}
+              <option value="{{ m }}"
+                {% if m == (user_config.get('default_model') or models[0]) %}selected{% endif %}>
+                {{ m }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </header>
+
+      <div class="messages" id="messages">
+        {% for msg in current_chat.messages %}
+          <div class="message message--{{ msg.role }}">
+            <span class="message-role">{{ msg.role }}</span>
+            <div class="message-content">{{ msg.content }}</div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <form class="message-form" id="message-form" data-chat-id="{{ chat_id }}">
+        <textarea id="message-input" name="message" rows="1"
+                  placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
+                  autocomplete="off" required></textarea>
+        <button type="submit" class="btn btn--primary" id="send-btn">Send</button>
+      </form>
+    {% else %}
+      <div class="chat-empty">
+        <div class="chat-empty-icon">💬</div>
+        <p>Select a chat from the sidebar or <strong>press ＋</strong> to start a new one.</p>
+      </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

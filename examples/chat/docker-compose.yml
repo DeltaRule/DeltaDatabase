@@ -1,0 +1,50 @@
+# Docker Compose — DeltaChat example application
+#
+# Starts DeltaDatabase (all-in-one) + the Flask chat app.
+#
+# Usage:
+#   cd examples/chat
+#   docker compose up --build
+#
+# Then open http://localhost:5000
+# Default admin credentials: admin / admin123  (override via env)
+
+services:
+  deltadatabase:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.all-in-one
+    container_name: deltachat-db
+    environment:
+      MASTER_KEY: "${MASTER_KEY:-}"
+      SHARED_FS: /shared/db
+    volumes:
+      - db_data:/shared/db
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deltachat-app
+    ports:
+      - "5000:5000"
+    environment:
+      DELTA_DB_URL: "http://deltadatabase:8080"
+      DELTA_DB_CLIENT_ID: "chat-app"
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-changeme-in-production}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin123}"
+      # Set MOCK_OPENAI=true to get stub replies without a real API key
+      MOCK_OPENAI: "${MOCK_OPENAI:-false}"
+    depends_on:
+      deltadatabase:
+        condition: service_healthy
+
+volumes:
+  db_data:

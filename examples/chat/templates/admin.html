@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Admin – DeltaChat{% endblock %}
+{% block body %}
+<div class="page-layout">
+  <div class="page-card page-card--wide">
+    <div class="page-card-header">
+      <a href="{{ url_for('chat_list') }}" class="btn btn--ghost btn--sm">← Back to chat</a>
+      <h1>🛡 Admin Panel</h1>
+    </div>
+
+    <!-- ── Global available models ──────────────────────────── -->
+    <section class="admin-section">
+      <h2>Available Models (global defaults)</h2>
+      <p class="settings-hint">Tick the models that users can choose from by default.</p>
+      <div class="model-checklist" id="global-models">
+        {% for m in default_models %}
+          <label class="checkbox-label">
+            <input type="checkbox" value="{{ m }}"
+              {% if m in admin_config.get('available_models', []) %}checked{% endif %} />
+            {{ m }}
+          </label>
+        {% endfor %}
+      </div>
+      <button class="btn btn--primary btn--sm" id="save-global-models">Save global models</button>
+    </section>
+
+    <!-- ── Per-user model assignment ────────────────────────── -->
+    <section class="admin-section">
+      <h2>Users</h2>
+      <p class="settings-hint">
+        Assign specific models to a user. Leave blank to fall back to the global defaults.
+      </p>
+      <table class="admin-table" id="users-table">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Admin</th>
+            <th>Registered</th>
+            <th>Allowed Models</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr data-username="{{ u.username }}">
+            <td>{{ u.username }}</td>
+            <td>{{ '✅' if u.is_admin else '—' }}</td>
+            <td>{{ u.created_at[:10] if u.created_at else '—' }}</td>
+            <td>
+              <div class="model-checklist model-checklist--inline">
+                {% for m in default_models %}
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="{{ m }}"
+                      {% if m in admin_config.get('user_models', {}).get(u.username, admin_config.get('available_models', [])) %}checked{% endif %} />
+                    {{ m }}
+                  </label>
+                {% endfor %}
+              </div>
+            </td>
+            <td>
+              <button class="btn btn--ghost btn--sm save-user-models"
+                      data-username="{{ u.username }}">Save</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="table-empty">No users found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>
+{% endblock %}

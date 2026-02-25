@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Settings – DeltaChat{% endblock %}
+{% block body %}
+<div class="page-layout">
+  <div class="page-card">
+    <div class="page-card-header">
+      <a href="{{ url_for('chat_list') }}" class="btn btn--ghost btn--sm">← Back to chat</a>
+      <h1>⚙ Settings</h1>
+    </div>
+
+    <form method="post" action="{{ url_for('settings') }}" class="settings-form">
+      <section class="settings-section">
+        <h2>OpenAI Configuration</h2>
+        <p class="settings-hint">
+          Your API key is stored encrypted in DeltaDatabase and is never shared with other users.
+        </p>
+
+        <label for="openai_api_key">API Key</label>
+        <input id="openai_api_key" name="openai_api_key" type="password"
+               autocomplete="off"
+               placeholder="sk-…"
+               value="{{ config.get('openai_api_key', '') }}" />
+
+        <label for="openai_base_url">Base URL <span class="settings-optional">(optional)</span></label>
+        <input id="openai_base_url" name="openai_base_url" type="url"
+               placeholder="https://api.openai.com/v1"
+               value="{{ config.get('openai_base_url', 'https://api.openai.com/v1') }}" />
+        <p class="settings-hint">
+          Change this to use a custom OpenAI-compatible endpoint (e.g. Azure OpenAI, local Ollama with OpenAI shim, etc.).
+        </p>
+
+        <label for="default_model">Default model</label>
+        <select id="default_model" name="default_model" class="select">
+          {% for m in models %}
+            <option value="{{ m }}"
+              {% if m == config.get('default_model') %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </section>
+
+      <button type="submit" class="btn btn--primary">Save settings</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
