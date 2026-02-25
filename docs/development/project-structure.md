@@ -9,9 +9,12 @@ DeltaDatabase follows the standard Go project layout.
 │   ├── main-worker/            # Main Worker entry point & server
 │   │   ├── main.go             # Flag parsing and startup
 │   │   ├── server.go           # gRPC + REST handler
-│   │   ├── frontend.go         # Embedded web UI handler
+│   │   ├── frontend.go         # Embedded web UI handler + /api/login, /api/databases, /api/me
 │   │   └── static/
-│   │       └── index.html      # Single-page management app (embedded)
+│   │       ├── index.html      # Login page
+│   │       ├── app.html        # Multi-page management SPA
+│   │       └── css/
+│   │           └── delta.css   # Self-contained design system (no CDN)
 │   └── proc-worker/            # Processing Worker entry point
 │       ├── main.go             # Flag parsing and startup
 │       ├── worker.go           # Subscription & key management

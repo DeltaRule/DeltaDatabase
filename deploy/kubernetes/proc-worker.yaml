@@ -20,8 +20,8 @@ spec:
     spec:
       containers:
         - name: proc-worker
-          image: deltadatabase/proc-worker:latest
-          imagePullPolicy: IfNotPresent
+          image: donti/deltadatabase:latest-proc
+          imagePullPolicy: Always
           env:
             # Use the Pod's name as a unique worker ID so each replica has a
             # distinct identity when registering with the Main Worker.

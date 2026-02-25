@@ -4,21 +4,25 @@
 # one-main-one-worker setup.  The DeltaDatabase workers expose /metrics on
 # dedicated ports (:9090 for Main Worker, :9091 for Processing Worker).
 #
-# Build:  docker compose -f deploy/docker-compose/docker-compose.with-monitoring.yml build
 # Run:    docker compose -f deploy/docker-compose/docker-compose.with-monitoring.yml up
 #
 # Access:
 #   REST API:  http://localhost:8080
 #   Grafana:   http://localhost:3000  (admin / admin — change on first login)
 #   Prometheus: http://localhost:9095  (host port; Grafana reaches Prometheus via http://prometheus:9090 internally)
+#
+# Uses pre-built images from Docker Hub: https://hub.docker.com/r/donti/deltadatabase
+# To pin a specific release use e.g.: image: donti/deltadatabase:v0.1.1-alpha-main
+# To build locally instead: comment out `image:` lines and uncomment the `build:` blocks.
 
 services:
 
   # ── Main Worker ─────────────────────────────────────────────────────────────
   main-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.main-worker
+    image: donti/deltadatabase:latest-main
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.main-worker
     container_name: delta-main-worker
     ports:
       - "8080:8080"    # REST API
@@ -45,9 +49,10 @@ services:
 
   # ── Processing Worker ────────────────────────────────────────────────────────
   proc-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.proc-worker
+    image: donti/deltadatabase:latest-proc
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.proc-worker
     container_name: delta-proc-worker-1
     ports:
       - "9091:9091"    # Prometheus metrics

@@ -11,6 +11,38 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.1-alpha] — 2026-02-25
+
+> ⚠️ **Pre-release / Alpha** — APIs and storage formats may change without notice.
+
+### Added
+- **Docker Hub CI/CD** — a GitHub Actions workflow (`.github/workflows/docker-publish.yml`) now
+  automatically builds and pushes all three images to
+  [hub.docker.com/r/donti/deltadatabase](https://hub.docker.com/r/donti/deltadatabase) on every
+  merge to `main` and on every `v*` release tag:
+  - `donti/deltadatabase:latest-main` / `donti/deltadatabase:<version>-main`
+  - `donti/deltadatabase:latest-proc` / `donti/deltadatabase:<version>-proc`
+  - `donti/deltadatabase:latest-aio` / `donti/deltadatabase:<version>-aio`
+- **Redesigned Management UI** — the built-in web UI has been rewritten as a multi-page application:
+  - `index.html` — standalone login page with gradient background, password visibility toggle, and dev-mode support.
+  - `app.html` — full management SPA with sidebar navigation, top bar, and page routing in vanilla JS.
+  - `css/delta.css` — a self-contained design system (dark theme, custom properties, responsive grid); no CDN dependencies.
+- **`GET /api/databases`** — new authenticated endpoint that returns a sorted list of database names currently held in the entity cache. Requires `read` permission.
+- **`GET /api/me`** — new authenticated endpoint that returns the caller's `client_id`, full `permissions` array, and `is_admin` flag. Useful for building permission-aware UIs.
+- **Database dropdown** on the Databases and Entities pages, populated from `GET /api/databases`.
+- **Database cards** — clickable cards on the Databases page that open the Entities page pre-filtered for the selected database.
+- **Mobile-responsive layout** — sidebar collapses on screens < 768 px; a hamburger button opens it as an overlay.
+- **Explorer quick links** for `GET /api/databases` and `GET /api/me`.
+- Tests for `handleDatabases` and `handleMe` covering auth, method rejection, and data correctness.
+
+### Changed
+- All Docker Compose files now use pre-built Docker Hub images by default instead of a local build
+  context. The `build:` blocks are retained as commented-out fallbacks for local development.
+- Kubernetes manifests updated to reference `donti/deltadatabase:latest-main` and
+  `donti/deltadatabase:latest-proc` with `imagePullPolicy: Always`.
+
+---
+
 ## [0.1.0-alpha.1] — 2026-02-25
 
 > ⚠️ **Pre-release / Alpha** — APIs and storage formats may change without notice.

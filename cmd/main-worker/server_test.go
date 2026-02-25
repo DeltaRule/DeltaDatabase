@@ -928,3 +928,173 @@ func TestSessionTokenInheritsPermissions(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, w3.Code)
 	})
 }
+
+// TestHandleDatabases tests the GET /api/databases endpoint.
+func TestHandleDatabases(t *testing.T) {
+config := createTestConfigWithTempDir(t)
+server, err := NewMainWorkerServer(config)
+require.NoError(t, err)
+
+ct, err := server.tokenManager.GenerateClientToken("test-client", []string{"read"})
+require.NoError(t, err)
+authHeader := "Bearer " + ct.Token
+
+t.Run("returns empty list when no entities cached", func(t *testing.T) {
+req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+req.Header.Set("Authorization", authHeader)
+w := httptest.NewRecorder()
+
+server.handleDatabases(w, req)
+
+assert.Equal(t, http.StatusOK, w.Code)
+var dbs []string
+require.NoError(t, json.NewDecoder(w.Body).Decode(&dbs))
+assert.Empty(t, dbs)
+})
+
+t.Run("returns database names after entities are cached", func(t *testing.T) {
+// Seed two databases via the entity store.
+server.entityStore.Set("alpha/k1", []byte(`{}`), "1")
+server.entityStore.Set("alpha/k2", []byte(`{}`), "1")
+server.entityStore.Set("beta/k1", []byte(`{}`), "1")
+
+req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+req.Header.Set("Authorization", authHeader)
+w := httptest.NewRecorder()
+
+server.handleDatabases(w, req)
+
+assert.Equal(t, http.StatusOK, w.Code)
+var dbs []string
+require.NoError(t, json.NewDecoder(w.Body).Decode(&dbs))
+assert.Contains(t, dbs, "alpha")
+assert.Contains(t, dbs, "beta")
+})
+
+t.Run("returns sorted list", func(t *testing.T) {
+server.entityStore.Set("zz/k1", []byte(`{}`), "1")
+server.entityStore.Set("aa/k1", []byte(`{}`), "1")
+
+req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+req.Header.Set("Authorization", authHeader)
+w := httptest.NewRecorder()
+
+server.handleDatabases(w, req)
+
+assert.Equal(t, http.StatusOK, w.Code)
+var dbs []string
+require.NoError(t, json.NewDecoder(w.Body).Decode(&dbs))
+// Verify sorted (first element <= last element for any list size ≥ 2).
+if len(dbs) >= 2 {
+for i := 1; i < len(dbs); i++ {
+assert.LessOrEqual(t, dbs[i-1], dbs[i], "databases should be sorted")
+}
+}
+})
+
+t.Run("rejects unauthenticated request", func(t *testing.T) {
+req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+w := httptest.NewRecorder()
+
+server.handleDatabases(w, req)
+
+assert.Equal(t, http.StatusUnauthorized, w.Code)
+})
+
+t.Run("rejects POST method", func(t *testing.T) {
+req := httptest.NewRequest(http.MethodPost, "/api/databases", nil)
+req.Header.Set("Authorization", authHeader)
+w := httptest.NewRecorder()
+
+server.handleDatabases(w, req)
+
+assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+})
+}
+
+// TestHandleMe tests the GET /api/me endpoint.
+func TestHandleMe(t *testing.T) {
+const adminKey = "test-admin-me"
+config := createTestConfigWithAdminKey(t, adminKey)
+server, err := NewMainWorkerServer(config)
+require.NoError(t, err)
+
+t.Run("returns admin identity for admin key", func(t *testing.T) {
+req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+req.Header.Set("Authorization", "Bearer "+adminKey)
+w := httptest.NewRecorder()
+
+server.handleMe(w, req)
+
+assert.Equal(t, http.StatusOK, w.Code)
+var resp meResponse
+require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+assert.Equal(t, "admin", resp.ClientID)
+assert.True(t, resp.IsAdmin)
+assert.Contains(t, resp.Permissions, auth.PermAdmin)
+})
+
+t.Run("returns client identity for session token", func(t *testing.T) {
+ct, err := server.tokenManager.GenerateClientToken("myapp", []string{"read", "write"})
+require.NoError(t, err)
+
+req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+req.Header.Set("Authorization", "Bearer "+ct.Token)
+w := httptest.NewRecorder()
+
+server.handleMe(w, req)
+
+assert.Equal(t, http.StatusOK, w.Code)
+var resp meResponse
+require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+assert.Equal(t, "myapp", resp.ClientID)
+assert.False(t, resp.IsAdmin)
+})
+
+t.Run("returns 401 without token", func(t *testing.T) {
+req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+w := httptest.NewRecorder()
+
+server.handleMe(w, req)
+
+assert.Equal(t, http.StatusUnauthorized, w.Code)
+})
+
+t.Run("returns 401 for invalid token", func(t *testing.T) {
+req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+req.Header.Set("Authorization", "Bearer invalid-token")
+w := httptest.NewRecorder()
+
+server.handleMe(w, req)
+
+assert.Equal(t, http.StatusUnauthorized, w.Code)
+})
+
+t.Run("rejects POST method", func(t *testing.T) {
+req := httptest.NewRequest(http.MethodPost, "/api/me", nil)
+req.Header.Set("Authorization", "Bearer "+adminKey)
+w := httptest.NewRecorder()
+
+server.handleMe(w, req)
+
+assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+})
+
+t.Run("returns api key identity", func(t *testing.T) {
+secret, _, err := server.keyManager.CreateKey("ci-bot", []auth.Permission{auth.PermRead}, nil)
+require.NoError(t, err)
+
+req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+req.Header.Set("Authorization", "Bearer "+secret)
+w := httptest.NewRecorder()
+
+server.handleMe(w, req)
+
+assert.Equal(t, http.StatusOK, w.Code)
+var resp meResponse
+require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+assert.Equal(t, "ci-bot", resp.ClientID)
+assert.False(t, resp.IsAdmin)
+assert.Contains(t, resp.Permissions, auth.PermRead)
+})
+}

@@ -4,16 +4,23 @@
 #
 # Usage:
 #   cd examples/chat
-#   docker compose up --build
+#   docker compose up
 #
 # Then open http://localhost:5000
 # Default admin credentials: admin / admin123  (override via env)
+#
+# Uses the pre-built DeltaDatabase image from Docker Hub:
+#   https://hub.docker.com/r/donti/deltadatabase
+# To pin a specific release: image: donti/deltadatabase:v0.1.1-alpha-aio
+# To build the DeltaDatabase image locally instead: comment out `image:` and
+#   uncomment the `build:` block below.
 
 services:
   deltadatabase:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.all-in-one
+    image: donti/deltadatabase:latest-aio
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.all-in-one
     container_name: deltachat-db
     environment:
       MASTER_KEY: "${MASTER_KEY:-}"

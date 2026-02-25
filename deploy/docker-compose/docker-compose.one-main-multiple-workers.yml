@@ -1,18 +1,22 @@
 # Docker Compose — Option 2: 1 Main Worker + Multiple Processing Workers
 #
-# Build:  docker compose -f deploy/docker-compose/docker-compose.one-main-multiple-workers.yml build
 # Run:    docker compose -f deploy/docker-compose/docker-compose.one-main-multiple-workers.yml up
 #
 # By default, three Processing Workers are started. Adjust the 'replicas' value
 # or add/remove proc-worker-N entries to change the number of workers.
 # To scale workers dynamically after startup:
 #   docker compose -f ... up --scale proc-worker=5
+#
+# Uses pre-built images from Docker Hub: https://hub.docker.com/r/donti/deltadatabase
+# To pin a specific release use e.g.: image: donti/deltadatabase:v0.1.1-alpha-main
+# To build locally instead: comment out `image:` lines and uncomment the `build:` blocks.
 
 services:
   main-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.main-worker
+    image: donti/deltadatabase:latest-main
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.main-worker
     container_name: delta-main-worker
     ports:
       - "8080:8080"    # REST API
@@ -36,9 +40,10 @@ services:
       start_period: 10s
 
   proc-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.proc-worker
+    image: donti/deltadatabase:latest-proc
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.proc-worker
     depends_on:
       main-worker:
         condition: service_healthy

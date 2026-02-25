@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
         - name: main-worker
-          image: deltadatabase/main-worker:latest
-          imagePullPolicy: IfNotPresent
+          image: donti/deltadatabase:latest-main
+          imagePullPolicy: Always
           args:
             - "-grpc-addr=0.0.0.0:50051"
             - "-rest-addr=0.0.0.0:8080"

@@ -7,6 +7,7 @@
 [![License](https://img.shields.io/badge/license-DeltaDatabase%20v1.0-blue)](LICENSE)
 [![Go version](https://img.shields.io/badge/go-1.25%2B-00ADD8)](go.mod)
 [![Documentation](https://img.shields.io/badge/docs-readthedocs-blue)](https://deltadatabase.readthedocs.io/en/latest/)
+[![Docker Hub](https://img.shields.io/badge/docker-donti%2Fdeltadatabase-2496ED?logo=docker)](https://hub.docker.com/r/donti/deltadatabase)
 
 ---
 
@@ -55,7 +56,7 @@ named **databases**.  Every entity is:
 * **Accessed** through a plain HTTP REST API or gRPC, making integration
   straightforward from any programming language.
 
-A built-in single-page web UI is served by the Main Worker at `/` so you can
+A built-in multi-page web UI is served by the Main Worker at `/` so you can
 browse and manage databases without any external tooling.
 
 ---
@@ -127,6 +128,16 @@ object store.  Both backends are interchangeable at startup time via flags:
 > environment variables, shared volumes, and graceful restarts for you —
 > no manual binary setup required.
 
+Pre-built images are published automatically to **[Docker Hub → donti/deltadatabase](https://hub.docker.com/r/donti/deltadatabase)**
+on every merge to `main` and on every release tag.
+
+| Image tag | Description |
+|-----------|-------------|
+| `donti/deltadatabase:latest-aio` | Both workers, always latest |
+| `donti/deltadatabase:latest-main` | Main Worker, always latest |
+| `donti/deltadatabase:latest-proc` | Processing Worker, always latest |
+| `donti/deltadatabase:v0.1.1-alpha-aio` | Pinned release |
+
 | Scenario | Guide | Recommendation |
 |----------|-------|---------------|
 | Local dev / CI | [All-in-one container](examples/01-all-in-one.md) | Simplest — one `docker compose up` |
@@ -135,9 +146,14 @@ object store.  Both backends are interchangeable at startup time via flags:
 | Cloud / auto-scaling | [Kubernetes + HPA](examples/04-kubernetes-autoscaling.md) | ⭐ **Recommended for production** |
 | Cloud storage | [S3-compatible storage](examples/05-s3-compatible-storage.md) | No shared PVC needed |
 
-**Get started in one command (all-in-one):**
+**Get started in one command — images pulled automatically from Docker Hub:**
 
 ```bash
+# No clone required — just point Compose at the file from the repo, or:
+docker run -d -p 8080:8080 -e ADMIN_KEY=changeme -v delta_data:/shared/db \
+  donti/deltadatabase:latest-aio
+
+# Or with Docker Compose (also uses the pre-built image):
 docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
 ```
 
@@ -673,21 +689,37 @@ Worker (see [Architecture](#architecture)).
 
 ## Web Management UI
 
-The Main Worker serves a built-in single-page management UI at `/`:
+The Main Worker serves a built-in multi-page management UI at `/`:
 
 ```
 http://127.0.0.1:8080/
 ```
 
-Features:
+![Login](https://github.com/user-attachments/assets/bcba6cbc-61a1-4377-9b6f-455153edea53)
+![Dashboard](https://github.com/user-attachments/assets/82004499-a0f7-49f5-9ee6-79c9ff893e2f)
+![Databases](https://github.com/user-attachments/assets/afb838e5-2018-4417-b21f-41cbdb723b8a)
+
+**Pages:**
 
 | Page | Description |
 |------|-------------|
-| **Dashboard** | Live health status and worker counts |
-| **Workers** | Table of all registered Processing Workers with status, key ID, last-seen time, and tags |
-| **Entities** | GET and PUT entities through a simple form; results displayed inline as formatted JSON |
-| **Schemas** | List, load, create, and edit JSON Schema templates through an in-browser editor |
-| **API Explorer** | Send arbitrary GET/PUT requests to any endpoint; shows HTTP status and round-trip time |
+| **Login** | Beautiful sign-in card — enter your admin key, API key, or a dev-mode Client ID |
+| **Dashboard** | Live health status, worker counts, database count, and cache statistics |
+| **Databases** | Dropdown + card grid of all databases; click any card to explore its entities |
+| **Entities** | GET and PUT entities with a database dropdown pre-populated from `GET /api/databases` |
+| **Workers** | Table of all registered Processing Workers with status, key ID, last-seen, and tags |
+| **Schemas** | List, load, create, and edit JSON Schema templates; export as Pydantic or TypeScript |
+| **API Keys** | Create and delete RBAC API keys (admin only) with permissions and optional expiry |
+| **Explorer** | Send arbitrary HTTP requests to any endpoint with quick-access buttons |
+
+**Frontend-specific APIs (authenticated):**
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/databases` | Returns a sorted list of databases currently in the entity cache (requires `read`) |
+| `GET /api/me` | Returns the caller's `client_id`, `permissions`, and `is_admin` flag |
+
+The UI is **fully responsive** — on mobile a hamburger menu opens the sidebar as an overlay.
 
 No additional installation is required — the UI is embedded directly in the
 `main-worker` binary.
@@ -1231,9 +1263,12 @@ For full build instructions, prerequisites, and testing setup, see
 │   ├── main-worker/        # Main Worker entry point & server
 │   │   ├── main.go
 │   │   ├── server.go       # gRPC + REST handler
-│   │   ├── frontend.go     # Embedded web UI
+│   │   ├── frontend.go     # Embedded web UI + /api/login, /api/databases, /api/me
 │   │   └── static/
-│   │       └── index.html  # Single-page management app
+│   │       ├── index.html  # Login page
+│   │       ├── app.html    # Multi-page management SPA
+│   │       └── css/
+│   │           └── delta.css   # Self-contained design system
 │   └── proc-worker/        # Processing Worker entry point
 │       ├── main.go
 │       ├── worker.go       # Subscription & key management

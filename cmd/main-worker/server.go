@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -442,6 +443,9 @@ func (s *MainWorkerServer) Run() error {
 		// API key management endpoints
 		mux.HandleFunc("/api/keys", s.handleAPIKeys)
 		mux.HandleFunc("/api/keys/", s.handleAPIKeyByID)
+		// Frontend-specific authenticated endpoints
+		mux.HandleFunc("/api/databases", s.handleDatabases)
+		mux.HandleFunc("/api/me", s.handleMe)
 
 		log.Printf("Main Worker REST server listening on %s", s.config.RESTAddr)
 		if err := http.ListenAndServe(s.config.RESTAddr, s.instrumentHTTP(mux)); err != nil && err != http.ErrServerClosed {
@@ -515,6 +519,10 @@ func normalisePath(p string) string {
 		return "/api/keys"
 	case strings.HasPrefix(p, "/api/keys/"):
 		return "/api/keys/:id"
+	case p == "/api/databases":
+		return "/api/databases"
+	case p == "/api/me":
+		return "/api/me"
 	case strings.HasPrefix(p, "/schema/"):
 		return "/schema/:id"
 	case strings.HasPrefix(p, "/entity/"):
@@ -771,6 +779,99 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleDatabases serves GET /api/databases.
+// It returns a sorted list of all database names that currently have at least
+// one entity in the in-memory cache.  Requires read permission.
+func (s *MainWorkerServer) handleDatabases(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requirePermission(w, r, auth.PermRead) {
+		return
+	}
+
+	// Extract unique database names from the entity store keys.
+	// Cache keys are formatted as "db/entityKey".
+	seen := make(map[string]struct{})
+	for _, k := range s.entityStore.Keys() {
+		if idx := strings.Index(k, "/"); idx > 0 {
+			seen[k[:idx]] = struct{}{}
+		}
+	}
+	dbs := make([]string, 0, len(seen))
+	for db := range seen {
+		dbs = append(dbs, db)
+	}
+	// Stable sort for deterministic responses.
+	sort.Strings(dbs)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dbs) //nolint:errcheck
+}
+
+// meResponse is the JSON body returned by GET /api/me.
+type meResponse struct {
+	ClientID    string           `json:"client_id"`
+	Permissions []auth.Permission `json:"permissions"`
+	IsAdmin     bool             `json:"is_admin"`
+}
+
+// handleMe serves GET /api/me.
+// Returns the authenticated caller's identity and permissions.
+func (s *MainWorkerServer) handleMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	bearerToken := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if bearerToken == "" {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	var (
+		clientID string
+		perms    []auth.Permission
+	)
+
+	// Admin key.
+	if s.adminKeyHash != "" && hashAdminKey(bearerToken) == s.adminKeyHash {
+		clientID = "admin"
+		perms = auth.AllPermissions
+	} else if apiKey, err := s.keyManager.ValidateKey(bearerToken); err == nil {
+		clientID = apiKey.Name
+		perms = apiKey.Permissions
+	} else if ct, err := s.tokenManager.ValidateClientToken(bearerToken); err == nil {
+		clientID = ct.ClientID
+		for _, role := range ct.Roles {
+			perms = append(perms, auth.Permission(role))
+		}
+		if len(perms) == 0 {
+			perms = []auth.Permission{auth.PermRead, auth.PermWrite}
+		}
+	} else {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	isAdmin := false
+	for _, p := range perms {
+		if p == auth.PermAdmin {
+			isAdmin = true
+			break
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(meResponse{ //nolint:errcheck
+		ClientID:    clientID,
+		Permissions: perms,
+		IsAdmin:     isAdmin,
+	})
 }
 
 // GetStats returns server statistics.

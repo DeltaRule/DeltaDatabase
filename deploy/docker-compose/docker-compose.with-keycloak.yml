@@ -16,6 +16,10 @@
 #   MASTER_KEY   — AES-256 data encryption key (hex, auto-generated if unset)
 #   KC_REALM     — Keycloak realm name          (default: deltadatabase)
 #   KC_CLIENT_ID — OIDC client ID               (default: deltadb-app)
+#
+# Uses pre-built images from Docker Hub: https://hub.docker.com/r/donti/deltadatabase
+# To pin a specific release use e.g.: image: donti/deltadatabase:v0.1.1-alpha-main
+# To build locally instead: comment out `image:` lines and uncomment the `build:` blocks.
 
 services:
 
@@ -39,9 +43,10 @@ services:
 
   # ── DeltaDatabase Main Worker ────────────────────────────────────────────────
   main-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.main-worker
+    image: donti/deltadatabase:latest-main
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.main-worker
     container_name: delta-main-worker-kc
     ports:
       - "8081:8080"    # REST API (nginx proxies :8080 → :8081)
@@ -67,9 +72,10 @@ services:
 
   # ── Processing Worker ────────────────────────────────────────────────────────
   proc-worker:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.proc-worker
+    image: donti/deltadatabase:latest-proc
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile.proc-worker
     container_name: delta-proc-worker-kc
     depends_on:
       main-worker:
