@@ -6,6 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-DeltaDatabase%20v1.0-blue)](LICENSE)
 [![Go version](https://img.shields.io/badge/go-1.25%2B-00ADD8)](go.mod)
+[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue)](https://deltadatabase.readthedocs.io/en/latest/)
 
 ---
 

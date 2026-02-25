@@ -1,0 +1,13 @@
+{
+  "name": "deltachat-playwright-tests",
+  "version": "1.0.0",
+  "description": "Playwright end-to-end tests for the DeltaChat example application",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}

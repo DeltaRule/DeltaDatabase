@@ -6,6 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-DeltaDatabase%20v1.0-blue)](https://github.com/DeltaRule/DeltaDatabase/blob/main/LICENSE)
 [![Go version](https://img.shields.io/badge/go-1.25%2B-00ADD8)](https://github.com/DeltaRule/DeltaDatabase/blob/main/go.mod)
+[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue)](https://deltadatabase.readthedocs.io/en/latest/)
 
 ---
 
@@ -103,3 +104,9 @@ docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
 The REST API is available at **http://localhost:8080** and the web UI at **http://localhost:8080/**.
 
 → [Full Quick Start guide](usage/quickstart)
+
+---
+
+## Changelog
+
+See [CHANGELOG](changelog) for a full history of releases and changes.

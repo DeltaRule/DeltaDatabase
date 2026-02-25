@@ -10,6 +10,12 @@ Pick the topology that fits your use case:
 | 3 | [03-one-main-one-worker.md](03-one-main-one-worker.md) | **1 Main Worker + 1 Processing Worker** as separate containers — the simplest production-like setup. |
 | 4 | [04-kubernetes-autoscaling.md](04-kubernetes-autoscaling.md) | **1 Main Worker + autoscaling Processing Workers** on Kubernetes, starting at 1 replica and scaling with HPA. |
 
+## Application Examples
+
+| Folder | Description |
+|--------|-------------|
+| [chat/](chat/) | Full-stack AI chat app (Flask + Playwright tests) backed exclusively by DeltaDatabase. See the [chat/README.md](chat/README.md) for setup instructions. |
+
 ## Where to find the deployment files
 
 ```
