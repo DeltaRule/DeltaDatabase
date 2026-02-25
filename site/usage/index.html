@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/usage/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Overview - DeltaDatabase</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Overview";
+        var mkdocs_page_input_path = "usage/index.md";
+        var mkdocs_page_url = "/usage/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Overview</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#in-this-section">In This Section</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#concepts">Concepts</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#databases-and-entities">Databases and Entities</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#the-rest-api">The REST API</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#json-schema-validation">JSON Schema Validation</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../development/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../development/architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../development/project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../development/building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../development/testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Usage</li>
+      <li class="breadcrumb-item active">Overview</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/usage/index.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h1>
+<p>This section covers everything you need to use DeltaDatabase in your applications and infrastructure.</p>
+<h2 id="in-this-section">In This Section<a class="headerlink" href="#in-this-section" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="quickstart">Quick Start</a></td>
+<td>Get DeltaDatabase running in under 5 minutes</td>
+</tr>
+<tr>
+<td><a href="configuration">Configuration</a></td>
+<td>All flags and environment variables</td>
+</tr>
+<tr>
+<td><a href="api-reference">API Reference</a></td>
+<td>Complete REST API documentation</td>
+</tr>
+<tr>
+<td><a href="authentication">Authentication</a></td>
+<td>Tokens, login, and token expiry</td>
+</tr>
+<tr>
+<td><a href="schemas">JSON Schema Templates</a></td>
+<td>Defining and validating entity shapes</td>
+</tr>
+<tr>
+<td><a href="deployment">Deployment</a></td>
+<td>Docker, Docker Compose, Kubernetes, S3</td>
+</tr>
+<tr>
+<td><a href="security">Security Model</a></td>
+<td>Encryption, key management, hardening</td>
+</tr>
+<tr>
+<td><a href="frontend">Management UI</a></td>
+<td>Browser-based UI for managing databases, schemas, and API keys</td>
+</tr>
+<tr>
+<td><a href="caching">Caching Model</a></td>
+<td>How the LRU cache works</td>
+</tr>
+<tr>
+<td><a href="benchmarks">Benchmark Results</a></td>
+<td>Measured performance numbers</td>
+</tr>
+<tr>
+<td><a href="examples/">Examples</a></td>
+<td>Real-world usage examples</td>
+</tr>
+</tbody>
+</table>
+<h2 id="concepts">Concepts<a class="headerlink" href="#concepts" title="Permanent link">&para;</a></h2>
+<h3 id="databases-and-entities">Databases and Entities<a class="headerlink" href="#databases-and-entities" title="Permanent link">&para;</a></h3>
+<p>DeltaDatabase organizes data into <strong>databases</strong> and <strong>entities</strong>:</p>
+<ul>
+<li>A <strong>database</strong> is a named collection (e.g., <code>chatdb</code>, <code>userdb</code>).</li>
+<li>An <strong>entity</strong> is a named JSON document within a database (e.g., <code>session_001</code>).</li>
+</ul>
+<p>Think of it as: <code>database</code> = table, <code>entity key</code> = primary key, <code>entity value</code> = JSON row.</p>
+<div class="codehilite"><pre><span></span><code>chatdb/
+├── session_001  →  {&quot;messages&quot;: [...]}
+├── session_002  →  {&quot;messages&quot;: [...]}
+└── session_003  →  {&quot;messages&quot;: [...]}
+</code></pre></div>
+
+<h3 id="the-rest-api">The REST API<a class="headerlink" href="#the-rest-api" title="Permanent link">&para;</a></h3>
+<p>All entity operations use two endpoints:</p>
+<div class="codehilite"><pre><span></span><code>PUT  /entity/{database}          — create or update one or more entities
+GET  /entity/{database}?key=...  — retrieve a single entity
+</code></pre></div>
+
+<p>Both require an <code>Authorization: Bearer &lt;token&gt;</code> header.</p>
+<h3 id="json-schema-validation">JSON Schema Validation<a class="headerlink" href="#json-schema-validation" title="Permanent link">&para;</a></h3>
+<p>Before any entity is stored, it is validated against the JSON Schema registered for that database. Invalid data is rejected with an HTTP <code>400</code> response.</p>
+<p>Schemas are stored in <code>{shared-fs}/templates/</code> or can be managed via the REST API or the web UI.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../changelog/" class="btn btn-neutral float-left" title="Changelog"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="quickstart/" class="btn btn-neutral float-right" title="Quick Start">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../changelog/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="quickstart/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

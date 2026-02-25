@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/development/building/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Building from Source - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Building from Source";
+        var mkdocs_page_input_path = "development/building.md";
+        var mkdocs_page_url = "/development/building/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Building from Source</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#clone-and-build">Clone and Build</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#running-locally">Running Locally</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-create-the-shared-filesystem-directory">1. Create the shared filesystem directory</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-start-the-main-worker">2. Start the Main Worker</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-start-the-processing-worker">3. Start the Processing Worker</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-verify-with-a-health-check">4. Verify with a health check</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#development-workflow">Development Workflow</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#regenerating-protobuf-code">Regenerating Protobuf Code</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#common-build-flags">Common Build Flags</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Development</li>
+      <li class="breadcrumb-item active">Building from Source</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/development/building.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="building-from-source">Building from Source<a class="headerlink" href="#building-from-source" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For most use-cases, the <a href="../usage/deployment">Docker / Kubernetes deployment</a> is the recommended way to run DeltaDatabase. Build from source only when you need to develop, modify, or test the code locally.</p>
+</div>
+<hr />
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Minimum version</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Go</td>
+<td>1.25</td>
+<td>Required for both workers</td>
+</tr>
+<tr>
+<td>Git</td>
+<td>any</td>
+<td></td>
+</tr>
+<tr>
+<td>Python</td>
+<td>3.9+</td>
+<td>Integration tests only</td>
+</tr>
+</tbody>
+</table>
+<p>No external databases, message brokers, or container runtimes are required for local development.</p>
+<hr />
+<h2 id="clone-and-build">Clone and Build<a class="headerlink" href="#clone-and-build" title="Permanent link">&para;</a></h2>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/DeltaRule/DeltaDatabase.git
+<span class="nb">cd</span><span class="w"> </span>DeltaDatabase
+
+<span class="c1"># Build the Main Worker</span>
+go<span class="w"> </span>build<span class="w"> </span>-o<span class="w"> </span>bin/main-worker<span class="w"> </span>./cmd/main-worker/
+
+<span class="c1"># Build the Processing Worker</span>
+go<span class="w"> </span>build<span class="w"> </span>-o<span class="w"> </span>bin/proc-worker<span class="w"> </span>./cmd/proc-worker/
+
+<span class="c1"># Verify both binaries</span>
+./bin/main-worker<span class="w"> </span>--help
+./bin/proc-worker<span class="w"> </span>--help
+</code></pre></div>
+
+<p>Both binaries are self-contained — no dynamic libraries or external dependencies are needed at runtime.</p>
+<hr />
+<h2 id="running-locally">Running Locally<a class="headerlink" href="#running-locally" title="Permanent link">&para;</a></h2>
+<h3 id="1-create-the-shared-filesystem-directory">1. Create the shared filesystem directory<a class="headerlink" href="#1-create-the-shared-filesystem-directory" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>./shared/db/files<span class="w"> </span>./shared/db/templates
+</code></pre></div>
+
+<h3 id="2-start-the-main-worker">2. Start the Main Worker<a class="headerlink" href="#2-start-the-main-worker" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>./bin/main-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">127</span>.0.0.1:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-rest-addr<span class="o">=</span><span class="m">127</span>.0.0.1:8080<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-shared-fs<span class="o">=</span>./shared/db
+</code></pre></div>
+
+<p>The first line of output shows the generated master key — copy it for subsequent restarts:</p>
+<div class="codehilite"><pre><span></span><code><span class="mf">2026</span><span class="o">/</span><span class="mf">02</span><span class="o">/</span><span class="mf">24</span><span class="w"> </span><span class="mf">12</span><span class="p">:</span><span class="mf">00</span><span class="p">:</span><span class="mf">00</span><span class="w"> </span><span class="n">Generated</span><span class="w"> </span><span class="kr">new</span><span class="w"> </span><span class="n">master</span><span class="w"> </span><span class="n">encryption</span><span class="w"> </span><span class="n">key</span>
+<span class="mf">2026</span><span class="o">/</span><span class="mf">02</span><span class="o">/</span><span class="mf">24</span><span class="w"> </span><span class="mf">12</span><span class="p">:</span><span class="mf">00</span><span class="p">:</span><span class="mf">00</span><span class="w"> </span><span class="n">Key</span><span class="w"> </span><span class="p">(</span><span class="n">hex</span><span class="p">):</span><span class="w"> </span><span class="n">a1b2c3d4</span><span class="mf">...</span><span class="w">  </span><span class="err">←</span><span class="w"> </span><span class="kr">save</span><span class="w"> </span><span class="n">this</span><span class="err">!</span>
+</code></pre></div>
+
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Pass <code>-master-key=&lt;hex&gt;</code> on subsequent starts to reuse the same key and keep previously stored data readable.</p>
+</div>
+<h3 id="3-start-the-processing-worker">3. Start the Processing Worker<a class="headerlink" href="#3-start-the-processing-worker" title="Permanent link">&para;</a></h3>
+<p>Open a second terminal:</p>
+<div class="codehilite"><pre><span></span><code>./bin/proc-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-main-addr<span class="o">=</span><span class="m">127</span>.0.0.1:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-worker-id<span class="o">=</span>proc-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">127</span>.0.0.1:50052<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-shared-fs<span class="o">=</span>./shared/db
+</code></pre></div>
+
+<h3 id="4-verify-with-a-health-check">4. Verify with a health check<a class="headerlink" href="#4-verify-with-a-health-check" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>http://127.0.0.1:8080/health
+<span class="c1"># {&quot;status&quot;:&quot;ok&quot;}</span>
+</code></pre></div>
+
+<hr />
+<h2 id="development-workflow">Development Workflow<a class="headerlink" href="#development-workflow" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>API First</strong> — Define gRPC services in <code>api/proto/</code> and regenerate Go code.</li>
+<li><strong>Core Layers</strong> — Implement <code>pkg/</code> modules with unit tests.</li>
+<li><strong>Integration</strong> — Wire the layers in <code>cmd/main-worker/</code> and <code>cmd/proc-worker/</code>.</li>
+<li><strong>Test</strong> — Run unit tests and Python integration tests (see <a href="testing">Testing</a>).</li>
+</ol>
+<hr />
+<h2 id="regenerating-protobuf-code">Regenerating Protobuf Code<a class="headerlink" href="#regenerating-protobuf-code" title="Permanent link">&para;</a></h2>
+<p>If you modify <code>.proto</code> files in <code>api/proto/</code>, regenerate the Go code with:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Install protoc and the Go plugin (once)</span>
+go<span class="w"> </span>install<span class="w"> </span>google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go<span class="w"> </span>install<span class="w"> </span>google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+<span class="c1"># Regenerate</span>
+protoc<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--go_out<span class="o">=</span>.<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--go-grpc_out<span class="o">=</span>.<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>api/proto/*.proto
+</code></pre></div>
+
+<hr />
+<h2 id="common-build-flags">Common Build Flags<a class="headerlink" href="#common-build-flags" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>go build -race</code></td>
+<td>Enable the race detector (recommended during development)</td>
+</tr>
+<tr>
+<td><code>go build -ldflags="-s -w"</code></td>
+<td>Strip debug info for smaller production binaries</td>
+</tr>
+<tr>
+<td><code>CGO_ENABLED=0</code></td>
+<td>Produce a fully static binary (needed for distroless Docker images)</td>
+</tr>
+</tbody>
+</table>
+<p>Example optimized build:</p>
+<div class="codehilite"><pre><span></span><code><span class="nv">CGO_ENABLED</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>go<span class="w"> </span>build<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-ldflags<span class="o">=</span><span class="s2">&quot;-s -w&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span>bin/main-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./cmd/main-worker/
+</code></pre></div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../project-structure/" class="btn btn-neutral float-left" title="Project Structure"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../testing/" class="btn btn-neutral float-right" title="Testing">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../project-structure/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../testing/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

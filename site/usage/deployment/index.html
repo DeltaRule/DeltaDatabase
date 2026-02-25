@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/usage/deployment/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Deployment - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Deployment";
+        var mkdocs_page_input_path = "usage/deployment.md";
+        var mkdocs_page_url = "/usage/deployment/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Deployment</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#deployment-topologies">Deployment Topologies</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#all-in-one-single-container">All-in-One (Single Container)</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#docker-compose-recommended">Docker Compose (recommended)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#plain-docker">Plain Docker</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#container-architecture">Container Architecture</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-main-worker-1-processing-worker">1 Main Worker + 1 Processing Worker</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-main-worker-n-processing-workers">1 Main Worker + N Processing Workers</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#architecture">Architecture</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kubernetes-with-autoscaling">Kubernetes with Autoscaling</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#prerequisites">Prerequisites</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#build-and-push-images">Build and Push Images</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#deploy">Deploy</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#kubernetes-architecture">Kubernetes Architecture</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#hpa-behaviour">HPA Behaviour</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#s3-compatible-storage">S3-Compatible Storage</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#quick-start-with-minio">Quick Start with MinIO</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#manual-s3-configuration">Manual S3 Configuration</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#s3-object-layout">S3 Object Layout</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#supply-a-persistent-master-key">Supply a Persistent Master Key</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#supply-an-admin-key">Supply an Admin Key</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Usage</li>
+      <li class="breadcrumb-item active">Deployment</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/usage/deployment.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h1>
+<p>DeltaDatabase supports several deployment topologies, from a single all-in-one container to a cloud-native Kubernetes cluster with autoscaling.</p>
+<hr />
+<h2 id="deployment-topologies">Deployment Topologies<a class="headerlink" href="#deployment-topologies" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Recommendation</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local development / CI</td>
+<td>All-in-one container</td>
+<td><a href="#all-in-one-single-container">All-in-One</a></td>
+</tr>
+<tr>
+<td>Small production</td>
+<td>1 Main + 1 Processing Worker</td>
+<td><a href="#1-main-worker--1-processing-worker">1M + 1W</a></td>
+</tr>
+<tr>
+<td>Scale-out</td>
+<td>1 Main + N Processing Workers</td>
+<td><a href="#1-main-worker--n-processing-workers">1M + NW</a></td>
+</tr>
+<tr>
+<td>Cloud / auto-scaling</td>
+<td>Kubernetes + HPA</td>
+<td><a href="#kubernetes-with-autoscaling">Kubernetes</a></td>
+</tr>
+<tr>
+<td>Managed storage</td>
+<td>S3-compatible backend</td>
+<td><a href="#s3-compatible-storage">S3 Storage</a></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="all-in-one-single-container">All-in-One (Single Container)<a class="headerlink" href="#all-in-one-single-container" title="Permanent link">&para;</a></h2>
+<p>Both workers run inside the same Docker container. Ideal for development, CI, or edge nodes.</p>
+<h3 id="docker-compose-recommended">Docker Compose (recommended)<a class="headerlink" href="#docker-compose-recommended" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.all-in-one.yml<span class="w"> </span>up
+</code></pre></div>
+
+<p>The REST API is available at <strong>http://localhost:8080</strong>.</p>
+<h3 id="plain-docker">Plain Docker<a class="headerlink" href="#plain-docker" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Build</span>
+docker<span class="w"> </span>build<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>deploy/docker/Dockerfile.all-in-one<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-t<span class="w"> </span>deltadatabase/all-in-one:latest<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>.
+
+<span class="c1"># Run with a persistent master key and admin key</span>
+<span class="nv">MASTER_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+<span class="nv">ADMIN_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">24</span><span class="k">)</span>
+docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--name<span class="w"> </span>deltadatabase<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-p<span class="w"> </span><span class="m">8080</span>:8080<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">MASTER_KEY</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">MASTER_KEY</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">ADMIN_KEY</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>delta_data:/shared/db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>deltadatabase/all-in-one:latest
+</code></pre></div>
+
+<h3 id="container-architecture">Container Architecture<a class="headerlink" href="#container-architecture" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>┌─────────────────────────────────────┐
+│  Docker container                   │
+│                                     │
+│  main-worker  :8080 (REST)          │
+│               :50051 (gRPC)         │
+│        │                            │
+│        │ gRPC subscribe             │
+│        ▼                            │
+│  proc-worker  :50052 (gRPC)         │
+│                                     │
+│  /shared/db  (named volume)         │
+└─────────────────────────────────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="1-main-worker-1-processing-worker">1 Main Worker + 1 Processing Worker<a class="headerlink" href="#1-main-worker-1-processing-worker" title="Permanent link">&para;</a></h2>
+<p>The simplest production-like setup: two separate containers.</p>
+<div class="codehilite"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.one-main-one-worker.yml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>up<span class="w"> </span>--build
+</code></pre></div>
+
+<hr />
+<h2 id="1-main-worker-n-processing-workers">1 Main Worker + N Processing Workers<a class="headerlink" href="#1-main-worker-n-processing-workers" title="Permanent link">&para;</a></h2>
+<p>Horizontal scale-out for higher throughput. All Processing Workers share the same filesystem volume.</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Start with 3 Processing Workers (default)</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.one-main-multiple-workers.yml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>up<span class="w"> </span>--build
+
+<span class="c1"># Scale to 5 workers</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.one-main-multiple-workers.yml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>up<span class="w"> </span>--build<span class="w"> </span>--scale<span class="w"> </span>proc-worker<span class="o">=</span><span class="m">5</span>
+</code></pre></div>
+
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>┌─────────────────────────────────────────────────────────────┐
+│  Docker Compose                                             │
+│                                                             │
+│  ┌──────────────┐   gRPC subscribe   ┌──────────────────┐  │
+│  │  main-worker │◄───────────────────│  proc-worker-1   │  │
+│  │  :8080 REST  │◄───────────────────│  proc-worker-2   │  │
+│  │  :50051 gRPC │◄───────────────────│  proc-worker-3   │  │
+│  └──────┬───────┘                    └────────┬─────────┘  │
+│         │                                     │            │
+│         └──────────── /shared/db (volume) ────┘            │
+└─────────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="kubernetes-with-autoscaling">Kubernetes with Autoscaling<a class="headerlink" href="#kubernetes-with-autoscaling" title="Permanent link">&para;</a></h2>
+<p>Processing Workers start at 1 replica and scale up to 10 based on CPU utilisation via a <code>HorizontalPodAutoscaler</code>.</p>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Kubernetes cluster v1.26+ with the Metrics Server installed.</li>
+<li>A ReadWriteMany StorageClass (NFS, Azure Files, AWS EFS, or Longhorn with RWX).</li>
+<li>A container registry accessible from the cluster.</li>
+</ul>
+<h3 id="build-and-push-images">Build and Push Images<a class="headerlink" href="#build-and-push-images" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code><span class="nv">REGISTRY</span><span class="o">=</span>ghcr.io/myorg
+
+docker<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>deploy/docker/Dockerfile.main-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-t<span class="w"> </span><span class="si">${</span><span class="nv">REGISTRY</span><span class="si">}</span>/delta-main-worker:latest<span class="w"> </span>.
+docker<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>deploy/docker/Dockerfile.proc-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-t<span class="w"> </span><span class="si">${</span><span class="nv">REGISTRY</span><span class="si">}</span>/delta-proc-worker:latest<span class="w"> </span>.
+
+docker<span class="w"> </span>push<span class="w"> </span><span class="si">${</span><span class="nv">REGISTRY</span><span class="si">}</span>/delta-main-worker:latest
+docker<span class="w"> </span>push<span class="w"> </span><span class="si">${</span><span class="nv">REGISTRY</span><span class="si">}</span>/delta-proc-worker:latest
+</code></pre></div>
+
+<h3 id="deploy">Deploy<a class="headerlink" href="#deploy" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Create namespace and secret</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>deltadatabase
+<span class="nv">MASTER_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>deltadatabase<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>delta-master-key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-literal<span class="o">=</span>master-key<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">MASTER_KEY</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<span class="c1"># Apply manifests</span>
+kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>deploy/kubernetes/shared-pvc.yaml
+kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>deploy/kubernetes/main-worker.yaml
+kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>deploy/kubernetes/proc-worker.yaml
+kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>deploy/kubernetes/proc-worker-hpa.yaml
+
+<span class="c1"># Wait for rollout</span>
+kubectl<span class="w"> </span>-n<span class="w"> </span>deltadatabase<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deployment/main-worker
+kubectl<span class="w"> </span>-n<span class="w"> </span>deltadatabase<span class="w"> </span>rollout<span class="w"> </span>status<span class="w"> </span>deployment/proc-worker
+</code></pre></div>
+
+<h3 id="kubernetes-architecture">Kubernetes Architecture<a class="headerlink" href="#kubernetes-architecture" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>Internet / Ingress
+       │
+       ▼  REST :8080
+┌──────────────────┐
+│   main-worker    │  (Deployment, 1 replica)
+│   ClusterIP svc  │
+└────────┬─────────┘
+         │  gRPC :50051
+    ┌────┴──────────────────────────────┐
+    │                                   │
+ proc-worker-1  proc-worker-2  …  (HPA: 1–10)
+    │                   │
+    └───────────────────┘
+          /shared/db  (ReadWriteMany PVC)
+</code></pre></div>
+
+<h3 id="hpa-behaviour">HPA Behaviour<a class="headerlink" href="#hpa-behaviour" title="Permanent link">&para;</a></h3>
+<p>The <code>HorizontalPodAutoscaler</code> targets <strong>60% CPU utilisation</strong>:</p>
+<ul>
+<li>Adds up to 2 new pods per 60 seconds when CPU exceeds the target.</li>
+<li>Removes 1 pod per 120 seconds when CPU drops below the target.</li>
+<li>Always keeps at least 1 pod; never exceeds 10 pods.</li>
+</ul>
+<hr />
+<h2 id="s3-compatible-storage">S3-Compatible Storage<a class="headerlink" href="#s3-compatible-storage" title="Permanent link">&para;</a></h2>
+<p>Replace the shared POSIX filesystem with any S3-compatible object store. No ReadWriteMany PVC needed.</p>
+<p><strong>Supported services:</strong> MinIO · RustFS · SeaweedFS · AWS S3 · Ceph RadosGW</p>
+<h3 id="quick-start-with-minio">Quick Start with MinIO<a class="headerlink" href="#quick-start-with-minio" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.with-s3.yml<span class="w"> </span>up<span class="w"> </span>--build
+</code></pre></div>
+
+<p>This starts MinIO, the Main Worker, and 3 Processing Workers all configured to use the S3 backend.</p>
+<p>Open the MinIO console at <strong>http://localhost:9001</strong> (user: <code>minioadmin</code>, password: <code>minioadmin</code>).</p>
+<h3 id="manual-s3-configuration">Manual S3 Configuration<a class="headerlink" href="#manual-s3-configuration" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Processing Worker with MinIO</span>
+./bin/proc-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-main-addr<span class="o">=</span><span class="m">127</span>.0.0.1:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-worker-id<span class="o">=</span>proc-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">127</span>.0.0.1:50052<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-endpoint<span class="o">=</span>minio:9000<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-bucket<span class="o">=</span>deltadatabase<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-use-ssl<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-access-key<span class="o">=</span>minioadmin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-secret-key<span class="o">=</span>minioadmin
+
+<span class="c1"># Processing Worker with AWS S3</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">S3_ACCESS_KEY</span><span class="o">=</span>AKIAIOSFODNN7EXAMPLE
+<span class="nb">export</span><span class="w"> </span><span class="nv">S3_SECRET_KEY</span><span class="o">=</span>wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+./bin/proc-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-main-addr<span class="o">=</span><span class="m">127</span>.0.0.1:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-worker-id<span class="o">=</span>proc-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">127</span>.0.0.1:50052<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-endpoint<span class="o">=</span>s3.amazonaws.com<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-use-ssl<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-region<span class="o">=</span>us-east-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-bucket<span class="o">=</span>my-deltadatabase-bucket
+</code></pre></div>
+
+<h3 id="s3-object-layout">S3 Object Layout<a class="headerlink" href="#s3-object-layout" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>deltadatabase/
+├── files/&lt;entityID&gt;.json.enc    — AES-256-GCM encrypted blob
+├── files/&lt;entityID&gt;.meta.json   — metadata (key ID, IV, tag, schema, version)
+└── templates/&lt;schemaID&gt;.json    — JSON Schema templates
+</code></pre></div>
+
+<hr />
+<h2 id="supply-a-persistent-master-key">Supply a Persistent Master Key<a class="headerlink" href="#supply-a-persistent-master-key" title="Permanent link">&para;</a></h2>
+<p>By default, the Main Worker generates a <strong>new random key</strong> on each startup. Entities encrypted with the old key will be unreadable after a restart.</p>
+<p>To persist data across restarts, generate a key once and supply it on every start:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Generate once and save</span>
+<span class="nv">MASTER_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;MASTER_KEY=</span><span class="si">${</span><span class="nv">MASTER_KEY</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>.env
+
+<span class="c1"># Docker Compose picks up .env automatically</span>
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.all-in-one.yml<span class="w"> </span>up
+</code></pre></div>
+
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Store the master key securely. If the key is lost, all stored data becomes permanently unrecoverable.</p>
+</div>
+<hr />
+<h2 id="supply-an-admin-key">Supply an Admin Key<a class="headerlink" href="#supply-an-admin-key" title="Permanent link">&para;</a></h2>
+<p>The admin key is the master Bearer credential for the Management UI and REST API. Without it, any caller can issue session tokens (dev mode only — not suitable for production).</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Generate once and save</span>
+<span class="nv">ADMIN_KEY</span><span class="o">=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">24</span><span class="k">)</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;ADMIN_KEY=</span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>.env
+
+<span class="c1"># Docker Compose picks up .env automatically</span>
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.all-in-one.yml<span class="w"> </span>up
+</code></pre></div>
+
+<p>Use the admin key to log in to the Management UI at <strong>http://localhost:8080/</strong> or as a Bearer token in API calls:</p>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>http://localhost:8080/admin/workers<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Set a strong, randomly-generated admin key before exposing DeltaDatabase to any network. Store it in a secrets manager — never commit it to source control.</p>
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../schemas/" class="btn btn-neutral float-left" title="JSON Schema Templates"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../security/" class="btn btn-neutral float-right" title="Security Model">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../schemas/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../security/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

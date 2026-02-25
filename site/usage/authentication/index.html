@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/usage/authentication/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Authentication - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Authentication";
+        var mkdocs_page_input_path = "usage/authentication.md";
+        var mkdocs_page_url = "/usage/authentication/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Authentication</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#three-tier-authentication-priority">Three-Tier Authentication Priority</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#client-authentication">Client Authentication</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#option-a-admin-key-direct-bearer">Option A — Admin Key (direct Bearer)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#option-b-api-key-direct-bearer">Option B — API Key (direct Bearer)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#option-c-session-token-browser-short-lived">Option C — Session Token (browser / short-lived)</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#step-1-login">Step 1 — Login</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#step-2-use-the-token">Step 2 — Use the Token</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#step-3-refresh">Step 3 — Refresh</a>
+    </li>
+        </ul>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#dev-mode-no-admin-key-configured">Dev Mode (no admin key configured)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#token-expiry">Token Expiry</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#api-key-management">API Key Management</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#create-a-key">Create a key</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#list-keys">List keys</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#delete-a-key">Delete a key</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#permissions">Permissions</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#worker-authentication-internal">Worker Authentication (Internal)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#public-endpoints">Public Endpoints</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#securing-the-api-in-production">Securing the API in Production</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Usage</li>
+      <li class="breadcrumb-item active">Authentication</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/usage/authentication.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h1>
+<p>DeltaDatabase uses a <strong>three-tier Bearer token model</strong> for external clients and a separate <strong>RSA + token handshake</strong> for Processing Workers.</p>
+<hr />
+<h2 id="three-tier-authentication-priority">Three-Tier Authentication Priority<a class="headerlink" href="#three-tier-authentication-priority" title="Permanent link">&para;</a></h2>
+<p>Every <code>Authorization: Bearer &lt;value&gt;</code> header is evaluated in this order:</p>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Type</th>
+<th>How to obtain</th>
+<th>Permissions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Admin key</strong></td>
+<td>Set <code>-admin-key</code> flag or <code>$ADMIN_KEY</code> env var at startup</td>
+<td>Full access — bypasses all RBAC</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>API key</strong></td>
+<td><code>POST /api/keys</code> (requires admin)</td>
+<td>Configurable: <code>read</code>, <code>write</code>, and/or <code>admin</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Session token</strong></td>
+<td><code>POST /api/login</code> with your admin key or API key</td>
+<td>Inherits the permissions of the key used to log in</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Tip:</strong> For scripts and CI pipelines, use an API key (<code>dk_…</code>) directly as the Bearer token — no login step is required.</p>
+</blockquote>
+<hr />
+<h2 id="client-authentication">Client Authentication<a class="headerlink" href="#client-authentication" title="Permanent link">&para;</a></h2>
+<h3 id="option-a-admin-key-direct-bearer">Option A — Admin Key (direct Bearer)<a class="headerlink" href="#option-a-admin-key-direct-bearer" title="Permanent link">&para;</a></h3>
+<p>Supply the admin key directly in every request header (no login required):</p>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/admin/workers<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+<h3 id="option-b-api-key-direct-bearer">Option B — API Key (direct Bearer)<a class="headerlink" href="#option-b-api-key-direct-bearer" title="Permanent link">&para;</a></h3>
+<p>Create a named API key via the Management UI or REST API, then use its secret directly:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Create a read+write key (requires admin)</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/keys<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;name&quot;:&quot;ci-deploy&quot;,&quot;permissions&quot;:[&quot;read&quot;,&quot;write&quot;]}&#39;</span>
+
+<span class="c1"># Use the returned dk_… secret directly</span>
+curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/entity/mydb?key<span class="o">=</span>hello<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer dk_abc123…&quot;</span>
+</code></pre></div>
+
+<h3 id="option-c-session-token-browser-short-lived">Option C — Session Token (browser / short-lived)<a class="headerlink" href="#option-c-session-token-browser-short-lived" title="Permanent link">&para;</a></h3>
+<p>Obtain a short-lived session token by posting your admin key or API key to <code>/api/login</code>.<br />
+The session token inherits the <strong>exact permissions</strong> of the key used to authenticate.</p>
+<h4 id="step-1-login">Step 1 — Login<a class="headerlink" href="#step-1-login" title="Permanent link">&para;</a></h4>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/login<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;key&quot;: &quot;YOUR_ADMIN_OR_API_KEY&quot;}&#39;</span>
+</code></pre></div>
+
+<p>Response:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;token&quot;</span><span class="p">:</span><span class="w">       </span><span class="s2">&quot;bWDQOfIsXsdpo1OZhIwcGrRu…&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;client_id&quot;</span><span class="p">:</span><span class="w">   </span><span class="s2">&quot;admin&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;expires_at&quot;</span><span class="p">:</span><span class="w">  </span><span class="s2">&quot;2026-02-26T09:00:00Z&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;permissions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;read&quot;</span><span class="p">,</span><span class="s2">&quot;write&quot;</span><span class="p">,</span><span class="s2">&quot;admin&quot;</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>The token is valid for the duration configured by <code>-client-ttl</code> on the Main Worker (default: <strong>24 hours</strong>).</p>
+<h4 id="step-2-use-the-token">Step 2 — Use the Token<a class="headerlink" href="#step-2-use-the-token" title="Permanent link">&para;</a></h4>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;http://127.0.0.1:8080/entity/chatdb?key=session_001&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer bWDQOfIsXsdpo1OZhIwcGrRu…&quot;</span>
+</code></pre></div>
+
+<h4 id="step-3-refresh">Step 3 — Refresh<a class="headerlink" href="#step-3-refresh" title="Permanent link">&para;</a></h4>
+<p>Tokens cannot be refreshed. Obtain a new token by calling <code>POST /api/login</code> again.</p>
+<hr />
+<h2 id="dev-mode-no-admin-key-configured">Dev Mode (no admin key configured)<a class="headerlink" href="#dev-mode-no-admin-key-configured" title="Permanent link">&para;</a></h2>
+<p>When the server is started <strong>without</strong> <code>-admin-key</code> (local development only), the old <code>client_id</code> login is accepted for backwards compatibility:</p>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/login<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;client_id&quot;: &quot;myapp&quot;}&#39;</span>
+</code></pre></div>
+
+<p>This issues a session token with <code>read</code> + <code>write</code> permissions.<br />
+<strong>Do not use dev mode in production.</strong></p>
+<hr />
+<h2 id="token-expiry">Token Expiry<a class="headerlink" href="#token-expiry" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Token type</th>
+<th>Default TTL</th>
+<th>Configured by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Client session token</td>
+<td>24 hours</td>
+<td><code>-client-ttl</code> on Main Worker</td>
+</tr>
+<tr>
+<td>Processing Worker session token</td>
+<td>1 hour</td>
+<td><code>-worker-ttl</code> on Main Worker</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="api-key-management">API Key Management<a class="headerlink" href="#api-key-management" title="Permanent link">&para;</a></h2>
+<p>API keys are persisted to disk (<code>&lt;shared-fs&gt;/_auth/keys.json</code>) and survive restarts.</p>
+<h3 id="create-a-key">Create a key<a class="headerlink" href="#create-a-key" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Key with read+write, expires in 7 days</span>
+curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/keys<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;name&quot;:&quot;ci-deploy&quot;,&quot;permissions&quot;:[&quot;read&quot;,&quot;write&quot;],&quot;expires_in&quot;:&quot;7d&quot;}&#39;</span>
+</code></pre></div>
+
+<p>Response (secret shown <strong>once only</strong>):</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w">          </span><span class="s2">&quot;a1b2c3d4e5f6a7b8&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w">        </span><span class="s2">&quot;ci-deploy&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;secret&quot;</span><span class="p">:</span><span class="w">      </span><span class="s2">&quot;dk_abc123…&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;permissions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;read&quot;</span><span class="p">,</span><span class="s2">&quot;write&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;expires_at&quot;</span><span class="p">:</span><span class="w">  </span><span class="s2">&quot;2026-03-04T09:00:00Z&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;created_at&quot;</span><span class="p">:</span><span class="w">  </span><span class="s2">&quot;2026-02-25T09:00:00Z&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="list-keys">List keys<a class="headerlink" href="#list-keys" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/api/keys<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+<h3 id="delete-a-key">Delete a key<a class="headerlink" href="#delete-a-key" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>DELETE<span class="w"> </span>http://127.0.0.1:8080/api/keys/&lt;key-id&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="si">${</span><span class="nv">ADMIN_KEY</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+<h3 id="permissions">Permissions<a class="headerlink" href="#permissions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Constant</th>
+<th>Value</th>
+<th>Grants</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read</code></td>
+<td><code>"read"</code></td>
+<td><code>GET /entity/…</code></td>
+</tr>
+<tr>
+<td><code>write</code></td>
+<td><code>"write"</code></td>
+<td><code>PUT /entity/…</code>, <code>PUT /schema/…</code></td>
+</tr>
+<tr>
+<td><code>admin</code></td>
+<td><code>"admin"</code></td>
+<td>All of the above + key management + <code>/admin/workers</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="worker-authentication-internal">Worker Authentication (Internal)<a class="headerlink" href="#worker-authentication-internal" title="Permanent link">&para;</a></h2>
+<p>Processing Workers authenticate with the Main Worker during subscription using a <strong>public-key + token handshake</strong>:</p>
+<ol>
+<li>Worker generates an ephemeral RSA key pair at startup.</li>
+<li>Worker sends <code>Subscribe(worker_id, rsa_public_key)</code> to the Main Worker over gRPC.</li>
+<li>Main Worker wraps the AES master key with the worker's RSA public key (RSA-OAEP) and issues a short-lived session token.</li>
+<li>Worker unwraps the AES key using its RSA private key and stores it in volatile memory.</li>
+<li>Worker uses the session token for subsequent gRPC calls to the Main Worker.</li>
+</ol>
+<p>This ensures that <strong>the plaintext AES master key never travels over the wire unencrypted</strong>.</p>
+<hr />
+<h2 id="public-endpoints">Public Endpoints<a class="headerlink" href="#public-endpoints" title="Permanent link">&para;</a></h2>
+<p>The following endpoints do <strong>not</strong> require authentication:</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /health</code></td>
+<td>Health check</td>
+</tr>
+<tr>
+<td><code>GET /admin/schemas</code></td>
+<td>List schema IDs</td>
+</tr>
+<tr>
+<td><code>GET /schema/{id}</code></td>
+<td>Retrieve a schema document</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="securing-the-api-in-production">Securing the API in Production<a class="headerlink" href="#securing-the-api-in-production" title="Permanent link">&para;</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Configure an admin key before exposing the server to any network.</p>
+</div>
+<ul>
+<li>Start the Main Worker with <code>-admin-key</code> or set the <code>ADMIN_KEY</code> environment variable.</li>
+<li>Put the Main Worker behind a reverse proxy (nginx, Traefik) with TLS termination.</li>
+<li>Create scoped API keys for each service; do not share the admin key.</li>
+<li>Set a short <code>-client-ttl</code> (e.g., <code>1h</code>) for sensitive applications.</li>
+<li>The <code>-master-key</code> flag value appears in shell history — use a wrapper script or secrets manager to supply it.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../api-reference/" class="btn btn-neutral float-left" title="API Reference"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../schemas/" class="btn btn-neutral float-right" title="JSON Schema Templates">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../api-reference/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../schemas/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

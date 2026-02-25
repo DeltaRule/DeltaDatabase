@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/usage/configuration/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Configuration - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Configuration";
+        var mkdocs_page_input_path = "usage/configuration.md";
+        var mkdocs_page_url = "/usage/configuration/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Configuration</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#main-worker-flags">Main Worker Flags</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#example-main-worker-with-a-persistent-key">Example: Main Worker with a persistent key</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#example-main-worker-with-minio">Example: Main Worker with MinIO</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#processing-worker-flags">Processing Worker Flags</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#example-processing-worker-with-a-large-cache">Example: Processing Worker with a large cache</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#example-processing-worker-with-aws-s3">Example: Processing Worker with AWS S3</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment Variables</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration-in-docker-compose">Configuration in Docker Compose</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration-in-kubernetes">Configuration in Kubernetes</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Usage</li>
+      <li class="breadcrumb-item active">Configuration</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/usage/configuration.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="configuration-reference">Configuration Reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h1>
+<p>Both workers are configured entirely through <strong>command-line flags</strong>. Some sensitive values (S3 credentials) can be supplied as <strong>environment variables</strong> instead to keep them out of process argument lists.</p>
+<hr />
+<h2 id="main-worker-flags">Main Worker Flags<a class="headerlink" href="#main-worker-flags" title="Permanent link">&para;</a></h2>
+<p>Start the Main Worker with <code>./bin/main-worker [flags]</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-grpc-addr</code></td>
+<td><code>127.0.0.1:50051</code></td>
+<td>TCP address for the gRPC server (used by Processing Workers)</td>
+</tr>
+<tr>
+<td><code>-rest-addr</code></td>
+<td><code>127.0.0.1:8080</code></td>
+<td>TCP address for the REST HTTP server (used by clients)</td>
+</tr>
+<tr>
+<td><code>-shared-fs</code></td>
+<td><code>./shared/db</code></td>
+<td>Path to the shared filesystem root. Ignored when <code>-s3-endpoint</code> is set</td>
+</tr>
+<tr>
+<td><code>-master-key</code></td>
+<td><em>(auto-generated)</em></td>
+<td>Hex-encoded 32-byte AES master key. If omitted, a new random key is generated on startup</td>
+</tr>
+<tr>
+<td><code>-key-id</code></td>
+<td><code>main-key-v1</code></td>
+<td>Logical identifier for the master key (stored in entity metadata)</td>
+</tr>
+<tr>
+<td><code>-worker-ttl</code></td>
+<td><code>1h</code></td>
+<td>TTL for Processing Worker session tokens</td>
+</tr>
+<tr>
+<td><code>-client-ttl</code></td>
+<td><code>24h</code></td>
+<td>TTL for client Bearer tokens</td>
+</tr>
+<tr>
+<td><code>-s3-endpoint</code></td>
+<td><em>(empty)</em></td>
+<td>S3-compatible endpoint (e.g. <code>minio:9000</code>). Setting this enables the S3 backend</td>
+</tr>
+<tr>
+<td><code>-s3-access-key</code></td>
+<td><em>(empty)</em></td>
+<td>S3 access key ID. Prefer the <code>S3_ACCESS_KEY</code> env var</td>
+</tr>
+<tr>
+<td><code>-s3-secret-key</code></td>
+<td><em>(empty)</em></td>
+<td>S3 secret access key. Prefer the <code>S3_SECRET_KEY</code> env var</td>
+</tr>
+<tr>
+<td><code>-s3-bucket</code></td>
+<td><code>deltadatabase</code></td>
+<td>S3 bucket name</td>
+</tr>
+<tr>
+<td><code>-s3-use-ssl</code></td>
+<td><code>false</code></td>
+<td>Enable TLS for the S3 connection. Set <code>true</code> for AWS S3</td>
+</tr>
+<tr>
+<td><code>-s3-region</code></td>
+<td><em>(empty)</em></td>
+<td>S3 region. Optional — leave empty for MinIO/SeaweedFS</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-main-worker-with-a-persistent-key">Example: Main Worker with a persistent key<a class="headerlink" href="#example-main-worker-with-a-persistent-key" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>./bin/main-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">0</span>.0.0.0:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-rest-addr<span class="o">=</span><span class="m">0</span>.0.0.0:8080<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-shared-fs<span class="o">=</span>/data/db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-master-key<span class="o">=</span>a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-client-ttl<span class="o">=</span>12h<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-worker-ttl<span class="o">=</span>30m
+</code></pre></div>
+
+<h3 id="example-main-worker-with-minio">Example: Main Worker with MinIO<a class="headerlink" href="#example-main-worker-with-minio" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>./bin/main-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">0</span>.0.0.0:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-rest-addr<span class="o">=</span><span class="m">0</span>.0.0.0:8080<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-endpoint<span class="o">=</span>minio:9000<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-bucket<span class="o">=</span>deltadatabase<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-use-ssl<span class="o">=</span><span class="nb">false</span>
+</code></pre></div>
+
+<hr />
+<h2 id="processing-worker-flags">Processing Worker Flags<a class="headerlink" href="#processing-worker-flags" title="Permanent link">&para;</a></h2>
+<p>Start the Processing Worker with <code>./bin/proc-worker [flags]</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-main-addr</code></td>
+<td><code>127.0.0.1:50051</code></td>
+<td>Main Worker gRPC address to subscribe to</td>
+</tr>
+<tr>
+<td><code>-worker-id</code></td>
+<td><em>(hostname)</em></td>
+<td>Unique identifier for this worker instance</td>
+</tr>
+<tr>
+<td><code>-grpc-addr</code></td>
+<td><code>127.0.0.1:0</code></td>
+<td>TCP address for this worker's own gRPC server</td>
+</tr>
+<tr>
+<td><code>-shared-fs</code></td>
+<td><code>./shared/db</code></td>
+<td>Path to the shared filesystem root. Ignored when <code>-s3-endpoint</code> is set</td>
+</tr>
+<tr>
+<td><code>-cache-size</code></td>
+<td><code>256</code></td>
+<td>Maximum number of entities to keep in the LRU cache</td>
+</tr>
+<tr>
+<td><code>-cache-ttl</code></td>
+<td><code>0</code></td>
+<td>TTL per cache entry. <code>0</code> = LRU-only eviction, no time-based expiry</td>
+</tr>
+<tr>
+<td><code>-s3-endpoint</code></td>
+<td><em>(empty)</em></td>
+<td>S3-compatible endpoint. Setting this enables the S3 backend</td>
+</tr>
+<tr>
+<td><code>-s3-access-key</code></td>
+<td><em>(empty)</em></td>
+<td>S3 access key ID. Prefer the <code>S3_ACCESS_KEY</code> env var</td>
+</tr>
+<tr>
+<td><code>-s3-secret-key</code></td>
+<td><em>(empty)</em></td>
+<td>S3 secret access key. Prefer the <code>S3_SECRET_KEY</code> env var</td>
+</tr>
+<tr>
+<td><code>-s3-bucket</code></td>
+<td><code>deltadatabase</code></td>
+<td>S3 bucket name</td>
+</tr>
+<tr>
+<td><code>-s3-use-ssl</code></td>
+<td><code>false</code></td>
+<td>Enable TLS for the S3 connection</td>
+</tr>
+<tr>
+<td><code>-s3-region</code></td>
+<td><em>(empty)</em></td>
+<td>S3 region. Optional</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-processing-worker-with-a-large-cache">Example: Processing Worker with a large cache<a class="headerlink" href="#example-processing-worker-with-a-large-cache" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>./bin/proc-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-main-addr<span class="o">=</span>main-worker:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-worker-id<span class="o">=</span>proc-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">0</span>.0.0.0:50052<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-shared-fs<span class="o">=</span>/data/db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-cache-size<span class="o">=</span><span class="m">1024</span>
+</code></pre></div>
+
+<h3 id="example-processing-worker-with-aws-s3">Example: Processing Worker with AWS S3<a class="headerlink" href="#example-processing-worker-with-aws-s3" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">S3_ACCESS_KEY</span><span class="o">=</span>AKIAIOSFODNN7EXAMPLE
+<span class="nb">export</span><span class="w"> </span><span class="nv">S3_SECRET_KEY</span><span class="o">=</span>wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+./bin/proc-worker<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-main-addr<span class="o">=</span>main-worker:50051<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-worker-id<span class="o">=</span>proc-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-grpc-addr<span class="o">=</span><span class="m">0</span>.0.0.0:50052<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-endpoint<span class="o">=</span>s3.amazonaws.com<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-use-ssl<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-region<span class="o">=</span>us-east-1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-s3-bucket<span class="o">=</span>my-deltadatabase-bucket
+</code></pre></div>
+
+<hr />
+<h2 id="environment-variables">Environment Variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Equivalent Flag</th>
+<th>Workers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S3_ACCESS_KEY</code></td>
+<td><code>-s3-access-key</code></td>
+<td>Both</td>
+</tr>
+<tr>
+<td><code>S3_SECRET_KEY</code></td>
+<td><code>-s3-secret-key</code></td>
+<td>Both</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>Security note:</strong> The <code>-master-key</code> flag value appears in the shell command history. In production, load the key from an environment variable or a secrets manager and pass it via a wrapper script.</p>
+</div>
+<hr />
+<h2 id="configuration-in-docker-compose">Configuration in Docker Compose<a class="headerlink" href="#configuration-in-docker-compose" title="Permanent link">&para;</a></h2>
+<p>When using Docker Compose, pass flags via the <code>command:</code> field and environment variables via <code>environment:</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main-worker</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deltadatabase/main-worker:latest</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
+<span class="w">      </span><span class="no">-grpc-addr=0.0.0.0:50051</span>
+<span class="w">      </span><span class="no">-rest-addr=0.0.0.0:8080</span>
+<span class="w">      </span><span class="no">-shared-fs=/shared/db</span>
+<span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MASTER_KEY=${MASTER_KEY}</span>
+<span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;8080:8080&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;50051:50051&quot;</span>
+</code></pre></div>
+
+<hr />
+<h2 id="configuration-in-kubernetes">Configuration in Kubernetes<a class="headerlink" href="#configuration-in-kubernetes" title="Permanent link">&para;</a></h2>
+<p>Use a <code>Secret</code> for the master key and a <code>ConfigMap</code> for non-sensitive settings:</p>
+<div class="codehilite"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Secret</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">delta-master-key</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deltadatabase</span>
+<span class="nt">stringData</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">master-key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;a1b2c3d4...&quot;</span><span class="w">  </span><span class="c1"># your hex key here</span>
+</code></pre></div>
+
+<p>Reference it in the Deployment:</p>
+<div class="codehilite"><pre><span></span><code><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MASTER_KEY</span>
+<span class="w">    </span><span class="nt">valueFrom</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">secretKeyRef</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">delta-master-key</span>
+<span class="w">        </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">master-key</span>
+</code></pre></div>
+
+<p>See the <a href="deployment">Deployment guide</a> for complete Kubernetes examples.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../quickstart/" class="btn btn-neutral float-left" title="Quick Start"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../api-reference/" class="btn btn-neutral float-right" title="API Reference">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../quickstart/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../api-reference/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

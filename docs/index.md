@@ -36,6 +36,7 @@ A built-in single-page web UI is served at `/` so you can browse and manage data
 | Deploy with Docker or Kubernetes | [Deployment](usage/deployment) |
 | See real-world usage examples | [Examples](usage/examples/) |
 | Understand the security model | [Security](usage/security) |
+| Use the web management UI | [Management UI](usage/frontend) |
 | Build from source | [Building](development/building) |
 | Run tests | [Testing](development/testing) |
 

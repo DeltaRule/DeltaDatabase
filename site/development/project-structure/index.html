@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/development/project-structure/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Project Structure - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Project Structure";
+        var mkdocs_page_input_path = "development/project-structure.md";
+        var mkdocs_page_url = "/development/project-structure/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Project Structure</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#package-responsibilities">Package Responsibilities</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#pkgcrypto">pkg/crypto</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pkgcache">pkg/cache</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pkgfs">pkg/fs</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pkgschema">pkg/schema</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pkgmetrics">pkg/metrics</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#internalauth">internal/auth</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#internalrouting">internal/routing</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#apiproto">api/proto</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#adding-a-new-package">Adding a New Package</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Development</li>
+      <li class="breadcrumb-item active">Project Structure</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/development/project-structure.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="project-structure">Project Structure<a class="headerlink" href="#project-structure" title="Permanent link">&para;</a></h1>
+<p>DeltaDatabase follows the standard Go project layout.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">.</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">cmd</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">main</span><span class="o">-</span><span class="n">worker</span><span class="o">/</span><span class="w">            </span><span class="err">#</span><span class="w"> </span><span class="n">Main</span><span class="w"> </span><span class="n">Worker</span><span class="w"> </span><span class="n">entry</span><span class="w"> </span><span class="n">point</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">server</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">main</span><span class="p">.</span><span class="k">go</span><span class="w">             </span><span class="err">#</span><span class="w"> </span><span class="n">Flag</span><span class="w"> </span><span class="n">parsing</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">startup</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">server</span><span class="p">.</span><span class="k">go</span><span class="w">           </span><span class="err">#</span><span class="w"> </span><span class="n">gRPC</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">REST</span><span class="w"> </span><span class="n">handler</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">frontend</span><span class="p">.</span><span class="k">go</span><span class="w">         </span><span class="err">#</span><span class="w"> </span><span class="n">Embedded</span><span class="w"> </span><span class="n">web</span><span class="w"> </span><span class="n">UI</span><span class="w"> </span><span class="n">handler</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="k">static</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">       </span><span class="err">└──</span><span class="w"> </span><span class="k">index</span><span class="p">.</span><span class="n">html</span><span class="w">      </span><span class="err">#</span><span class="w"> </span><span class="n">Single</span><span class="o">-</span><span class="n">page</span><span class="w"> </span><span class="n">management</span><span class="w"> </span><span class="n">app</span><span class="w"> </span><span class="p">(</span><span class="n">embedded</span><span class="p">)</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="k">proc</span><span class="o">-</span><span class="n">worker</span><span class="o">/</span><span class="w">            </span><span class="err">#</span><span class="w"> </span><span class="n">Processing</span><span class="w"> </span><span class="n">Worker</span><span class="w"> </span><span class="n">entry</span><span class="w"> </span><span class="n">point</span>
+<span class="err">│</span><span class="w">       </span><span class="err">├──</span><span class="w"> </span><span class="n">main</span><span class="p">.</span><span class="k">go</span><span class="w">             </span><span class="err">#</span><span class="w"> </span><span class="n">Flag</span><span class="w"> </span><span class="n">parsing</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">startup</span>
+<span class="err">│</span><span class="w">       </span><span class="err">├──</span><span class="w"> </span><span class="n">worker</span><span class="p">.</span><span class="k">go</span><span class="w">           </span><span class="err">#</span><span class="w"> </span><span class="n">Subscription</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="n">management</span>
+<span class="err">│</span><span class="w">       </span><span class="err">└──</span><span class="w"> </span><span class="n">server</span><span class="p">.</span><span class="k">go</span><span class="w">           </span><span class="err">#</span><span class="w"> </span><span class="n">gRPC</span><span class="w"> </span><span class="n">Process</span><span class="w"> </span><span class="n">handler</span><span class="w"> </span><span class="p">(</span><span class="k">GET</span><span class="o">/</span><span class="n">PUT</span><span class="p">)</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">pkg</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">crypto</span><span class="o">/</span><span class="w">                 </span><span class="err">#</span><span class="w"> </span><span class="n">AES</span><span class="o">-</span><span class="n">GCM</span><span class="w"> </span><span class="n">encryption</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">RSA</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="n">wrapping</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">cache</span><span class="o">/</span><span class="w">                  </span><span class="err">#</span><span class="w"> </span><span class="n">LRU</span><span class="w"> </span><span class="ow">in</span><span class="o">-</span><span class="n">memory</span><span class="w"> </span><span class="n">cache</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">fs</span><span class="o">/</span><span class="w">                     </span><span class="err">#</span><span class="w"> </span><span class="n">Shared</span><span class="w"> </span><span class="n">filesystem</span><span class="w"> </span><span class="n">storage</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="k">file</span><span class="w"> </span><span class="n">locking</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">metrics</span><span class="o">/</span><span class="w">                </span><span class="err">#</span><span class="w"> </span><span class="n">Operational</span><span class="w"> </span><span class="n">metrics</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="k">schema</span><span class="o">/</span><span class="w">                 </span><span class="err">#</span><span class="w"> </span><span class="n">JSON</span><span class="w"> </span><span class="k">Schema</span><span class="w"> </span><span class="n">draft</span><span class="o">-</span><span class="mi">07</span><span class="w"> </span><span class="n">validation</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">internal</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">auth</span><span class="o">/</span><span class="w">                   </span><span class="err">#</span><span class="w"> </span><span class="n">Token</span><span class="w"> </span><span class="n">manager</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">worker</span><span class="w"> </span><span class="n">authenticator</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">routing</span><span class="o">/</span><span class="w">                </span><span class="err">#</span><span class="w"> </span><span class="n">Worker</span><span class="w"> </span><span class="n">registry</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">routing</span><span class="w"> </span><span class="n">logic</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">api</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">proto</span><span class="o">/</span><span class="w">                  </span><span class="err">#</span><span class="w"> </span><span class="n">Protobuf</span><span class="w"> </span><span class="n">definitions</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">generated</span><span class="w"> </span><span class="k">Go</span><span class="w"> </span><span class="n">code</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">shared</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">db</span><span class="o">/</span>
+<span class="err">│</span><span class="w">       </span><span class="err">├──</span><span class="w"> </span><span class="n">files</span><span class="o">/</span><span class="w">              </span><span class="err">#</span><span class="w"> </span><span class="n">Encrypted</span><span class="w"> </span><span class="n">entity</span><span class="w"> </span><span class="n">blobs</span><span class="w"> </span><span class="p">(</span><span class="n">runtime</span><span class="w"> </span><span class="k">data</span><span class="p">)</span>
+<span class="err">│</span><span class="w">       </span><span class="err">└──</span><span class="w"> </span><span class="n">templates</span><span class="o">/</span><span class="w">          </span><span class="err">#</span><span class="w"> </span><span class="n">JSON</span><span class="w"> </span><span class="k">Schema</span><span class="w"> </span><span class="n">templates</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">tests</span><span class="o">/</span><span class="w">                      </span><span class="err">#</span><span class="w"> </span><span class="n">Python</span><span class="w"> </span><span class="n">integration</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="k">end</span><span class="o">-</span><span class="k">to</span><span class="o">-</span><span class="k">end</span><span class="w"> </span><span class="n">tests</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">requirements</span><span class="p">.</span><span class="n">txt</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">test_authentication</span><span class="p">.</span><span class="n">py</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">test_encryption</span><span class="p">.</span><span class="n">py</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">test_e2e_security</span><span class="p">.</span><span class="n">py</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">test_benchmarks</span><span class="p">.</span><span class="n">py</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">test_whole</span><span class="p">.</span><span class="n">py</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">deploy</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">docker</span><span class="o">/</span><span class="w">                 </span><span class="err">#</span><span class="w"> </span><span class="n">Dockerfiles</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">Dockerfile</span><span class="p">.</span><span class="n">main</span><span class="o">-</span><span class="n">worker</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">Dockerfile</span><span class="p">.</span><span class="k">proc</span><span class="o">-</span><span class="n">worker</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">Dockerfile</span><span class="p">.</span><span class="ow">all</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">one</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">entrypoint</span><span class="o">-</span><span class="ow">all</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">one</span><span class="p">.</span><span class="n">sh</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">docker</span><span class="o">-</span><span class="n">compose</span><span class="o">/</span><span class="w">         </span><span class="err">#</span><span class="w"> </span><span class="n">Docker</span><span class="w"> </span><span class="n">Compose</span><span class="w"> </span><span class="n">configurations</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">docker</span><span class="o">-</span><span class="n">compose</span><span class="p">.</span><span class="ow">all</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">one</span><span class="p">.</span><span class="n">yml</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">docker</span><span class="o">-</span><span class="n">compose</span><span class="p">.</span><span class="n">one</span><span class="o">-</span><span class="n">main</span><span class="o">-</span><span class="n">one</span><span class="o">-</span><span class="n">worker</span><span class="p">.</span><span class="n">yml</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">docker</span><span class="o">-</span><span class="n">compose</span><span class="p">.</span><span class="n">one</span><span class="o">-</span><span class="n">main</span><span class="o">-</span><span class="n">multiple</span><span class="o">-</span><span class="n">workers</span><span class="p">.</span><span class="n">yml</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">docker</span><span class="o">-</span><span class="n">compose</span><span class="p">.</span><span class="k">with</span><span class="o">-</span><span class="n">s3</span><span class="p">.</span><span class="n">yml</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">kubernetes</span><span class="o">/</span><span class="w">             </span><span class="err">#</span><span class="w"> </span><span class="n">Kubernetes</span><span class="w"> </span><span class="n">manifests</span>
+<span class="err">│</span><span class="w">       </span><span class="err">├──</span><span class="w"> </span><span class="n">shared</span><span class="o">-</span><span class="n">pvc</span><span class="p">.</span><span class="n">yaml</span>
+<span class="err">│</span><span class="w">       </span><span class="err">├──</span><span class="w"> </span><span class="n">main</span><span class="o">-</span><span class="n">worker</span><span class="p">.</span><span class="n">yaml</span>
+<span class="err">│</span><span class="w">       </span><span class="err">├──</span><span class="w"> </span><span class="k">proc</span><span class="o">-</span><span class="n">worker</span><span class="p">.</span><span class="n">yaml</span>
+<span class="err">│</span><span class="w">       </span><span class="err">├──</span><span class="w"> </span><span class="k">proc</span><span class="o">-</span><span class="n">worker</span><span class="o">-</span><span class="n">hpa</span><span class="p">.</span><span class="n">yaml</span>
+<span class="err">│</span><span class="w">       </span><span class="err">└──</span><span class="w"> </span><span class="n">s3</span><span class="o">-</span><span class="n">config</span><span class="p">.</span><span class="n">yaml</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">examples</span><span class="o">/</span><span class="w">                   </span><span class="err">#</span><span class="w"> </span><span class="n">Deployment</span><span class="w"> </span><span class="n">guides</span><span class="w"> </span><span class="p">(</span><span class="n">Markdown</span><span class="p">)</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="mi">01</span><span class="o">-</span><span class="ow">all</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">one</span><span class="p">.</span><span class="n">md</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="mi">02</span><span class="o">-</span><span class="n">one</span><span class="o">-</span><span class="n">main</span><span class="o">-</span><span class="n">multiple</span><span class="o">-</span><span class="n">workers</span><span class="p">.</span><span class="n">md</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="mi">03</span><span class="o">-</span><span class="n">one</span><span class="o">-</span><span class="n">main</span><span class="o">-</span><span class="n">one</span><span class="o">-</span><span class="n">worker</span><span class="p">.</span><span class="n">md</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="mi">04</span><span class="o">-</span><span class="n">kubernetes</span><span class="o">-</span><span class="n">autoscaling</span><span class="p">.</span><span class="n">md</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="mi">05</span><span class="o">-</span><span class="n">s3</span><span class="o">-</span><span class="n">compatible</span><span class="o">-</span><span class="n">storage</span><span class="p">.</span><span class="n">md</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">Agents</span><span class="p">.</span><span class="n">md</span><span class="w">                   </span><span class="err">#</span><span class="w"> </span><span class="n">Core</span><span class="w"> </span><span class="k">system</span><span class="w"> </span><span class="n">design</span><span class="w"> </span><span class="n">document</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">BUILDING</span><span class="p">.</span><span class="n">md</span><span class="w">                 </span><span class="err">#</span><span class="w"> </span><span class="n">Build</span><span class="w"> </span><span class="k">from</span><span class="w"> </span><span class="n">source</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">testing</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">Guideline</span><span class="p">.</span><span class="n">md</span><span class="w">                </span><span class="err">#</span><span class="w"> </span><span class="n">Coding</span><span class="w"> </span><span class="n">standards</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">LICENSE</span>
+<span class="err">└──</span><span class="w"> </span><span class="n">README</span><span class="p">.</span><span class="n">md</span>
+</code></pre></div>
+
+<hr />
+<h2 id="package-responsibilities">Package Responsibilities<a class="headerlink" href="#package-responsibilities" title="Permanent link">&para;</a></h2>
+<h3 id="pkgcrypto"><code>pkg/crypto</code><a class="headerlink" href="#pkgcrypto" title="Permanent link">&para;</a></h3>
+<p>Provides all cryptographic primitives:</p>
+<ul>
+<li><strong>AES-256-GCM</strong> encryption and decryption of entity blobs.</li>
+<li><strong>RSA-OAEP</strong> key wrapping — used by the Main Worker to vend the master key to Processing Workers.</li>
+<li>Nonce generation (random 12-byte IV per entity write).</li>
+</ul>
+<h3 id="pkgcache"><code>pkg/cache</code><a class="headerlink" href="#pkgcache" title="Permanent link">&para;</a></h3>
+<p>In-memory <strong>LRU cache</strong> with optional TTL support:</p>
+<ul>
+<li>Backed by <code>github.com/hashicorp/golang-lru</code>.</li>
+<li>Keyed by <code>"&lt;database&gt;/&lt;entity_key&gt;"</code>.</li>
+<li>Stores the decrypted JSON and the entity version number (for coherence checks).</li>
+<li>Thread-safe.</li>
+</ul>
+<h3 id="pkgfs"><code>pkg/fs</code><a class="headerlink" href="#pkgfs" title="Permanent link">&para;</a></h3>
+<p>Shared filesystem abstraction:</p>
+<ul>
+<li>Implements the storage interface for both <strong>POSIX filesystem</strong> and <strong>S3-compatible</strong> backends.</li>
+<li>File-level advisory locks (<code>flock</code>) prevent concurrent writes on shared-FS.</li>
+<li>Atomic write path: encrypt → write temp file → <code>fdatasync</code> → rename.</li>
+<li>S3 backend uses <code>github.com/minio/minio-go</code> for object operations.</li>
+</ul>
+<h3 id="pkgschema"><code>pkg/schema</code><a class="headerlink" href="#pkgschema" title="Permanent link">&para;</a></h3>
+<p>JSON Schema validation:</p>
+<ul>
+<li>Validates JSON documents against draft-07 schemas using <code>github.com/xeipuuv/gojsonschema</code>.</li>
+<li>Loads schemas from the configured templates directory on demand and caches them in memory.</li>
+</ul>
+<h3 id="pkgmetrics"><code>pkg/metrics</code><a class="headerlink" href="#pkgmetrics" title="Permanent link">&para;</a></h3>
+<p>Operational observability:</p>
+<ul>
+<li>Cache hit/miss counters.</li>
+<li>Encryption/decryption error rates.</li>
+<li>Subscription and key rotation event counters.</li>
+</ul>
+<h3 id="internalauth"><code>internal/auth</code><a class="headerlink" href="#internalauth" title="Permanent link">&para;</a></h3>
+<p>Token management:</p>
+<ul>
+<li>Issues and validates Bearer tokens for external clients.</li>
+<li>Issues and validates short-lived tokens for Processing Workers.</li>
+<li>Token expiry is configurable via <code>-client-ttl</code> and <code>-worker-ttl</code>.</li>
+</ul>
+<h3 id="internalrouting"><code>internal/routing</code><a class="headerlink" href="#internalrouting" title="Permanent link">&para;</a></h3>
+<p>Worker registry:</p>
+<ul>
+<li>Maintains the set of active Processing Workers.</li>
+<li>Implements cache-aware + least-loaded routing.</li>
+<li>Removes workers that fail health checks.</li>
+</ul>
+<h3 id="apiproto"><code>api/proto</code><a class="headerlink" href="#apiproto" title="Permanent link">&para;</a></h3>
+<p>Protocol Buffer definitions:</p>
+<ul>
+<li><code>Subscribe</code> RPC — used by Processing Workers to register with the Main Worker.</li>
+<li><code>Process</code> RPC — used by the Main Worker to forward GET/PUT operations to workers.</li>
+<li>Generated Go code is committed alongside the <code>.proto</code> files.</li>
+</ul>
+<hr />
+<h2 id="adding-a-new-package">Adding a New Package<a class="headerlink" href="#adding-a-new-package" title="Permanent link">&para;</a></h2>
+<p>Follow these steps when adding a new <code>pkg/</code> module:</p>
+<ol>
+<li>Create <code>pkg/&lt;name&gt;/</code> with a <code>doc.go</code> comment explaining the package purpose.</li>
+<li>Add a <code>README.md</code> in the directory explaining purpose, usage, and dependencies.</li>
+<li>Write unit tests with 100% coverage using <code>github.com/stretchr/testify</code>.</li>
+<li>Update <code>Agents.md</code> if the new module changes the system architecture.</li>
+</ol>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../architecture/" class="btn btn-neutral float-left" title="Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../building/" class="btn btn-neutral float-right" title="Building from Source">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../architecture/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../building/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

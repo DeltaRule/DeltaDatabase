@@ -14,6 +14,7 @@ This section covers everything you need to use DeltaDatabase in your application
 | [JSON Schema Templates](schemas) | Defining and validating entity shapes |
 | [Deployment](deployment) | Docker, Docker Compose, Kubernetes, S3 |
 | [Security Model](security) | Encryption, key management, hardening |
+| [Management UI](frontend) | Browser-based UI for managing databases, schemas, and API keys |
 | [Caching Model](caching) | How the LRU cache works |
 | [Benchmark Results](benchmarks) | Measured performance numbers |
 | [Examples](examples/) | Real-world usage examples |

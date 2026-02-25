@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/usage/security/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Security Model - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Security Model";
+        var mkdocs_page_input_path = "usage/security.md";
+        var mkdocs_page_url = "/usage/security/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Security Model</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#security-properties-at-a-glance">Security Properties at a Glance</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#encryption-details">Encryption Details</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#algorithm">Algorithm</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#on-disk-format">On-disk Format</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#key-derivation-and-distribution">Key Derivation and Distribution</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#key-management">Key Management</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#key-rotation">Key Rotation</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#key-storage-best-practices">Key Storage Best Practices</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#authentication-security">Authentication Security</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#client-tokens">Client Tokens</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#worker-tokens">Worker Tokens</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#input-validation">Input Validation</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#path-traversal-protection">Path Traversal Protection</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#request-size-limits">Request Size Limits</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#schema-validation">Schema Validation</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#log-redaction">Log Redaction</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#network-security-recommendations">Network Security Recommendations</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#reporting-security-issues">Reporting Security Issues</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Usage</li>
+      <li class="breadcrumb-item active">Security Model</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/usage/security.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="security-model">Security Model<a class="headerlink" href="#security-model" title="Permanent link">&para;</a></h1>
+<p>DeltaDatabase is designed with <strong>security-first</strong> principles. This page describes every security mechanism in the system.</p>
+<hr />
+<h2 id="security-properties-at-a-glance">Security Properties at a Glance<a class="headerlink" href="#security-properties-at-a-glance" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Encryption at rest</td>
+<td>AES-256-GCM per entity; nonce and AEAD tag stored in <code>.meta.json</code></td>
+</tr>
+<tr>
+<td>Key distribution</td>
+<td>RSA-OAEP wrap/unwrap; master key never leaves the Main Worker in plaintext</td>
+</tr>
+<tr>
+<td>Keys in memory only</td>
+<td>Processing Workers clear keys on shutdown; keys are never written to disk</td>
+</tr>
+<tr>
+<td>Tamper detection</td>
+<td>AEAD tag checked on every decryption; reads fail closed on mismatch</td>
+</tr>
+<tr>
+<td>Schema validation</td>
+<td>JSON Schema draft-07 enforced before every write</td>
+</tr>
+<tr>
+<td>Log redaction</td>
+<td>No plaintext entity data or key material is emitted in logs</td>
+</tr>
+<tr>
+<td>Token expiry</td>
+<td>Worker tokens: 1 h (configurable). Client tokens: 24 h (configurable)</td>
+</tr>
+<tr>
+<td>Path traversal protection</td>
+<td>Entity keys, database names, and schema IDs are validated to reject <code>/</code>, <code>\</code>, and <code>..</code></td>
+</tr>
+<tr>
+<td>Request body limit</td>
+<td>REST PUT/schema endpoints reject bodies larger than 1 MiB</td>
+</tr>
+<tr>
+<td>Write durability (FS)</td>
+<td><code>fdatasync</code> before atomic rename guarantees no data loss on worker crash</td>
+</tr>
+<tr>
+<td>S3 credentials</td>
+<td>Pass via <code>S3_ACCESS_KEY</code> / <code>S3_SECRET_KEY</code> env vars, not CLI flags</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="encryption-details">Encryption Details<a class="headerlink" href="#encryption-details" title="Permanent link">&para;</a></h2>
+<h3 id="algorithm">Algorithm<a class="headerlink" href="#algorithm" title="Permanent link">&para;</a></h3>
+<p><strong>AES-256-GCM</strong> (Authenticated Encryption with Associated Data):</p>
+<ul>
+<li>256-bit key derived from the master key.</li>
+<li>Random 12-byte nonce per entity write.</li>
+<li>128-bit AEAD authentication tag.</li>
+</ul>
+<h3 id="on-disk-format">On-disk Format<a class="headerlink" href="#on-disk-format" title="Permanent link">&para;</a></h3>
+<p>For each entity, two files are written:</p>
+<div class="codehilite"><pre><span></span><code>files/&lt;entityID&gt;.json.enc
+  └─ raw AES-256-GCM ciphertext
+
+files/&lt;entityID&gt;.meta.json
+  └─ {
+       &quot;key_id&quot;:    &quot;main-key-v1&quot;,
+       &quot;alg&quot;:       &quot;AES-GCM&quot;,
+       &quot;iv&quot;:        &quot;&lt;base64-nonce&gt;&quot;,
+       &quot;tag&quot;:       &quot;&lt;base64-AEAD-tag&gt;&quot;,
+       &quot;schema_id&quot;: &quot;chat.v1&quot;,
+       &quot;version&quot;:   3,
+       &quot;writer_id&quot;: &quot;proc-1&quot;
+     }
+</code></pre></div>
+
+<p>The AEAD tag is checked on every read. If the tag does not match (e.g., due to file corruption or tampering), the read fails with an error and a security event is logged.</p>
+<h3 id="key-derivation-and-distribution">Key Derivation and Distribution<a class="headerlink" href="#key-derivation-and-distribution" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>Main Worker
+  │
+  ├─ Holds master AES key in volatile RAM (never on disk)
+  │
+  └─ On Processing Worker Subscribe:
+       │
+       ├─ Worker sends its ephemeral RSA public key
+       │
+       ├─ Main Worker encrypts master key with RSA-OAEP
+       │
+       └─ Worker decrypts with its RSA private key
+            → stores plaintext key in volatile RAM only
+            → RSA private key discarded after use
+</code></pre></div>
+
+<hr />
+<h2 id="key-management">Key Management<a class="headerlink" href="#key-management" title="Permanent link">&para;</a></h2>
+<h3 id="key-rotation">Key Rotation<a class="headerlink" href="#key-rotation" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Generate a new 32-byte AES key: <code>openssl rand -hex 32</code>.</li>
+<li>Restart the Main Worker with <code>-master-key=&lt;new_key&gt;</code>.</li>
+<li>Processing Workers receive the new key on their next subscription.</li>
+<li>New writes use the new key. Old entities remain encrypted under the old key.</li>
+<li>Old entities are re-encrypted lazily on the next write, or via a background rewrap job.</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Keep a secure backup of all master keys ever used. Entities encrypted under an old key require the old key to be readable.</p>
+</div>
+<h3 id="key-storage-best-practices">Key Storage Best Practices<a class="headerlink" href="#key-storage-best-practices" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Never commit the master key to source control.</li>
+<li>Never pass the master key as a CLI flag in production (it appears in <code>ps</code> output and shell history).</li>
+<li>Use a secrets manager (HashiCorp Vault, AWS Secrets Manager, Kubernetes Secret) to inject the key as an environment variable.</li>
+<li>Use HSM or OS keyring integration for hardware-backed key storage in high-security environments.</li>
+</ul>
+<hr />
+<h2 id="authentication-security">Authentication Security<a class="headerlink" href="#authentication-security" title="Permanent link">&para;</a></h2>
+<h3 id="client-tokens">Client Tokens<a class="headerlink" href="#client-tokens" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Tokens are signed server-side and validated on every request.</li>
+<li>Token TTL is configurable via <code>-client-ttl</code> (default: 24 h).</li>
+<li>Tokens are not refreshable; clients must re-login.</li>
+</ul>
+<h3 id="worker-tokens">Worker Tokens<a class="headerlink" href="#worker-tokens" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Processing Workers receive a short-lived session token (default: 1 h) during subscription.</li>
+<li>The token is used for all subsequent gRPC calls to the Main Worker.</li>
+<li>Workers must re-subscribe after token expiry.</li>
+</ul>
+<hr />
+<h2 id="input-validation">Input Validation<a class="headerlink" href="#input-validation" title="Permanent link">&para;</a></h2>
+<h3 id="path-traversal-protection">Path Traversal Protection<a class="headerlink" href="#path-traversal-protection" title="Permanent link">&para;</a></h3>
+<p>Entity keys, database names, and schema IDs are validated to reject:
+- <code>/</code> (path separator)
+- <code>\</code> (Windows path separator)
+- <code>..</code> (parent directory traversal)</p>
+<h3 id="request-size-limits">Request Size Limits<a class="headerlink" href="#request-size-limits" title="Permanent link">&para;</a></h3>
+<ul>
+<li>PUT entity and PUT schema endpoints reject request bodies larger than <strong>1 MiB</strong>.</li>
+</ul>
+<h3 id="schema-validation">Schema Validation<a class="headerlink" href="#schema-validation" title="Permanent link">&para;</a></h3>
+<p>Every <code>PUT /entity/{database}</code> request is validated against the registered JSON Schema before being encrypted and stored. Validation failures return HTTP <code>400</code> and nothing is written to disk.</p>
+<hr />
+<h2 id="log-redaction">Log Redaction<a class="headerlink" href="#log-redaction" title="Permanent link">&para;</a></h2>
+<p>Logs never contain:
+- Decrypted entity content.
+- Encryption keys or key material.
+- Bearer tokens or worker session tokens.</p>
+<p>All security events (tamper detection, auth failures, key rotation) are logged without exposing sensitive data.</p>
+<hr />
+<h2 id="network-security-recommendations">Network Security Recommendations<a class="headerlink" href="#network-security-recommendations" title="Permanent link">&para;</a></h2>
+<p>For production deployments:</p>
+<ol>
+<li><strong>TLS everywhere</strong> — put the Main Worker behind a TLS-terminating reverse proxy (nginx, Traefik, AWS ALB).</li>
+<li><strong>Restrict gRPC port</strong> — the internal gRPC port (<code>:50051</code>) should not be exposed to external networks. Use network policies in Kubernetes or firewall rules in bare-metal deployments.</li>
+<li><strong>Network policies</strong> — in Kubernetes, use <code>NetworkPolicy</code> to ensure only Processing Workers can reach the Main Worker's gRPC port.</li>
+<li><strong>Token TTL</strong> — shorten <code>-client-ttl</code> for sensitive applications (e.g., <code>1h</code>).</li>
+</ol>
+<hr />
+<h2 id="reporting-security-issues">Reporting Security Issues<a class="headerlink" href="#reporting-security-issues" title="Permanent link">&para;</a></h2>
+<p>If you discover a security vulnerability, please report it privately by opening a GitHub Security Advisory at:</p>
+<p><strong>https://github.com/DeltaRule/DeltaDatabase/security/advisories/new</strong></p>
+<p>Do not open a public issue for security vulnerabilities.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../deployment/" class="btn btn-neutral float-left" title="Deployment"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../frontend/" class="btn btn-neutral float-right" title="Management UI">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../deployment/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../frontend/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

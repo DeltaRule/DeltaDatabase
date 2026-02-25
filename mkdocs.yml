@@ -12,12 +12,6 @@ docs_dir: docs
 nav:
   - Home: index.md
   - Changelog: changelog.md
-  - Development:
-      - Overview: development/index.md
-      - Architecture: development/architecture.md
-      - Project Structure: development/project-structure.md
-      - Building from Source: development/building.md
-      - Testing: development/testing.md
   - Usage:
       - Overview: usage/index.md
       - Quick Start: usage/quickstart.md
@@ -37,6 +31,12 @@ nav:
           - IoT Sensor Data: usage/examples/iot-sensors.md
           - Configuration Store: usage/examples/config-store.md
           - E-Commerce Catalogue: usage/examples/ecommerce.md
+  - Development:
+      - Overview: development/index.md
+      - Architecture: development/architecture.md
+      - Project Structure: development/project-structure.md
+      - Building from Source: development/building.md
+      - Testing: development/testing.md
 
 markdown_extensions:
   - admonition

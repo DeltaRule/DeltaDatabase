@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/usage/examples/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Overview - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Overview";
+        var mkdocs_page_input_path = "usage/examples/index.md";
+        var mkdocs_page_url = "/usage/examples/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Examples</a>
+    <ul class="current">
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Overview</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#available-examples">Available Examples</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#common-pattern">Common Pattern</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#minimal-working-example-curl">Minimal Working Example (curl)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#before-running-examples">Before Running Examples</a>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/architecture/">Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../development/testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Usage</li>
+          <li class="breadcrumb-item">Examples</li>
+      <li class="breadcrumb-item active">Overview</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/usage/examples/index.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h1>
+<p>The following examples show how to use DeltaDatabase for different real-world applications. Each example includes complete, runnable code in multiple languages.</p>
+<hr />
+<h2 id="available-examples">Available Examples<a class="headerlink" href="#available-examples" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Use Case</th>
+<th>Languages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="chat-app">Chat Application</a></td>
+<td>Store AI/LLM conversation histories</td>
+<td>Go, Python, curl</td>
+</tr>
+<tr>
+<td><a href="user-profiles">User Profiles</a></td>
+<td>CRUD for user accounts and settings</td>
+<td>Python, curl</td>
+</tr>
+<tr>
+<td><a href="iot-sensors">IoT Sensor Data</a></td>
+<td>Store time-series sensor readings</td>
+<td>Python, curl</td>
+</tr>
+<tr>
+<td><a href="config-store">Configuration Store</a></td>
+<td>Manage per-service and per-environment config</td>
+<td>Go, curl</td>
+</tr>
+<tr>
+<td><a href="ecommerce">E-Commerce Catalogue</a></td>
+<td>Product catalogue and inventory</td>
+<td>Python, curl</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="common-pattern">Common Pattern<a class="headerlink" href="#common-pattern" title="Permanent link">&para;</a></h2>
+<p>All examples follow the same three-step pattern:</p>
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="nb">Log</span><span class="n">in</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="nb">POS</span><span class="n">T</span><span class="w"> </span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="nb">log</span><span class="n">in</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="kr">get</span><span class="w"> </span><span class="n">Bearer</span><span class="w"> </span><span class="kr">to</span><span class="n">ken</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">Write</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="n">PUT</span><span class="w"> </span><span class="o">/</span><span class="n">entity</span><span class="o">/</span><span class="err">{</span><span class="n">db</span><span class="err">}</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="n">store</span><span class="w"> </span><span class="n">JSON</span><span class="w"> </span><span class="n">entity</span>
+<span class="mf">3.</span><span class="w"> </span><span class="kr">Read</span><span class="w">   </span><span class="err">→</span><span class="w">  </span><span class="kr">GET</span><span class="w"> </span><span class="o">/</span><span class="n">entity</span><span class="o">/</span><span class="err">{</span><span class="n">db</span><span class="err">}?</span><span class="n">key</span><span class="o">=</span><span class="mf">...</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="n">retrieve</span><span class="w"> </span><span class="n">entity</span>
+</code></pre></div>
+
+<h3 id="minimal-working-example-curl">Minimal Working Example (curl)<a class="headerlink" href="#minimal-working-example-curl" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code><span class="nv">BASE</span><span class="o">=</span><span class="s2">&quot;http://127.0.0.1:8080&quot;</span>
+
+<span class="c1"># 1. Get a token</span>
+<span class="nv">TOKEN</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-sf<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BASE</span><span class="s2">/api/login&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;client_id&quot;:&quot;demo&quot;}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.token<span class="k">)</span>
+
+<span class="c1"># 2. Write an entity</span>
+curl<span class="w"> </span>-sf<span class="w"> </span>-X<span class="w"> </span>PUT<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BASE</span><span class="s2">/entity/mydb&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;my_key&quot;: {&quot;hello&quot;: &quot;world&quot;}}&#39;</span>
+
+<span class="c1"># 3. Read it back</span>
+curl<span class="w"> </span>-sf<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BASE</span><span class="s2">/entity/mydb?key=my_key&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">&quot;</span>
+<span class="c1"># → {&quot;hello&quot;:&quot;world&quot;}</span>
+</code></pre></div>
+
+<hr />
+<h2 id="before-running-examples">Before Running Examples<a class="headerlink" href="#before-running-examples" title="Permanent link">&para;</a></h2>
+<p>Make sure DeltaDatabase is running:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Quickest way — Docker all-in-one</span>
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>deploy/docker-compose/docker-compose.all-in-one.yml<span class="w"> </span>up<span class="w"> </span>-d
+
+<span class="c1"># Verify</span>
+curl<span class="w"> </span>http://127.0.0.1:8080/health
+<span class="c1"># → {&quot;status&quot;:&quot;ok&quot;}</span>
+</code></pre></div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../benchmarks/" class="btn btn-neutral float-left" title="Benchmark Results"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="chat-app/" class="btn btn-neutral float-right" title="Chat Application">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../benchmarks/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="chat-app/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://deltadatabase.readthedocs.io/development/architecture/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Architecture - DeltaDatabase</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Architecture";
+        var mkdocs_page_input_path = "development/architecture.md";
+        var mkdocs_page_url = "/development/architecture/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> DeltaDatabase
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../changelog/">Changelog</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Usage</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/">Overview</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/quickstart/">Quick Start</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/configuration/">Configuration</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/api-reference/">API Reference</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/authentication/">Authentication</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/schemas/">JSON Schema Templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/deployment/">Deployment</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/security/">Security Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/frontend/">Management UI</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/caching/">Caching Model</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../usage/benchmarks/">Benchmark Results</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Examples</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/">Overview</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/chat-app/">Chat Application</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/user-profiles/">User Profiles</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/iot-sensors/">IoT Sensor Data</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/config-store/">Configuration Store</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../usage/examples/ecommerce/">E-Commerce Catalogue</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../">Overview</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Architecture</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#high-level-diagram">High-Level Diagram</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#main-worker">Main Worker</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#responsibilities">Responsibilities</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#routing-strategy">Routing Strategy</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#processing-worker">Processing Worker</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#responsibilities_1">Responsibilities</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#worker-lifecycle">Worker Lifecycle</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#storage-backends">Storage Backends</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#shared-filesystem-default">Shared Filesystem (default)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#s3-compatible-optional">S3-Compatible (optional)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#key-management">Key Management</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#authentication-flow-clients">Authentication Flow (Clients)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#caching-architecture">Caching Architecture</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../project-structure/">Project Structure</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../building/">Building from Source</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../testing/">Testing</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">DeltaDatabase</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Development</li>
+      <li class="breadcrumb-item active">Architecture</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/DeltaRule/DeltaDatabase/edit/master/docs/development/architecture.md">Edit on DeltaRule/DeltaDatabase</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
+<p>DeltaDatabase is built around a <strong>two-worker model</strong>: a single <strong>Main Worker</strong> handles authentication and routing, while one or more <strong>Processing Workers</strong> handle the actual data operations (encryption, decryption, caching, storage).</p>
+<hr />
+<h2 id="high-level-diagram">High-Level Diagram<a class="headerlink" href="#high-level-diagram" title="Permanent link">&para;</a></h2>
+<div class="codehilite"><pre><span></span><code> ┌──────────────────────────────────────────────────────────────────┐
+ │  Client (your application, browser, curl …)                      │
+ └───────────────────────────────┬──────────────────────────────────┘
+                                 │  REST (HTTP/JSON)  or  gRPC
+                                 ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  Main Worker  (:8080 REST  |  :50051 gRPC)                       │
+ │  • Issues client Bearer tokens   (POST /api/login)               │
+ │  • Authenticates every request                                   │
+ │  • Distributes master encryption key to Processing Workers       │
+ │  • Routes entity requests to an available Processing Worker      │
+ │  • Exposes the web management UI at /                            │
+ └──────────────────────────────┬───────────────────────────────────┘
+                                │  gRPC (internal)
+                ┌───────────────┼───────────────┐
+                ▼               ▼               ▼
+        ┌────────────┐  ┌────────────┐  ┌────────────┐
+        │ Proc Worker│  │ Proc Worker│  │ Proc Worker│
+        │  :50052    │  │  :50053    │  │  :50054    │
+        └─────┬──────┘  └─────┬──────┘  └─────┬──────┘
+              └───────────────┴───────────────┘
+                              │
+             ┌────────────────┴────────────────┐
+             │                                 │
+    ┌────────┴────────┐               ┌────────┴────────┐
+    │  Shared FS      │  ── or ──     │  S3-compatible  │
+    │  /shared/db/    │               │  (MinIO, AWS S3,│
+    │  ├── files/     │               │   RustFS, …)    │
+    │  └── templates/ │               └─────────────────┘
+    └─────────────────┘
+</code></pre></div>
+
+<hr />
+<h2 id="main-worker">Main Worker<a class="headerlink" href="#main-worker" title="Permanent link">&para;</a></h2>
+<p>The Main Worker is the <strong>single entry point</strong> for all external clients. It never touches the data directly — it authenticates requests and delegates to Processing Workers.</p>
+<h3 id="responsibilities">Responsibilities<a class="headerlink" href="#responsibilities" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Responsibility</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Client authentication</td>
+<td>Issues Bearer tokens via <code>POST /api/login</code></td>
+</tr>
+<tr>
+<td>Worker authentication</td>
+<td>Validates Processing Workers during the subscribe handshake (mTLS-ready)</td>
+</tr>
+<tr>
+<td>Key distribution</td>
+<td>Wraps the AES master key with each worker's RSA public key and vends it during subscription</td>
+</tr>
+<tr>
+<td>Request routing</td>
+<td>Forwards <code>GET /entity/…</code> and <code>PUT /entity/…</code> to an available Processing Worker</td>
+</tr>
+<tr>
+<td>Worker registry</td>
+<td>Maintains the list of active workers; removes workers that stop heartbeating</td>
+</tr>
+<tr>
+<td>Web UI</td>
+<td>Serves the embedded single-page management application at <code>/</code></td>
+</tr>
+<tr>
+<td>Schema storage</td>
+<td>Stores JSON Schema templates in shared storage so all workers can access them</td>
+</tr>
+</tbody>
+</table>
+<h3 id="routing-strategy">Routing Strategy<a class="headerlink" href="#routing-strategy" title="Permanent link">&para;</a></h3>
+<p>The Main Worker routes entity requests using a <strong>cache-aware + least-loaded</strong> algorithm:</p>
+<ol>
+<li>Try to send to the worker that <strong>most recently served the same entity</strong> (to maximize LRU cache hits).</li>
+<li>Fall back to the worker with the <strong>fewest active requests</strong> when no preferred worker is available.</li>
+</ol>
+<hr />
+<h2 id="processing-worker">Processing Worker<a class="headerlink" href="#processing-worker" title="Permanent link">&para;</a></h2>
+<p>Processing Workers are the <strong>data plane</strong>. They subscribe to the Main Worker at startup to receive the encryption key, then handle all read and write operations.</p>
+<h3 id="responsibilities_1">Responsibilities<a class="headerlink" href="#responsibilities_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Responsibility</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Subscribe</td>
+<td>Connect to Main Worker, provide RSA public key, receive wrapped AES key</td>
+</tr>
+<tr>
+<td>Schema validation</td>
+<td>Validate incoming JSON against the registered JSON Schema before writing</td>
+</tr>
+<tr>
+<td>Encryption</td>
+<td>Encrypt entities with AES-256-GCM before writing to storage</td>
+</tr>
+<tr>
+<td>Decryption</td>
+<td>Decrypt entities after reading from storage</td>
+</tr>
+<tr>
+<td>Caching</td>
+<td>Maintain an LRU in-memory cache of decrypted entities</td>
+</tr>
+<tr>
+<td>File locking</td>
+<td>Acquire advisory locks (<code>flock</code>) on shared-FS writes to prevent concurrent corruption</td>
+</tr>
+<tr>
+<td>S3 locking</td>
+<td>Use in-process mutexes for S3 writes (no shared-FS lock needed)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="worker-lifecycle">Worker Lifecycle<a class="headerlink" href="#worker-lifecycle" title="Permanent link">&para;</a></h3>
+<div class="codehilite"><pre><span></span><code>Startup
+  │
+  ├─ Generate RSA key pair (ephemeral)
+  │
+  ├─ Connect to Main Worker (gRPC)
+  │
+  ├─ Send Subscribe(worker_id, rsa_public_key)
+  │
+  ├─ Receive SubscribeResponse(token, wrapped_aes_key, key_id)
+  │
+  ├─ Unwrap AES key with RSA private key → store in volatile memory
+  │
+  ├─ Register as &quot;Available&quot;
+  │
+  └─ Start serving Process RPCs (GET / PUT)
+         │
+         ├─ GET: check cache → decrypt from storage if miss → return
+         │
+         └─ PUT: validate schema → encrypt → write atomically → update cache
+</code></pre></div>
+
+<hr />
+<h2 id="storage-backends">Storage Backends<a class="headerlink" href="#storage-backends" title="Permanent link">&para;</a></h2>
+<h3 id="shared-filesystem-default">Shared Filesystem (default)<a class="headerlink" href="#shared-filesystem-default" title="Permanent link">&para;</a></h3>
+<p>Any POSIX-compatible directory: local disk, NFS, CIFS/Samba, or a cloud-mounted volume.</p>
+<ul>
+<li><strong>File layout:</strong>
+  <code>/shared/db/
+  ├── files/
+  │   ├── &lt;entityID&gt;.json.enc    # AES-256-GCM encrypted blob
+  │   └── &lt;entityID&gt;.meta.json   # metadata (key_id, iv, tag, schema_id, version)
+  └── templates/
+      └── &lt;schemaID&gt;.json        # JSON Schema template</code></li>
+<li><strong>Write durability:</strong> <code>fdatasync</code> before atomic rename — no data loss on crash.</li>
+<li><strong>Locking:</strong> POSIX advisory <code>flock</code> per file prevents concurrent writers from corrupting entities.</li>
+</ul>
+<h3 id="s3-compatible-optional">S3-Compatible (optional)<a class="headerlink" href="#s3-compatible-optional" title="Permanent link">&para;</a></h3>
+<p>Any service implementing the S3 API: MinIO, RustFS, SeaweedFS, AWS S3, Ceph RadosGW.</p>
+<ul>
+<li><strong>Object layout:</strong>
+  <code>deltadatabase/
+  ├── files/&lt;entityID&gt;.json.enc
+  ├── files/&lt;entityID&gt;.meta.json
+  └── templates/&lt;schemaID&gt;.json</code></li>
+<li><strong>Locking:</strong> In-process mutexes; S3's strong read-after-write consistency prevents races.</li>
+<li><strong>Advantage:</strong> No shared PVC needed in Kubernetes.</li>
+</ul>
+<hr />
+<h2 id="key-management">Key Management<a class="headerlink" href="#key-management" title="Permanent link">&para;</a></h2>
+<div class="codehilite"><pre><span></span><code>Main Worker
+  │
+  ├─ Generates (or restores from -master-key flag) a 32-byte AES master key
+  │   at startup — NEVER writes it to disk
+  │
+  └─ On each worker Subscribe:
+       │
+       ├─ Validates worker credentials
+       │
+       ├─ Encrypts master key with worker&#39;s RSA public key (RSA-OAEP)
+       │
+       └─ Sends wrapped key → worker unwraps → stores in RAM only
+</code></pre></div>
+
+<p><strong>Key rotation</strong> is supported: generate a new key, restart the Main Worker with <code>-master-key=&lt;new&gt;</code>, and Processing Workers will receive the new key on their next subscription. Active files will be re-encrypted lazily on next write.</p>
+<hr />
+<h2 id="authentication-flow-clients">Authentication Flow (Clients)<a class="headerlink" href="#authentication-flow-clients" title="Permanent link">&para;</a></h2>
+<div class="codehilite"><pre><span></span><code>Client                         Main Worker
+  │                                │
+  ├──── POST /api/login ──────────►│
+  │     {&quot;client_id&quot;: &quot;myapp&quot;}     │
+  │                                ├─ Generates Bearer token (JWT-style, signed)
+  │◄─── {&quot;token&quot;: &quot;…&quot;} ───────────┤
+  │                                │
+  ├──── GET /entity/db?key=foo ───►│
+  │     Authorization: Bearer …    │
+  │                                ├─ Validates token
+  │                                ├─ Routes to Processing Worker
+  │◄─── {&quot;field&quot;: &quot;value&quot;} ───────┤
+</code></pre></div>
+
+<hr />
+<h2 id="caching-architecture">Caching Architecture<a class="headerlink" href="#caching-architecture" title="Permanent link">&para;</a></h2>
+<p>Each Processing Worker maintains its own <strong>LRU cache</strong> of decrypted entities:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">Proc</span><span class="nv">essing</span><span class="w"> </span><span class="nv">Worker</span><span class="w"> </span><span class="p">(</span><span class="nv">in</span><span class="o">-</span><span class="nv">memory</span><span class="p">)</span>
+<span class="err">┌──────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">  </span><span class="nf">LRU</span><span class="w"> </span><span class="nv">Cache</span><span class="w"> </span><span class="p">(</span><span class="nv">configurable</span><span class="w"> </span><span class="nv">size</span><span class="p">)</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="nl">key:</span><span class="w"> </span><span class="err">&quot;</span><span class="nf">chatdb</span><span class="o">/</span><span class="nv">session_001</span><span class="err">&quot;</span><span class="w">       </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="nl">value:</span><span class="w"> </span><span class="err">{&quot;</span><span class="nf">messages</span><span class="err">&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="nv">...</span><span class="p">]</span><span class="err">}</span><span class="w">       </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="nl">version:</span><span class="w"> </span><span class="err">3</span><span class="w">                      </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="nl">key:</span><span class="w"> </span><span class="err">&quot;</span><span class="nf">userdb</span><span class="o">/</span><span class="nv">user_42</span><span class="err">&quot;</span><span class="w">           </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="nl">value:</span><span class="w"> </span><span class="err">{&quot;</span><span class="nf">name</span><span class="s">&quot;: &quot;</span><span class="nv">Alice</span><span class="err">&quot;</span><span class="p">,</span><span class="w"> </span><span class="nv">...</span><span class="err">}</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="nl">version:</span><span class="w"> </span><span class="err">1</span><span class="w">                      </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">…</span><span class="w"> </span><span class="err">(</span><span class="nf">up</span><span class="w"> </span><span class="nv">to</span><span class="w"> </span><span class="o">-</span><span class="nv">cache</span><span class="o">-</span><span class="nv">size</span><span class="w"> </span><span class="nv">entries</span><span class="p">)</span><span class="w">   </span><span class="err">│</span>
+<span class="err">└──────────────────────────────────┘</span>
+</code></pre></div>
+
+<p><strong>Cache coherence:</strong> When reading from disk, the worker checks <code>meta.version</code> against the cached version. If they differ, the disk copy wins and the cache is refreshed.</p>
+<p>See the <a href="../usage/caching">Caching Model</a> page for the full read/write path description.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="Overview"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../project-structure/" class="btn btn-neutral float-right" title="Project Structure">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/DeltaRule/DeltaDatabase" class="fa fa-code-fork" style="color: #fcfcfc"> DeltaRule/DeltaDatabase</a>
+        </span>
+    
+    
+      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../project-structure/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
