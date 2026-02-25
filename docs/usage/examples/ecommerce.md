@@ -1,10 +1,3 @@
----
-layout: default
-title: E-Commerce Catalogue
-parent: Examples
-grand_parent: Usage
-nav_order: 5
----
 
 # Example: E-Commerce Catalogue
 

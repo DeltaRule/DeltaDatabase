@@ -1,0 +1,45 @@
+site_name: DeltaDatabase
+site_description: A lightweight, encrypted-at-rest JSON database written in Go
+site_url: https://deltadatabase.readthedocs.io
+repo_url: https://github.com/DeltaRule/DeltaDatabase
+repo_name: DeltaRule/DeltaDatabase
+
+theme:
+  name: readthedocs
+
+docs_dir: docs
+
+nav:
+  - Home: index.md
+  - Development:
+      - Overview: development/index.md
+      - Architecture: development/architecture.md
+      - Project Structure: development/project-structure.md
+      - Building from Source: development/building.md
+      - Testing: development/testing.md
+  - Usage:
+      - Overview: usage/index.md
+      - Quick Start: usage/quickstart.md
+      - Configuration: usage/configuration.md
+      - API Reference: usage/api-reference.md
+      - Authentication: usage/authentication.md
+      - JSON Schema Templates: usage/schemas.md
+      - Deployment: usage/deployment.md
+      - Security Model: usage/security.md
+      - Caching Model: usage/caching.md
+      - Benchmark Results: usage/benchmarks.md
+      - Examples:
+          - Overview: usage/examples/index.md
+          - Chat Application: usage/examples/chat-app.md
+          - User Profiles: usage/examples/user-profiles.md
+          - IoT Sensor Data: usage/examples/iot-sensors.md
+          - Configuration Store: usage/examples/config-store.md
+          - E-Commerce Catalogue: usage/examples/ecommerce.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - fenced_code
+  - codehilite
+  - toc:
+      permalink: true

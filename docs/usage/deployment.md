@@ -1,9 +1,3 @@
----
-layout: default
-title: Deployment
-parent: Usage
-nav_order: 6
----
 
 # Deployment
 
@@ -262,5 +256,6 @@ echo "MASTER_KEY=${MASTER_KEY}" >> .env
 docker compose -f deploy/docker-compose/docker-compose.all-in-one.yml up
 ```
 
-{: .warning }
-> Store the master key securely. If the key is lost, all stored data becomes permanently unrecoverable.
+!!! warning
+    Store the master key securely. If the key is lost, all stored data becomes permanently unrecoverable.
+    

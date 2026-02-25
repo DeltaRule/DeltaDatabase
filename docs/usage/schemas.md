@@ -1,9 +1,3 @@
----
-layout: default
-title: JSON Schema Templates
-parent: Usage
-nav_order: 5
----
 
 # JSON Schema Templates
 

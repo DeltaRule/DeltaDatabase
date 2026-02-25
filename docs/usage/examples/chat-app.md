@@ -1,10 +1,3 @@
----
-layout: default
-title: Chat Application
-parent: Examples
-grand_parent: Usage
-nav_order: 1
----
 
 # Example: Chat Application
 

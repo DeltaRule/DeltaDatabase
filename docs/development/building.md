@@ -1,15 +1,9 @@
----
-layout: default
-title: Building from Source
-parent: Development
-nav_order: 3
----
 
 # Building from Source
 
-{: .note }
-> For most use-cases, the [Docker / Kubernetes deployment](../usage/deployment) is the recommended way to run DeltaDatabase. Build from source only when you need to develop, modify, or test the code locally.
-
+!!! note
+    For most use-cases, the [Docker / Kubernetes deployment](../usage/deployment) is the recommended way to run DeltaDatabase. Build from source only when you need to develop, modify, or test the code locally.
+    
 ---
 
 ## Prerequisites
@@ -69,9 +63,9 @@ The first line of output shows the generated master key — copy it for subseque
 2026/02/24 12:00:00 Key (hex): a1b2c3d4...  ← save this!
 ```
 
-{: .tip }
-> Pass `-master-key=<hex>` on subsequent starts to reuse the same key and keep previously stored data readable.
-
+!!! tip
+    Pass `-master-key=<hex>` on subsequent starts to reuse the same key and keep previously stored data readable.
+    
 ### 3. Start the Processing Worker
 
 Open a second terminal:

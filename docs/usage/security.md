@@ -1,9 +1,3 @@
----
-layout: default
-title: Security Model
-parent: Usage
-nav_order: 7
----
 
 # Security Model
 
@@ -91,9 +85,9 @@ Main Worker
 4. New writes use the new key. Old entities remain encrypted under the old key.
 5. Old entities are re-encrypted lazily on the next write, or via a background rewrap job.
 
-{: .warning }
-> Keep a secure backup of all master keys ever used. Entities encrypted under an old key require the old key to be readable.
-
+!!! warning
+    Keep a secure backup of all master keys ever used. Entities encrypted under an old key require the old key to be readable.
+    
 ### Key Storage Best Practices
 
 - Never commit the master key to source control.

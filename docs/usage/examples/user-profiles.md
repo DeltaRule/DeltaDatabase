@@ -1,10 +1,3 @@
----
-layout: default
-title: User Profiles
-parent: Examples
-grand_parent: Usage
-nav_order: 2
----
 
 # Example: User Profiles
 
