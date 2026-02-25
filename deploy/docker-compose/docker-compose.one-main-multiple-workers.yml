@@ -19,6 +19,7 @@ services:
       - "50051:50051"  # gRPC (internal)
     environment:
       MASTER_KEY: "${MASTER_KEY:-}"
+      ADMIN_KEY: "${ADMIN_KEY:-}"
     command:
       - "-grpc-addr=0.0.0.0:50051"
       - "-rest-addr=0.0.0.0:8080"

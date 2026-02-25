@@ -575,6 +575,22 @@ func TestHandleAPIKeys(t *testing.T) {
 		assert.Empty(t, keys)
 	})
 
+	t.Run("GET returns 200 empty array without auth when no keys exist", func(t *testing.T) {
+		// Fresh server with zero keys.  Even without an Authorization header the
+		// endpoint must return 200 [] so the browser UI shows "No API keys found."
+		// rather than "Failed to load keys: 401/403".
+		fresh, err := NewMainWorkerServer(createTestConfigWithAdminKey(t, adminKey))
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		w := httptest.NewRecorder()
+		fresh.handleAPIKeys(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+		assert.JSONEq(t, "[]", strings.TrimSpace(w.Body.String()))
+	})
+
 	t.Run("GET requires admin permission", func(t *testing.T) {
 		// Create a read-only key.
 		secret, _, _ := server.keyManager.CreateKey("readonly", []auth.Permission{auth.PermRead}, nil)
@@ -846,5 +862,69 @@ func TestAdminKeyAuth(t *testing.T) {
 		server.handleAPIKeys(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+}
+
+// TestSessionTokenInheritsPermissions verifies that session tokens issued by
+// POST /api/login carry the correct permissions of the authenticating credential.
+// Previously, session tokens were always restricted to read+write regardless of
+// the login credential — which broke admin access in the Management UI.
+func TestSessionTokenInheritsPermissions(t *testing.T) {
+	const adminKey = "test-admin-key-inherit"
+	config := createTestConfigWithAdminKey(t, adminKey)
+	server, err := NewMainWorkerServer(config)
+	require.NoError(t, err)
+
+	// Obtain a session token via POST /api/login with the admin key.
+	loginBody, _ := json.Marshal(map[string]string{"key": adminKey})
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewReader(loginBody))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginW := httptest.NewRecorder()
+	server.handleLogin(loginW, loginReq)
+	require.Equal(t, http.StatusOK, loginW.Code)
+
+	var loginResp loginResponse
+	require.NoError(t, json.NewDecoder(loginW.Body).Decode(&loginResp))
+	sessionToken := loginResp.Token
+	require.NotEmpty(t, sessionToken)
+
+	t.Run("session token from admin login can list API keys (admin endpoint)", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		req.Header.Set("Authorization", "Bearer "+sessionToken)
+		w := httptest.NewRecorder()
+		server.handleAPIKeys(w, req)
+		// Should be 200 (admin permission granted via session token), not 403.
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("session token from admin login can list workers (admin endpoint)", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/admin/workers", nil)
+		req.Header.Set("Authorization", "Bearer "+sessionToken)
+		w := httptest.NewRecorder()
+		server.handleAdminWorkers(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("session token from read-only API key is rejected for admin endpoint", func(t *testing.T) {
+		// Create a read-only API key.
+		secret, _, _ := server.keyManager.CreateKey("ro-key", []auth.Permission{auth.PermRead}, nil)
+
+		// Log in with it.
+		body2, _ := json.Marshal(map[string]string{"key": secret})
+		req2 := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewReader(body2))
+		req2.Header.Set("Content-Type", "application/json")
+		w2 := httptest.NewRecorder()
+		server.handleLogin(w2, req2)
+		require.Equal(t, http.StatusOK, w2.Code)
+
+		var resp2 loginResponse
+		require.NoError(t, json.NewDecoder(w2.Body).Decode(&resp2))
+
+		// Session token from a read-only key must be rejected for admin endpoints.
+		req3 := httptest.NewRequest(http.MethodGet, "/api/keys", nil)
+		req3.Header.Set("Authorization", "Bearer "+resp2.Token)
+		w3 := httptest.NewRecorder()
+		server.handleAPIKeys(w3, req3)
+		assert.Equal(t, http.StatusForbidden, w3.Code)
 	})
 }
