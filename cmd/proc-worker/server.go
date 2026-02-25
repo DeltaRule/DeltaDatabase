@@ -405,7 +405,7 @@ func (s *ProcWorkerServer) Serve(addr string, metricsAddr string) error {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 
-	srv := grpc.NewServer()
+	srv := grpc.NewServer(grpc.MaxRecvMsgSize(s.worker.config.MaxRecvMsgSize))
 	proto.RegisterMainWorkerServer(srv, s)
 
 	log.Printf("[%s] Processing Worker gRPC server listening on %s",

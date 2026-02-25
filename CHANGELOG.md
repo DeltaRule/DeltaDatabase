@@ -9,6 +9,16 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Configurable maximum payload size** — the maximum data size accepted by both workers
+  is now configurable via command-line flags, eliminating the previous hardcoded limits:
+  - `-grpc-max-recv-msg-size` (Main Worker and Processing Worker, default **4 MiB**) — sets the
+    maximum gRPC message size in bytes.  Must be raised consistently on both workers when storing
+    large JSON payloads over gRPC.
+  - `-rest-max-body-size` (Main Worker only, default **1 MiB**) — sets the maximum HTTP request
+    body size in bytes for the `PUT /entity/{db}` and `PUT /schema/{id}` REST endpoints.
+  See [Configuration Reference](docs/usage/configuration.md) for examples.
+
 ---
 
 ## [0.1.0-alpha.1] — 2026-02-25

@@ -18,6 +18,8 @@ Start the Main Worker with `./bin/main-worker [flags]`.
 | `-key-id` | `main-key-v1` | Logical identifier for the master key (stored in entity metadata) |
 | `-worker-ttl` | `1h` | TTL for Processing Worker session tokens |
 | `-client-ttl` | `24h` | TTL for client Bearer tokens |
+| `-grpc-max-recv-msg-size` | `4194304` (4 MiB) | Maximum gRPC message size in bytes the server will accept. Increase this when storing large JSON payloads via gRPC |
+| `-rest-max-body-size` | `1048576` (1 MiB) | Maximum HTTP request body size in bytes for entity and schema PUT endpoints. Increase this when storing large JSON payloads via the REST API |
 | `-s3-endpoint` | *(empty)* | S3-compatible endpoint (e.g. `minio:9000`). Setting this enables the S3 backend |
 | `-s3-access-key` | *(empty)* | S3 access key ID. Prefer the `S3_ACCESS_KEY` env var |
 | `-s3-secret-key` | *(empty)* | S3 secret access key. Prefer the `S3_SECRET_KEY` env var |
@@ -62,6 +64,7 @@ Start the Processing Worker with `./bin/proc-worker [flags]`.
 | `-shared-fs` | `./shared/db` | Path to the shared filesystem root. Ignored when `-s3-endpoint` is set |
 | `-cache-size` | `256` | Maximum number of entities to keep in the LRU cache |
 | `-cache-ttl` | `0` | TTL per cache entry. `0` = LRU-only eviction, no time-based expiry |
+| `-grpc-max-recv-msg-size` | `4194304` (4 MiB) | Maximum gRPC message size in bytes this worker will accept. Must be set to at least the same value as the Main Worker's `-grpc-max-recv-msg-size` when handling large payloads |
 | `-s3-endpoint` | *(empty)* | S3-compatible endpoint. Setting this enables the S3 backend |
 | `-s3-access-key` | *(empty)* | S3 access key ID. Prefer the `S3_ACCESS_KEY` env var |
 | `-s3-secret-key` | *(empty)* | S3 secret access key. Prefer the `S3_SECRET_KEY` env var |
@@ -157,3 +160,61 @@ env:
 ```
 
 See the [Deployment guide](deployment) for complete Kubernetes examples.
+
+---
+
+## Configuring Maximum Data / Payload Size
+
+By default DeltaDatabase accepts up to **4 MiB per gRPC message** and **1 MiB per REST request body**.
+If your entities are larger you must raise both limits consistently across Main Worker and every Processing Worker.
+
+### REST clients (curl, Python, browser UI)
+
+Use `-rest-max-body-size` on the Main Worker:
+
+```bash
+./bin/main-worker \
+  -rest-addr=0.0.0.0:8080 \
+  -rest-max-body-size=10485760   # 10 MiB
+```
+
+### gRPC clients
+
+Use `-grpc-max-recv-msg-size` on **both** the Main Worker and every Processing Worker.
+Both values should be identical so that forwarded messages are accepted end-to-end:
+
+```bash
+# Main Worker
+./bin/main-worker \
+  -grpc-addr=0.0.0.0:50051 \
+  -grpc-max-recv-msg-size=10485760   # 10 MiB
+
+# Processing Worker (must match the Main Worker's setting)
+./bin/proc-worker \
+  -main-addr=main-worker:50051 \
+  -grpc-addr=0.0.0.0:50052 \
+  -grpc-max-recv-msg-size=10485760   # 10 MiB
+```
+
+### Docker Compose example
+
+```yaml
+services:
+  main-worker:
+    image: donti/deltadatabase:latest-main
+    command: >
+      -grpc-addr=0.0.0.0:50051
+      -rest-addr=0.0.0.0:8080
+      -grpc-max-recv-msg-size=10485760
+      -rest-max-body-size=10485760
+
+  proc-worker:
+    image: donti/deltadatabase:latest-proc
+    command: >
+      -main-addr=main-worker:50051
+      -grpc-addr=0.0.0.0:50052
+      -grpc-max-recv-msg-size=10485760
+```
+
+!!! note
+    The `/api/keys` management endpoint always limits request bodies to 64 KiB regardless of `-rest-max-body-size`.  That endpoint only handles small JSON payloads (API key metadata) and the smaller limit is intentional.

@@ -56,6 +56,10 @@ type ProcConfig struct {
 	// MetricsAddr is the address for the Prometheus /metrics HTTP endpoint
 	// (e.g. ":9091").  An empty string disables the metrics server.
 	MetricsAddr string
+
+	// MaxRecvMsgSize is the maximum gRPC message size (bytes) this worker will
+	// accept.  Defaults to 4 MiB when zero.
+	MaxRecvMsgSize int
 }
 
 // NewProcWorker creates a new ProcWorker instance and generates an RSA key pair
@@ -69,6 +73,10 @@ func NewProcWorker(config *ProcConfig) (*ProcWorker, error) {
 	}
 	if config.MainAddr == "" {
 		return nil, fmt.Errorf("main worker address cannot be empty")
+	}
+
+	if config.MaxRecvMsgSize <= 0 {
+		config.MaxRecvMsgSize = 4 * 1024 * 1024 // 4 MiB
 	}
 
 	// Generate RSA key pair for key wrapping/unwrapping.
@@ -93,7 +101,10 @@ func (w *ProcWorker) Handshake(ctx context.Context) error {
 	conn, err := grpc.NewClient(
 		w.config.MainAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(proto.JSONCodec{})),
+		grpc.WithDefaultCallOptions(
+			grpc.ForceCodec(proto.JSONCodec{}),
+			grpc.MaxCallRecvMsgSize(w.config.MaxRecvMsgSize),
+		),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Main Worker: %w", err)

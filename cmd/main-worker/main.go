@@ -27,6 +27,8 @@ func main() {
 	entityCacheSize := flag.Int("entity-cache-size", 1024, "Max number of entities in the in-memory LRU cache")
 	adminKey := flag.String("admin-key", os.Getenv("ADMIN_KEY"), "Master admin Bearer key (bypasses all RBAC); defaults to $ADMIN_KEY")
 	keyStorePath := flag.String("key-store", "", "Path to the API key JSON store (default: <shared-fs>/_auth/keys.json)")
+	grpcMaxRecvMsgSize := flag.Int("grpc-max-recv-msg-size", 4*1024*1024, "Maximum gRPC message size in bytes that the server will accept (default 4 MiB)")
+	restMaxBodySize := flag.Int64("rest-max-body-size", 1*1024*1024, "Maximum HTTP request body size in bytes for entity and schema PUT endpoints (default 1 MiB)")
 
 	// S3-compatible storage flags (optional).
 	s3Endpoint  := flag.String("s3-endpoint",   "", "S3-compatible endpoint (enables S3 backend for templates)")
@@ -107,17 +109,19 @@ func main() {
 
 	// Create configuration
 	config := &Config{
-		GRPCAddr:        *grpcAddr,
-		RESTAddr:        *restAddr,
-		MetricsAddr:     *metricsAddr,
-		SharedFSPath:    templatesDir,
-		MasterKey:       masterKey,
-		KeyID:           *keyID,
-		WorkerTokenTTL:  *workerTTL,
-		ClientTokenTTL:  *clientTTL,
-		EntityCacheSize: *entityCacheSize,
-		AdminKey:        *adminKey,
-		KeyStorePath:    *keyStorePath,
+		GRPCAddr:           *grpcAddr,
+		RESTAddr:           *restAddr,
+		MetricsAddr:        *metricsAddr,
+		SharedFSPath:       templatesDir,
+		MasterKey:          masterKey,
+		KeyID:              *keyID,
+		WorkerTokenTTL:     *workerTTL,
+		ClientTokenTTL:     *clientTTL,
+		EntityCacheSize:    *entityCacheSize,
+		AdminKey:           *adminKey,
+		KeyStorePath:       *keyStorePath,
+		MaxRecvMsgSize:     *grpcMaxRecvMsgSize,
+		MaxRequestBodySize: *restMaxBodySize,
 	}
 
 	// Create and start Main Worker server
