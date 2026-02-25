@@ -3,19 +3,19 @@
 
 DeltaDatabase uses a **three-tier Bearer token model** for external clients and a separate **RSA + token handshake** for Processing Workers.
 
+> **For server-to-server or script usage:** use an admin key or API key directly as the Bearer value on every request — **no login step is ever required**. The keys are static and do not expire unless you explicitly set `expires_in` when creating an API key.
+
 ---
 
 ## Three-Tier Authentication Priority
 
 Every `Authorization: Bearer <value>` header is evaluated in this order:
 
-| Priority | Type | How to obtain | Permissions |
-|----------|------|---------------|-------------|
-| 1 | **Admin key** | Set `-admin-key` flag or `$ADMIN_KEY` env var at startup | Full access — bypasses all RBAC |
-| 2 | **API key** | `POST /api/keys` (requires admin) | Configurable: `read`, `write`, and/or `admin` |
-| 3 | **Session token** | `POST /api/login` with your admin key or API key | Inherits the permissions of the key used to log in |
-
-> **Tip:** For scripts and CI pipelines, use an API key (`dk_…`) directly as the Bearer token — no login step is required.
+| Priority | Type | How to obtain | Expiry |
+|----------|------|---------------|--------|
+| 1 | **Admin key** | Set `-admin-key` flag or `$ADMIN_KEY` env var at startup | Never expires |
+| 2 | **API key** (`dk_…`) | `POST /api/keys` (requires admin) | Never, unless `expires_in` is set at creation |
+| 3 | **Session token** | `POST /api/login` — browser UI only | Short-lived (default: 24 h, set by `-client-ttl`) |
 
 ---
 
@@ -32,7 +32,8 @@ curl -s http://127.0.0.1:8080/admin/workers \
 
 ### Option B — API Key (direct Bearer)
 
-Create a named API key via the Management UI or REST API, then use its secret directly:
+Create a named API key via the Management UI or REST API, then use its secret directly.
+**No login step required — the secret is the Bearer token.**
 
 ```bash
 # Create a read+write key (requires admin)
@@ -41,12 +42,16 @@ curl -s -X POST http://127.0.0.1:8080/api/keys \
   -H 'Content-Type: application/json' \
   -d '{"name":"ci-deploy","permissions":["read","write"]}'
 
-# Use the returned dk_… secret directly
+# Use the returned dk_… secret directly on every request
 curl -s http://127.0.0.1:8080/entity/mydb?key=hello \
   -H "Authorization: Bearer dk_abc123…"
 ```
 
-### Option C — Session Token (browser / short-lived)
+### Option C — Session Token (browser UI only)
+
+This option exists solely so that the built-in web UI can exchange a key for a
+short-lived token without storing the raw key in browser storage. **Do not use
+this pattern in server-to-server code or scripts** — use Option A or B instead.
 
 Obtain a short-lived session token by posting your admin key or API key to `/api/login`.  
 The session token inherits the **exact permissions** of the key used to authenticate.

@@ -28,7 +28,10 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
 # DeltaDatabase connection
 # ---------------------------------------------------------------------------
 DELTA_DB_URL = os.environ.get("DELTA_DB_URL", "http://localhost:8080")
-DELTA_DB_CLIENT_ID = os.environ.get("DELTA_DB_CLIENT_ID", "chat-app")
+# API key (admin key or a scoped dk_… key) used directly as the Bearer token.
+# No login step is needed — the key is static and does not expire unless you
+# explicitly set expires_in when creating it.
+DELTA_DB_API_KEY = os.environ.get("DELTA_DB_API_KEY", "")
 
 # Database / collection names inside DeltaDatabase
 DB_USERS = "chat_users"
@@ -39,48 +42,19 @@ DB_ADMIN_CONFIG = "chat_admin_config"
 
 DEFAULT_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
-# Module-level token cache (re-obtained via /api/login on 401)
-_delta_token: str | None = None
-
-
-def _login_delta() -> str:
-    resp = requests.post(
-        f"{DELTA_DB_URL}/api/login",
-        json={"client_id": DELTA_DB_CLIENT_ID},
-        timeout=10,
-    )
-    resp.raise_for_status()
-    return resp.json()["token"]
-
-
-def get_delta_token() -> str:
-    global _delta_token
-    if not _delta_token:
-        _delta_token = _login_delta()
-    return _delta_token
-
 
 def _headers() -> dict:
-    return {"Authorization": f"Bearer {get_delta_token()}"}
+    return {"Authorization": f"Bearer {DELTA_DB_API_KEY}"}
 
 
 def delta_get(db: str, key: str):
     """Return the entity dict or None if not found."""
-    global _delta_token
     resp = requests.get(
         f"{DELTA_DB_URL}/entity/{db}",
         params={"key": key},
         headers=_headers(),
         timeout=10,
     )
-    if resp.status_code == 401:
-        _delta_token = _login_delta()
-        resp = requests.get(
-            f"{DELTA_DB_URL}/entity/{db}",
-            params={"key": key},
-            headers=_headers(),
-            timeout=10,
-        )
     if resp.status_code == 404:
         return None
     resp.raise_for_status()
@@ -89,21 +63,12 @@ def delta_get(db: str, key: str):
 
 def delta_put(db: str, key: str, value: dict) -> None:
     """Create or update an entity."""
-    global _delta_token
     resp = requests.put(
         f"{DELTA_DB_URL}/entity/{db}",
         json={key: value},
         headers=_headers(),
         timeout=10,
     )
-    if resp.status_code == 401:
-        _delta_token = _login_delta()
-        resp = requests.put(
-            f"{DELTA_DB_URL}/entity/{db}",
-            json={key: value},
-            headers=_headers(),
-            timeout=10,
-        )
     resp.raise_for_status()
 
 

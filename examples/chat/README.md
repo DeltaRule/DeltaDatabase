@@ -62,6 +62,7 @@ Open **http://localhost:5000**.  Default admin credentials: `admin` / `admin123`
 3. **Run the app**:
    ```bash
    DELTA_DB_URL=http://localhost:8080 \
+   DELTA_DB_API_KEY=mysecretadminkey \
    MOCK_OPENAI=true \
    python app.py
    ```
@@ -73,7 +74,7 @@ Open **http://localhost:5000**.  Default admin credentials: `admin` / `admin123`
 | Variable | Default | Description |
 |---|---|---|
 | `DELTA_DB_URL` | `http://localhost:8080` | DeltaDatabase REST endpoint |
-| `DELTA_DB_CLIENT_ID` | `chat-app` | Client ID used to authenticate with DeltaDatabase |
+| `DELTA_DB_API_KEY` | *(required)* | Admin key or scoped API key used as the Bearer token on every request — no login step needed |
 | `FLASK_SECRET_KEY` | random | Flask session signing key — **set this in production** |
 | `ADMIN_USERNAME` | `admin` | Username created on first run |
 | `ADMIN_PASSWORD` | `admin123` | Password for the admin user — **change in production** |

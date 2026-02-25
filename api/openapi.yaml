@@ -12,19 +12,18 @@ info:
     ## Authentication
 
     Every protected endpoint requires an `Authorization: Bearer <value>` header.
-    The value can be one of three types, evaluated in this order:
+    The value is evaluated in the following priority order:
 
-    | Priority | Type | How to obtain |
-    |----------|------|---------------|
-    | 1 | **Admin key** | Set via `-admin-key` flag or `$ADMIN_KEY` env var at startup |
-    | 2 | **API key** | `POST /api/keys` (requires admin) |
-    | 3 | **Session token** | `POST /api/login` with your admin key or API key |
+    | Priority | Type | Expiry |
+    |----------|------|--------|
+    | 1 | **Admin key** — set via `-admin-key` / `$ADMIN_KEY` at startup | Never |
+    | 2 | **API key** (`dk_…`) — created via `POST /api/keys` | Never, unless `expires_in` is set |
+    | 3 | **Session token** — issued by `POST /api/login` (browser UI only) | Short-lived (default 24 h) |
 
-    Session tokens are short-lived and **cannot be refreshed**. When a token
-    expires, obtain a new one by calling `POST /api/login` again.
-
-    For scripts and CI pipelines, use an admin key or API key directly as the
-    Bearer value — no login step is required.
+    **For all server-to-server and script usage**, supply an admin key or API key
+    directly as the Bearer value on every request. **No login step is needed and
+    no token ever needs to be refreshed.** Session tokens exist only so the
+    built-in web UI can avoid storing a raw key in browser storage.
 
 servers:
   - url: http://127.0.0.1:8080
@@ -50,9 +49,13 @@ components:
       type: http
       scheme: bearer
       description: |
-        Provide an admin key, API key (`dk_…`), or session token obtained from
-        `POST /api/login`. Session tokens cannot be refreshed — call
-        `POST /api/login` again to obtain a new one when it expires.
+        Provide an admin key or API key (`dk_…`) directly — no login step needed,
+        no expiry unless explicitly configured. These are the recommended Bearer
+        values for all server-to-server and script usage.
+
+        Alternatively, provide a session token obtained from `POST /api/login`.
+        Session tokens are short-lived (browser UI use only) and cannot be
+        refreshed; call `POST /api/login` again when one expires.
 
   schemas:
     StatusOK:
@@ -96,9 +99,13 @@ components:
         token:
           type: string
           description: |
-            Short-lived session token. Valid for the duration set by `-client-ttl`
-            on the Main Worker (default: 24 hours). Tokens cannot be refreshed —
-            call `POST /api/login` again to obtain a new token when this one expires.
+            Short-lived session token for the browser UI. Valid for the duration
+            set by `-client-ttl` on the Main Worker (default: 24 hours).
+            Tokens cannot be refreshed — call `POST /api/login` again to obtain
+            a new one when this one expires.
+
+            **For server-to-server use, do not use this endpoint.** Supply an
+            admin key or API key directly as the Bearer value instead.
           example: bWDQOfIsXsdpo1OZhIwcGrRu…
         client_id:
           type: string
@@ -298,14 +305,21 @@ paths:
   /api/login:
     post:
       operationId: login
-      summary: Obtain a session token
+      summary: Obtain a session token (browser UI only)
       description: |
         Exchange an admin key or API key for a short-lived session token.
         The session token inherits the permissions of the key used.
 
-        Tokens are valid for the duration set by `-client-ttl` on the Main Worker
-        (default: **24 hours**). Tokens **cannot be refreshed** — call this
-        endpoint again to obtain a new token when the current one expires.
+        **This endpoint is intended for the built-in browser UI only.** For
+        server-to-server calls, scripts, and CI pipelines, supply an admin key
+        or API key directly as the `Authorization: Bearer` value on every
+        request — no login step is needed and no token ever expires unless you
+        explicitly configured `expires_in` on an API key.
+
+        Session tokens are valid for the duration set by `-client-ttl` on the
+        Main Worker (default: **24 hours**). Tokens **cannot be refreshed** —
+        call this endpoint again to obtain a new token when the current one
+        expires.
 
         **Dev mode only** (no `-admin-key` configured): supply `client_id`
         instead of `key` for backwards compatibility.
