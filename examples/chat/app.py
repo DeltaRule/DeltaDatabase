@@ -39,7 +39,7 @@ DB_ADMIN_CONFIG = "chat_admin_config"
 
 DEFAULT_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
-# Module-level token cache (refreshed on 401)
+# Module-level token cache (re-obtained via /api/login on 401)
 _delta_token: str | None = None
 
 

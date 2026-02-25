@@ -1,0 +1,747 @@
+openapi: "3.0.3"
+
+info:
+  title: DeltaDatabase REST API
+  version: "1.0"
+  description: |
+    REST API for DeltaDatabase — a lightweight, encrypted-at-rest JSON database.
+
+    All endpoints are served by the **Main Worker** at the configured `-rest-addr`
+    (default `127.0.0.1:8080`).
+
+    ## Authentication
+
+    Every protected endpoint requires an `Authorization: Bearer <value>` header.
+    The value can be one of three types, evaluated in this order:
+
+    | Priority | Type | How to obtain |
+    |----------|------|---------------|
+    | 1 | **Admin key** | Set via `-admin-key` flag or `$ADMIN_KEY` env var at startup |
+    | 2 | **API key** | `POST /api/keys` (requires admin) |
+    | 3 | **Session token** | `POST /api/login` with your admin key or API key |
+
+    Session tokens are short-lived and **cannot be refreshed**. When a token
+    expires, obtain a new one by calling `POST /api/login` again.
+
+    For scripts and CI pipelines, use an admin key or API key directly as the
+    Bearer value — no login step is required.
+
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local development server
+
+tags:
+  - name: authentication
+    description: Obtain and manage session tokens
+  - name: entities
+    description: Create, update, and retrieve JSON entities
+  - name: schemas
+    description: Manage JSON Schema templates
+  - name: api-keys
+    description: RBAC API key management (requires admin)
+  - name: admin
+    description: Worker status and system administration
+  - name: health
+    description: System health
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Provide an admin key, API key (`dk_…`), or session token obtained from
+        `POST /api/login`. Session tokens cannot be refreshed — call
+        `POST /api/login` again to obtain a new one when it expires.
+
+  schemas:
+    StatusOK:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+      required:
+        - status
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: entity not found
+      required:
+        - error
+
+    LoginRequest:
+      type: object
+      description: |
+        Supply either `key` (production) or `client_id` (dev mode only, when
+        no `-admin-key` is configured).
+      properties:
+        key:
+          type: string
+          description: Admin key or API key secret.
+          example: mysecretadminkey
+        client_id:
+          type: string
+          description: |
+            Dev-mode only. Accepted for backwards compatibility when the server
+            is started without `-admin-key`.
+          example: myapp
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: |
+            Short-lived session token. Valid for the duration set by `-client-ttl`
+            on the Main Worker (default: 24 hours). Tokens cannot be refreshed —
+            call `POST /api/login` again to obtain a new token when this one expires.
+          example: bWDQOfIsXsdpo1OZhIwcGrRu…
+        client_id:
+          type: string
+          example: admin
+        expires_at:
+          type: string
+          format: date-time
+          example: "2026-02-26T09:00:00Z"
+        permissions:
+          type: array
+          items:
+            type: string
+            enum: [read, write, admin]
+          example: [read, write, admin]
+      required:
+        - token
+        - client_id
+        - expires_at
+        - permissions
+
+    EntityMap:
+      type: object
+      description: |
+        A JSON object where each key is an entity key and each value is the
+        entity's JSON document. Multiple entities can be written in one request.
+      additionalProperties: true
+      example:
+        session_001:
+          messages:
+            - role: user
+              content: Hello!
+
+    CreateAPIKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable label for this key.
+          example: ci-deploy
+        permissions:
+          type: array
+          items:
+            type: string
+            enum: [read, write, admin]
+          description: Permissions granted to this key.
+          example: [read, write]
+        expires_in:
+          type: string
+          description: |
+            Optional expiry duration (e.g. `"24h"`, `"7d"`, `"30d"`). Omit for
+            a non-expiring key.
+          example: "7d"
+      required:
+        - name
+        - permissions
+
+    APIKeySecret:
+      type: object
+      description: Returned once on creation — the `secret` is never shown again.
+      properties:
+        id:
+          type: string
+          example: a1b2c3d4e5f6a7b8
+        name:
+          type: string
+          example: ci-deploy
+        secret:
+          type: string
+          description: The raw key secret (`dk_…`). Shown only once on creation.
+          example: dk_abc123…
+        permissions:
+          type: array
+          items:
+            type: string
+            enum: [read, write, admin]
+          example: [read, write]
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-04T09:00:00Z"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-25T09:00:00Z"
+      required:
+        - id
+        - name
+        - secret
+        - permissions
+        - created_at
+
+    APIKeyEntry:
+      type: object
+      description: API key metadata as returned by `GET /api/keys` (secret not included).
+      properties:
+        id:
+          type: string
+          example: a1b2c3d4e5f6a7b8
+        name:
+          type: string
+          example: ci-deploy
+        key_hash:
+          type: string
+          description: HMAC hash of the key secret (for auditing).
+          example: "sha256:abcdef…"
+        permissions:
+          type: array
+          items:
+            type: string
+            enum: [read, write, admin]
+          example: [read, write]
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-25T09:00:00Z"
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-04T09:00:00Z"
+        enabled:
+          type: boolean
+          example: true
+      required:
+        - id
+        - name
+        - key_hash
+        - permissions
+        - created_at
+        - enabled
+
+    WorkerEntry:
+      type: object
+      properties:
+        worker_id:
+          type: string
+          example: proc-1
+        status:
+          type: string
+          enum: [Available, Busy, Unreachable]
+          example: Available
+        key_id:
+          type: string
+          example: main-key-v1
+        last_seen:
+          type: string
+          format: date-time
+          example: "2026-02-24T12:01:30Z"
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            grpc_addr: "127.0.0.1:50052"
+      required:
+        - worker_id
+        - status
+        - key_id
+        - last_seen
+
+    JSONSchema:
+      type: object
+      description: A JSON Schema document (draft-07).
+      additionalProperties: true
+      example:
+        $schema: "http://json-schema.org/draft-07/schema#"
+        $id: chat.v1
+        type: object
+        properties:
+          messages:
+            type: array
+        required:
+          - messages
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Returns system health status. No authentication required.
+      tags: [health]
+      responses:
+        "200":
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+
+  # ---------------------------------------------------------------------------
+  # Authentication
+  # ---------------------------------------------------------------------------
+  /api/login:
+    post:
+      operationId: login
+      summary: Obtain a session token
+      description: |
+        Exchange an admin key or API key for a short-lived session token.
+        The session token inherits the permissions of the key used.
+
+        Tokens are valid for the duration set by `-client-ttl` on the Main Worker
+        (default: **24 hours**). Tokens **cannot be refreshed** — call this
+        endpoint again to obtain a new token when the current one expires.
+
+        **Dev mode only** (no `-admin-key` configured): supply `client_id`
+        instead of `key` for backwards compatibility.
+      tags: [authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              withKey:
+                summary: Production — use admin key or API key
+                value:
+                  key: YOUR_ADMIN_OR_API_KEY
+              devMode:
+                summary: Dev mode only (no admin-key configured)
+                value:
+                  client_id: myapp
+      responses:
+        "200":
+          description: Session token issued successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # Entities
+  # ---------------------------------------------------------------------------
+  /entity/{database}:
+    put:
+      operationId: putEntities
+      summary: Create or update entities
+      description: |
+        Create or update one or more entities in a database. The request body
+        is a JSON object where each key is an entity key and the value is the
+        entity's JSON document. Requires `write` permission.
+
+        The body must not exceed **1 MiB**. Entity keys must not contain `/`,
+        `\`, or `..` sequences.
+      tags: [entities]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: database
+          in: path
+          required: true
+          description: |
+            Name of the database. Must not contain `/`, `\`, or `..` sequences.
+          schema:
+            type: string
+          example: chatdb
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EntityMap"
+            example:
+              session_001:
+                messages:
+                  - role: user
+                    content: Hello!
+              session_002:
+                messages:
+                  - role: user
+                    content: Hi there!
+      responses:
+        "200":
+          description: All entities written successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+        "400":
+          description: Invalid JSON, schema validation failure, or body exceeds 1 MiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `write` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Request body exceeds the 1 MiB limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    get:
+      operationId: getEntity
+      summary: Retrieve a single entity
+      description: |
+        Retrieve a single entity by key from a database. Requires `read` permission.
+      tags: [entities]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: database
+          in: path
+          required: true
+          description: Name of the database.
+          schema:
+            type: string
+          example: chatdb
+        - name: key
+          in: query
+          required: true
+          description: Entity key to retrieve.
+          schema:
+            type: string
+          example: session_001
+      responses:
+        "200":
+          description: The entity's JSON document.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                messages:
+                  - role: user
+                    content: Hello!
+        "400":
+          description: Missing `key` query parameter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `read` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Entity not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # Schemas
+  # ---------------------------------------------------------------------------
+  /admin/schemas:
+    get:
+      operationId: listSchemas
+      summary: List all schema IDs
+      description: Returns a list of all registered JSON Schema IDs. No authentication required.
+      tags: [schemas]
+      responses:
+        "200":
+          description: Array of schema ID strings.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+              example:
+                - chat.v1
+                - user_credentials.v1
+                - user_chats.v1
+
+  /schema/{schemaID}:
+    get:
+      operationId: getSchema
+      summary: Retrieve a JSON Schema document
+      description: Returns the JSON Schema document for the given schema ID. No authentication required.
+      tags: [schemas]
+      parameters:
+        - name: schemaID
+          in: path
+          required: true
+          description: |
+            Schema identifier (e.g., `chat.v1`). Must not contain `/`, `\`, or
+            `..` sequences.
+          schema:
+            type: string
+          example: chat.v1
+      responses:
+        "200":
+          description: The JSON Schema document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JSONSchema"
+        "404":
+          description: Schema not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    put:
+      operationId: putSchema
+      summary: Create or replace a JSON Schema
+      description: |
+        Create or replace a JSON Schema document. Requires `write` permission.
+
+        The body must not exceed **1 MiB**. Schema IDs must not contain `/`,
+        `\`, or `..` sequences.
+      tags: [schemas]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: schemaID
+          in: path
+          required: true
+          description: Schema identifier (e.g., `product.v1`).
+          schema:
+            type: string
+          example: product.v1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JSONSchema"
+            example:
+              $schema: "http://json-schema.org/draft-07/schema#"
+              $id: product.v1
+              type: object
+              properties:
+                name:
+                  type: string
+                price:
+                  type: number
+                  minimum: 0
+              required:
+                - name
+                - price
+      responses:
+        "200":
+          description: Schema stored successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+        "400":
+          description: Invalid JSON or invalid JSON Schema document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `write` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # API Keys
+  # ---------------------------------------------------------------------------
+  /api/keys:
+    post:
+      operationId: createAPIKey
+      summary: Create an API key
+      description: |
+        Create a new named API key with RBAC permissions. Requires `admin`
+        permission. The key secret is shown **once only** in the response.
+      tags: [api-keys]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAPIKeyRequest"
+            example:
+              name: ci-deploy
+              permissions: [read, write]
+              expires_in: "7d"
+      responses:
+        "201":
+          description: API key created. The `secret` field is shown once only.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIKeySecret"
+        "400":
+          description: Missing name or permissions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `admin` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    get:
+      operationId: listAPIKeys
+      summary: List all API keys
+      description: |
+        List all API keys. Key secrets are **not** returned. Requires `admin`
+        permission.
+      tags: [api-keys]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Array of API key metadata objects.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/APIKeyEntry"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `admin` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/keys/{id}:
+    delete:
+      operationId: deleteAPIKey
+      summary: Delete an API key
+      description: Permanently delete an API key by ID. Requires `admin` permission.
+      tags: [api-keys]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Key ID as returned by `GET /api/keys`.
+          schema:
+            type: string
+          example: a1b2c3d4e5f6a7b8
+      responses:
+        "200":
+          description: Key deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `admin` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Key ID not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # Admin
+  # ---------------------------------------------------------------------------
+  /admin/workers:
+    get:
+      operationId: listWorkers
+      summary: List Processing Workers
+      description: |
+        Returns all registered Processing Workers and their current status.
+        Requires `admin` permission.
+      tags: [admin]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Array of worker status objects.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkerEntry"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `admin` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"

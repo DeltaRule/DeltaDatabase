@@ -79,9 +79,9 @@ curl -s "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
   -H "Authorization: Bearer bWDQOfIsXsdpo1OZhIwcGrRu…"
 ```
 
-#### Step 3 — Refresh
+#### Step 3 — Token Expiry
 
-Tokens cannot be refreshed. Obtain a new token by calling `POST /api/login` again.
+Tokens cannot be refreshed. When a token expires, obtain a new one by calling `POST /api/login` again with your key.
 
 ---
 
