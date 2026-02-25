@@ -1,9 +1,3 @@
----
-layout: home
-title: Home
-nav_order: 1
----
-
 # DeltaDatabase
 
 > A lightweight, **encrypted-at-rest** JSON database written in Go — built for
@@ -30,8 +24,8 @@ A built-in single-page web UI is served at `/` so you can browse and manage data
 
 ## Quick Navigation
 
-{: .highlight }
-> **New here?** Start with the [Quick Start guide](usage/quickstart) to have DeltaDatabase running in under 5 minutes.
+!!! tip
+    **New here?** Start with the [Quick Start guide](usage/quickstart) to have DeltaDatabase running in under 5 minutes.
 
 | I want to… | Go to… |
 |------------|--------|

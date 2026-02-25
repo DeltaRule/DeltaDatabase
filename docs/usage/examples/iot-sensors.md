@@ -1,10 +1,3 @@
----
-layout: default
-title: IoT Sensor Data
-parent: Examples
-grand_parent: Usage
-nav_order: 3
----
 
 # Example: IoT Sensor Data
 

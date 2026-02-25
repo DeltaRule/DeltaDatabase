@@ -1,17 +1,11 @@
----
-layout: default
-title: Quick Start
-parent: Usage
-nav_order: 1
----
 
 # Quick Start
 
 Get DeltaDatabase running in under 5 minutes.
 
-{: .highlight }
-> **Recommended:** Use Docker for the easiest experience. The binary approach is shown below for local development.
-
+!!! tip
+    **Recommended:** Use Docker for the easiest experience. The binary approach is shown below for local development.
+    
 ---
 
 ## Option A — Docker (Recommended)

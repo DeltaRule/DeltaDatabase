@@ -1,9 +1,3 @@
----
-layout: default
-title: Configuration
-parent: Usage
-nav_order: 2
----
 
 # Configuration Reference
 
@@ -111,9 +105,9 @@ export S3_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 | `S3_ACCESS_KEY` | `-s3-access-key` | Both |
 | `S3_SECRET_KEY` | `-s3-secret-key` | Both |
 
-{: .warning }
-> **Security note:** The `-master-key` flag value appears in the shell command history. In production, load the key from an environment variable or a secrets manager and pass it via a wrapper script.
-
+!!! warning
+    **Security note:** The `-master-key` flag value appears in the shell command history. In production, load the key from an environment variable or a secrets manager and pass it via a wrapper script.
+    
 ---
 
 ## Configuration in Docker Compose

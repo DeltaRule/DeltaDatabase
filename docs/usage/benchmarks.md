@@ -1,9 +1,3 @@
----
-layout: default
-title: Benchmark Results
-parent: Usage
-nav_order: 9
----
 
 # Benchmark Results
 

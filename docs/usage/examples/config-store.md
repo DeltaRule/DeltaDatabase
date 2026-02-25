@@ -1,10 +1,3 @@
----
-layout: default
-title: Configuration Store
-parent: Examples
-grand_parent: Usage
-nav_order: 4
----
 
 # Example: Configuration Store
 

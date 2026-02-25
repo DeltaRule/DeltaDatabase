@@ -1,9 +1,3 @@
----
-layout: default
-title: API Reference
-parent: Usage
-nav_order: 3
----
 
 # REST API Reference
 

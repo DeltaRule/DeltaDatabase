@@ -1,9 +1,3 @@
----
-layout: default
-title: Authentication
-parent: Usage
-nav_order: 4
----
 
 # Authentication
 
@@ -88,9 +82,9 @@ The following endpoints do **not** require authentication:
 
 ## Securing the API in Production
 
-{: .warning }
-> In development, `client_id` is trusted as-is. In production, harden the auth model:
-
+!!! warning
+    In development, `client_id` is trusted as-is. In production, harden the auth model:
+    
 - Put the Main Worker behind a reverse proxy (nginx, Traefik) with TLS termination.
 - Use a fixed, strong `client_id` and rotate tokens regularly.
 - Set a short `-client-ttl` (e.g., `1h`) for sensitive applications.

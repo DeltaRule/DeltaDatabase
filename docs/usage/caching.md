@@ -1,9 +1,3 @@
----
-layout: default
-title: Caching Model
-parent: Usage
-nav_order: 8
----
 
 # Caching Model
 
