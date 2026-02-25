@@ -155,6 +155,44 @@ curl -s "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
 
 ---
 
+### `DELETE /entity/{database}?key={entityKey}`
+
+Delete a single entity by key. Requires `write` permission.
+
+**Path parameter:** `database` — name of the database.
+
+**Query parameter:** `key` — entity key.
+
+**Request:**
+
+```http
+DELETE /entity/chatdb?key=session_001
+Authorization: Bearer <token>
+```
+
+**Response `200 OK`:**
+
+```json
+{"status": "ok"}
+```
+
+**Error responses:**
+
+| Code | Meaning |
+|------|---------|
+| `400` | Missing `key` query parameter |
+| `401` | Missing or invalid Bearer token |
+| `403` | Token lacks `write` permission |
+
+**Example:**
+
+```bash
+curl -s -X DELETE "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
 ## Schemas
 
 ### `GET /admin/schemas`

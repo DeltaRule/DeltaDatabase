@@ -249,6 +249,19 @@ Response:
 {"messages":[{"role":"user","content":"Hello!"}]}
 ```
 
+### 6. Delete the entity
+
+```bash
+curl -s -X DELETE "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
+  -H "Authorization: Bearer $ADMIN_KEY"
+```
+
+Response:
+
+```json
+{"status":"ok"}
+```
+
 ---
 
 ## Configuration Reference
@@ -445,6 +458,30 @@ Retrieve a single entity.
 | `400` | Missing `key` query parameter or missing database |
 | `401` | Missing or invalid Bearer token |
 | `404` | Entity not found |
+
+---
+
+### `DELETE /entity/{database}?key={entityKey}`
+
+Delete a single entity by key from a database. Requires `write` permission.
+
+**Path parameter:** `database` — name of the database.
+
+**Query parameter:** `key` — entity key.
+
+**Response:**
+
+```json
+{ "status": "ok" }
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|-----------|---------|
+| `400` | Missing `key` query parameter or missing database |
+| `401` | Missing or invalid Bearer token |
+| `403` | Token lacks `write` permission |
 
 ---
 
@@ -653,6 +690,7 @@ Available permissions: `read`, `write`, `admin` (full key management).
 |---|---|
 | `GET /entity/…` | `read` |
 | `PUT /entity/…` | `write` |
+| `DELETE /entity/…` | `write` |
 | `GET /admin/workers` | `admin` |
 | `GET /api/keys` | `admin` |
 | `POST /api/keys` | `admin` |
@@ -709,7 +747,7 @@ http://127.0.0.1:8080/
 | **Login** | Beautiful sign-in card — enter your admin key, API key, or a dev-mode Client ID |
 | **Dashboard** | Live health status, worker counts, database count, and cache statistics |
 | **Databases** | Dropdown + card grid of all databases; click any card to explore its entities |
-| **Entities** | GET and PUT entities with a database dropdown pre-populated from `GET /api/databases` |
+| **Entities** | GET, PUT, and DELETE entities with a database dropdown pre-populated from `GET /api/databases` |
 | **Workers** | Table of all registered Processing Workers with status, key ID, last-seen, and tags |
 | **Schemas** | List, load, create, and edit JSON Schema templates; export as Pydantic or TypeScript |
 | **API Keys** | Create and delete RBAC API keys (admin only) with permissions and optional expiry |

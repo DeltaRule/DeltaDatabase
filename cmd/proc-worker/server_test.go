@@ -113,7 +113,7 @@ func TestProcess_Subscribe_Unimplemented(t *testing.T) {
 func TestProcess_InvalidOperation(t *testing.T) {
 	srv, _, _ := setupProcWorkerServer(t)
 
-	for _, op := range []string{"DELETE", "bad", ""} {
+	for _, op := range []string{"bad", ""} {
 		t.Run(fmt.Sprintf("op=%q", op), func(t *testing.T) {
 			req := &proto.ProcessRequest{
 				DatabaseName: "db",

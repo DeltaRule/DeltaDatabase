@@ -33,7 +33,7 @@ tags:
   - name: authentication
     description: Obtain and manage session tokens
   - name: entities
-    description: Create, update, and retrieve JSON entities
+    description: Create, read, update, and delete JSON entities
   - name: schemas
     description: Manage JSON Schema templates
   - name: api-keys
@@ -481,6 +481,55 @@ paths:
                 $ref: "#/components/schemas/Error"
         "404":
           description: Entity not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      operationId: deleteEntity
+      summary: Delete a single entity
+      description: |
+        Delete a single entity by key from a database. Requires `write` permission.
+      tags: [entities]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: database
+          in: path
+          required: true
+          description: Name of the database.
+          schema:
+            type: string
+          example: chatdb
+        - name: key
+          in: query
+          required: true
+          description: Entity key to delete.
+          schema:
+            type: string
+          example: session_001
+      responses:
+        "200":
+          description: Entity deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+        "400":
+          description: Missing `key` query parameter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `write` permission.
           content:
             application/json:
               schema:

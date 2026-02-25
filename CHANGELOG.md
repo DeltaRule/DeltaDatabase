@@ -10,6 +10,10 @@ DeltaDatabase uses [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`DELETE /entity/{database}?key={entityKey}`** — new endpoint to delete a single entity by key.
+  Requires `write` permission. The entity is evicted from the in-memory cache and its encrypted
+  files are removed from the shared filesystem. Documented in the OpenAPI spec, REST API reference,
+  quick start guide, caching model, and security model pages.
 - **Configurable maximum payload size** — the maximum data size accepted by both workers
   is now configurable via command-line flags, eliminating the previous hardcoded limits:
   - `-grpc-max-recv-msg-size` (Main Worker and Processing Worker, default **4 MiB**) — sets the
