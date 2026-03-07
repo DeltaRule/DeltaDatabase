@@ -32,6 +32,12 @@ spec:
                   name: delta-master-key
                   key: master-key
                   optional: true
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: delta-admin-key
+                  key: admin-key
+                  optional: true
           ports:
             - name: rest
               containerPort: 8080

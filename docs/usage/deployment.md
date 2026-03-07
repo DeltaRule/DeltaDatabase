@@ -220,22 +220,28 @@ The `deploy/kubernetes/kustomize/` overlay bundles all components into a single 
   ```
 - A ReadWriteMany StorageClass. Edit `deploy/kubernetes/kustomize/shared-pvc.yaml` to set `storageClassName` to your provider (e.g., `nfs-client`, `azurefile`, `efs-sc`).
 
-### Deploy
+### Manual deploy
+
+When applying from a local workstation, create all required secrets before running `kubectl apply -k`:
 
 ```bash
-# 1. Create the namespace, master-key secret, and (optionally) a Grafana admin password
+# 1. Create namespace
 kubectl create namespace deltadatabase
+
+# 2. Create all required secrets
 kubectl -n deltadatabase create secret generic delta-master-key \
   --from-literal=master-key="$(openssl rand -hex 32)"
 
-# Optional: override the default Grafana admin password before applying
+kubectl -n deltadatabase create secret generic delta-admin-key \
+  --from-literal=admin-key="$(openssl rand -hex 24)"
+
 kubectl -n deltadatabase create secret generic grafana-admin \
   --from-literal=admin-password="$(openssl rand -hex 16)"
 
-# 2. Apply everything with one command
+# 3. Apply everything with one command
 kubectl apply -k deploy/kubernetes/kustomize
 
-# 3. Wait for rollout
+# 4. Wait for rollout
 kubectl -n deltadatabase rollout status deployment/main-worker
 kubectl -n deltadatabase rollout status deployment/proc-worker
 kubectl -n deltadatabase rollout status deployment/prometheus
@@ -243,8 +249,8 @@ kubectl -n deltadatabase rollout status deployment/grafana
 ```
 
 !!! warning
-    If you skip creating the `grafana-admin` secret, a default password of `admin` is used.
-    Always set a strong password before exposing Grafana to any network.
+    All three secrets must exist before `kubectl apply -k` — the Deployments reference
+    them at startup.  Store secret values securely; never commit them to source control.
 
 ### Access
 
@@ -253,7 +259,7 @@ kubectl -n deltadatabase rollout status deployment/grafana
 kubectl -n deltadatabase port-forward svc/main-worker 8080:8080
 # open http://localhost:8080
 
-# Grafana dashboard (login: admin / admin)
+# Grafana dashboard (login: admin / <GRAFANA_ADMIN_PASSWORD>)
 kubectl -n deltadatabase port-forward svc/grafana 3000:3000
 # open http://localhost:3000
 
@@ -293,7 +299,61 @@ Internet / Ingress
 | Storage class | `kustomize/shared-pvc.yaml` | Set `storageClassName` |
 | Image tag | `kustomize/main-worker.yaml` / `kustomize/proc-worker.yaml` | Pin to a release tag |
 | HPA limits | `kustomize/proc-worker-hpa.yaml` | Adjust `minReplicas`, `maxReplicas`, `averageUtilization` |
-| Grafana password | `kustomize/prometheus-grafana.yaml` | Change `GF_SECURITY_ADMIN_PASSWORD` env var |
+
+---
+
+## GitHub Actions — Automatic Kubernetes Deploy
+
+The workflow `.github/workflows/deploy-kubernetes.yml` runs after every successful
+`Docker Hub Publish` and applies the full Kustomize overlay to your cluster automatically.
+It can also be triggered manually from the GitHub Actions UI to deploy a specific release.
+
+### What the workflow does
+
+1. Installs `kubectl` and `kustomize` (skipped if already present on the runner).
+2. Validates that all four required secrets exist; fails fast if any are missing.
+3. Configures `kubectl` using the `KUBE_CONFIG` secret.
+4. Creates or updates the three Kubernetes secrets in the cluster from the GitHub secrets.
+5. (Version tags only) Pins the Kustomize image references to the exact release tag.
+6. Runs `kubectl apply -k deploy/kubernetes/kustomize`.
+7. Waits up to 5 minutes for each Deployment to roll out successfully.
+8. Prints a summary of deployed images.
+
+### Required GitHub Actions secrets
+
+Navigate to **Settings → Secrets and variables → Actions → Secrets** and add:
+
+| Secret name | How to generate | Purpose |
+|---|---|---|
+| `KUBE_CONFIG` | `base64 -w0 ~/.kube/config` | kubeconfig giving the runner access to the cluster |
+| `DELTA_MASTER_KEY` | `openssl rand -hex 32` | AES-256 master encryption key for DeltaDatabase |
+| `DELTA_ADMIN_KEY` | `openssl rand -hex 24` | Admin API key for the DeltaDatabase REST / gRPC API |
+| `GRAFANA_ADMIN_PASSWORD` | `openssl rand -hex 16` | Grafana web-UI admin password |
+
+### Required GitHub Actions variables
+
+Navigate to **Settings → Secrets and variables → Actions → Variables** and confirm:
+
+| Variable name | Example | Purpose |
+|---|---|---|
+| `DOCKERHUB_USERNAME` | `donti` | Docker Hub username — shared with the build workflow |
+
+### Manual trigger
+
+Go to **Actions → Deploy — Kubernetes (Kustomize) → Run workflow**.
+
+The optional `image_tag` input controls which build to deploy:
+
+| Value | Deploys |
+|---|---|
+| `latest` *(default)* | Rolling `latest-*` images from the most recent `main` build |
+| `v0.1.1-alpha` | Pinned release images `v0.1.1-alpha-main` / `v0.1.1-alpha-proc` |
+
+### Runner requirements
+
+The workflow runs on the `self-hosted` runner label (same as the build workflow).
+The runner needs outbound internet access to the cluster's API server.
+`kubectl` and `kustomize` will be installed automatically if not already present.
 
 ---
 

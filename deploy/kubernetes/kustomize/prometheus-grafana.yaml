@@ -192,21 +192,6 @@ data:
           path: /var/lib/grafana/dashboards
 
 ---
-# Secret: Grafana admin credentials.
-# Change the password before applying in production:
-#   kubectl -n deltadatabase create secret generic grafana-admin \
-#     --from-literal=admin-password="<your-strong-password>"
-# If not created before applying, the Secret below provides the default "admin" password.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: grafana-admin
-  namespace: deltadatabase
-type: Opaque
-stringData:
-  admin-password: "admin"
-
----
 # Grafana Deployment.
 apiVersion: apps/v1
 kind: Deployment
