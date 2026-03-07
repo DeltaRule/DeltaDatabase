@@ -130,7 +130,7 @@ docker compose \
 
 ## Kubernetes with Autoscaling
 
-Processing Workers start at 1 replica and scale up to 10 based on CPU utilisation via a `HorizontalPodAutoscaler`.
+Processing Workers start at 1 replica and scale up to 10 based on memory utilisation (deallocation-based) via a `HorizontalPodAutoscaler`. Using memory as the scaling metric avoids spurious scale-up events from short CPU spikes and instead tracks actual working-set pressure, scaling down as memory is deallocated when load decreases.
 
 ### Prerequisites
 
@@ -154,7 +154,7 @@ To pin a specific release, edit the `image:` field in
 image: donti/deltadatabase:v0.1.1-alpha-main
 ```
 
-### Deploy
+### Deploy (individual manifests)
 
 ```bash
 # Create namespace and secret
@@ -195,11 +195,105 @@ Internet / Ingress
 
 ### HPA Behaviour
 
-The `HorizontalPodAutoscaler` targets **60% CPU utilisation**:
+The `HorizontalPodAutoscaler` targets **80% memory utilisation** (deallocation-based scaling):
 
-- Adds up to 2 new pods per 60 seconds when CPU exceeds the target.
-- Removes 1 pod per 120 seconds when CPU drops below the target.
+- Adds up to 2 new pods per 60 seconds when memory utilisation exceeds 80%.
+- Removes 1 pod per 120 seconds as memory is deallocated and utilisation drops below the target.
 - Always keeps at least 1 pod; never exceeds 10 pods.
+
+---
+
+## One-Command Kustomize Deploy (Shared FS + Autoscaling + Monitoring)
+
+The `deploy/kubernetes/kustomize/` overlay bundles all components into a single `kubectl apply -k` command:
+
+- **Shared filesystem** PVC (ReadWriteMany, no S3 dependency)
+- **Memory-based autoscaling** HPA for Processing Workers
+- **Prometheus** with Kubernetes service-discovery scraping both workers
+- **Grafana** with the pre-built DeltaDatabase dashboard provisioned automatically
+
+### Prerequisites
+
+- Kubernetes cluster v1.26+ with the Metrics Server installed:
+  ```bash
+  kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+  ```
+- A ReadWriteMany StorageClass. Edit `deploy/kubernetes/kustomize/shared-pvc.yaml` to set `storageClassName` to your provider (e.g., `nfs-client`, `azurefile`, `efs-sc`).
+
+### Deploy
+
+```bash
+# 1. Create the namespace, master-key secret, and (optionally) a Grafana admin password
+kubectl create namespace deltadatabase
+kubectl -n deltadatabase create secret generic delta-master-key \
+  --from-literal=master-key="$(openssl rand -hex 32)"
+
+# Optional: override the default Grafana admin password before applying
+kubectl -n deltadatabase create secret generic grafana-admin \
+  --from-literal=admin-password="$(openssl rand -hex 16)"
+
+# 2. Apply everything with one command
+kubectl apply -k deploy/kubernetes/kustomize
+
+# 3. Wait for rollout
+kubectl -n deltadatabase rollout status deployment/main-worker
+kubectl -n deltadatabase rollout status deployment/proc-worker
+kubectl -n deltadatabase rollout status deployment/prometheus
+kubectl -n deltadatabase rollout status deployment/grafana
+```
+
+!!! warning
+    If you skip creating the `grafana-admin` secret, a default password of `admin` is used.
+    Always set a strong password before exposing Grafana to any network.
+
+### Access
+
+```bash
+# REST API
+kubectl -n deltadatabase port-forward svc/main-worker 8080:8080
+# open http://localhost:8080
+
+# Grafana dashboard (login: admin / admin)
+kubectl -n deltadatabase port-forward svc/grafana 3000:3000
+# open http://localhost:3000
+
+# Prometheus UI
+kubectl -n deltadatabase port-forward svc/prometheus 9090:9090
+# open http://localhost:9090
+```
+
+### Kustomize Architecture
+
+```
+Internet / Ingress
+       │
+       ▼  REST :8080
+┌──────────────────┐     metrics :9090
+│   main-worker    │ ──────────────────────────────┐
+│   ClusterIP svc  │                               │
+└────────┬─────────┘                               │
+         │  gRPC :50051                            │
+    ┌────┴──────────────────────────────┐          │
+    │                                   │          ▼
+ proc-worker-1  proc-worker-2  …  (HPA: 1–10)  ┌──────────┐
+    │  metrics :9091            │              │ Prometheus│
+    └──────────────────────────-┘ ←────────── │  :9090   │
+          /shared/db  (RWX PVC)               └────┬─────┘
+                                                   │
+                                              ┌────▼─────┐
+                                              │  Grafana  │
+                                              │  :3000    │
+                                              └───────────┘
+```
+
+### Customising the Overlay
+
+| Resource | File | Common change |
+|---|---|---|
+| Storage class | `kustomize/shared-pvc.yaml` | Set `storageClassName` |
+| Image tag | `kustomize/main-worker.yaml` / `kustomize/proc-worker.yaml` | Pin to a release tag |
+| HPA limits | `kustomize/proc-worker-hpa.yaml` | Adjust `minReplicas`, `maxReplicas`, `averageUtilization` |
+| Grafana password | `kustomize/prometheus-grafana.yaml` | Change `GF_SECURITY_ADMIN_PASSWORD` env var |
 
 ---
 

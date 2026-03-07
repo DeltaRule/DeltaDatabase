@@ -1,0 +1,44 @@
+---
+# Service: expose the Main Worker metrics port for Prometheus scraping.
+apiVersion: v1
+kind: Service
+metadata:
+  name: main-worker-metrics
+  namespace: deltadatabase
+  labels:
+    app: main-worker
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port:   "9090"
+    prometheus.io/path:   "/metrics"
+spec:
+  selector:
+    app: main-worker
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  type: ClusterIP
+
+---
+# Service: expose the Processing Worker metrics port.
+# Headless so Prometheus can resolve each pod individually.
+apiVersion: v1
+kind: Service
+metadata:
+  name: proc-worker-metrics
+  namespace: deltadatabase
+  labels:
+    app: proc-worker
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port:   "9091"
+    prometheus.io/path:   "/metrics"
+spec:
+  selector:
+    app: proc-worker
+  clusterIP: None   # headless — scrape each pod
+  ports:
+    - name: metrics
+      port: 9091
+      targetPort: 9091

@@ -1,0 +1,50 @@
+# Kustomize overlay: shared filesystem (no S3) + autoscaling + Prometheus & Grafana.
+#
+# Deploys the full DeltaDatabase stack with:
+#   - Shared PVC (ReadWriteMany) for the filesystem backend
+#   - Main Worker and Processing Workers
+#   - Memory-based HorizontalPodAutoscaler (deallocation-driven scaling)
+#   - Prometheus scraping both workers via Kubernetes service-discovery
+#   - Grafana with the pre-built DeltaDatabase dashboard
+#
+# Prerequisites:
+#   - Kubernetes cluster v1.26+ with the Metrics Server installed:
+#       kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+#   - A ReadWriteMany StorageClass (edit ../shared-pvc.yaml to set storageClassName).
+#   - A master-key secret (create once before applying):
+#       kubectl create namespace deltadatabase
+#       kubectl -n deltadatabase create secret generic delta-master-key \
+#         --from-literal=master-key="$(openssl rand -hex 32)"
+#
+# Apply:
+#   kubectl apply -k deploy/kubernetes/kustomize
+#
+# Access:
+#   kubectl -n deltadatabase port-forward svc/main-worker 8080:8080   # REST API
+#   kubectl -n deltadatabase port-forward svc/grafana 3000:3000        # Grafana (admin/admin)
+#   kubectl -n deltadatabase port-forward svc/prometheus 9090:9090     # Prometheus
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: deltadatabase
+
+resources:
+  - namespace.yaml
+  - shared-pvc.yaml
+  - main-worker.yaml
+  - proc-worker.yaml
+  - proc-worker-hpa.yaml
+  - monitoring-resources.yaml
+  - prometheus-grafana.yaml
+
+patches:
+  - path: patches/main-worker-metrics.yaml
+  - path: patches/proc-worker-metrics.yaml
+
+configMapGenerator:
+  - name: grafana-dashboard-deltadatabase
+    options:
+      disableNameSuffixHash: true
+    files:
+      - deltadatabase.json=deltadatabase-dashboard.json
