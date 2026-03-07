@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main-worker
+  namespace: deltadatabase
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "9090"
+        prometheus.io/path:   "/metrics"
+    spec:
+      containers:
+        - name: main-worker
+          args:
+            - "-grpc-addr=0.0.0.0:50051"
+            - "-rest-addr=0.0.0.0:8080"
+            - "-metrics-addr=0.0.0.0:9090"
+            - "-shared-fs=/shared/db"
+          ports:
+            - name: metrics
+              containerPort: 9090

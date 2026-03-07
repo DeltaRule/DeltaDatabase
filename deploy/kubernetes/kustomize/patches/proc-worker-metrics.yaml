@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proc-worker
+  namespace: deltadatabase
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "9091"
+        prometheus.io/path:   "/metrics"
+    spec:
+      containers:
+        - name: proc-worker
+          command:
+            - "sh"
+            - "-c"
+            - >
+              exec proc-worker
+              -main-addr=main-worker:50051
+              -worker-id=$(POD_NAME)
+              -grpc-addr=0.0.0.0:50052
+              -metrics-addr=0.0.0.0:9091
+              -shared-fs=/shared/db
+          ports:
+            - name: metrics
+              containerPort: 9091
