@@ -1,0 +1,15 @@
+# Shared PersistentVolumeClaim used by the Main Worker and all Processing Workers.
+# Replace storageClassName with one that supports ReadWriteMany in your cluster
+# (e.g., nfs-client, azurefile, efs-sc on AWS, Longhorn with RWX, etc.).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: delta-shared-pvc
+  namespace: deltadatabase
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: nfs-client   # ← replace with your RWX storage class

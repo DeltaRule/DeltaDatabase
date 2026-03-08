@@ -17,10 +17,10 @@ RUN addgroup -S delta && adduser -S delta -G delta
 
 COPY --from=builder /main-worker /usr/local/bin/main-worker
 COPY --from=builder /proc-worker /usr/local/bin/proc-worker
-COPY --from=builder /app/shared/db/templates /shared/db/templates
 COPY deploy/docker/entrypoint-all-in-one.sh /usr/local/bin/entrypoint.sh
 
 RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    mkdir -p /shared/db && \
     chown -R delta:delta /shared
 
 USER delta

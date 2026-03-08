@@ -1,0 +1,215 @@
+# Deploy the DeltaDatabase Kustomize stack to a Kubernetes cluster.
+#
+# Triggers:
+#   • Automatically after "Docker Hub Publish" succeeds (workflow_run).
+#   • Manually via the GitHub Actions UI (workflow_dispatch), optionally
+#     specifying an image-tag prefix to deploy a specific release.
+#
+# Required repository secrets  (Settings → Secrets and variables → Actions → Secrets):
+#   KUBE_CONFIG             Base64-encoded kubeconfig granting access to the target cluster.
+#                           Generate with: base64 -w0 ~/.kube/config
+#   DELTA_MASTER_KEY        Hex-encoded AES-256 master encryption key for DeltaDatabase.
+#                           Generate with: openssl rand -hex 32
+#   DELTA_ADMIN_KEY         Admin API key for DeltaDatabase REST/gRPC endpoints.
+#                           Generate with: openssl rand -hex 24
+#   GRAFANA_ADMIN_PASSWORD  Password for the Grafana admin user.
+#
+# Required repository variables  (Settings → Secrets and variables → Actions → Variables):
+#   DOCKERHUB_USERNAME      Docker Hub username (shared with docker-publish.yml).
+#
+# What this workflow does:
+#   1. Validates that all required secrets are set.
+#   2. Creates or updates the three Kubernetes secrets
+#      (delta-master-key, delta-admin-key, grafana-admin) from the GitHub secrets above.
+#   3. Optionally pins the image tags to a specific release version.
+#   4. Applies the full Kustomize overlay  (kubectl apply -k deploy/kubernetes/kustomize),
+#      which deploys:  Namespace · Shared PVC · Main Worker · Processing Workers ·
+#      memory-based HPA · Prometheus · Grafana (with pre-built dashboard).
+#   5. Waits for all four Deployments to roll out successfully.
+
+name: Deploy — Kubernetes (Kustomize)
+
+on:
+  # Automatically run after every successful Docker Hub Publish workflow.
+  workflow_run:
+    workflows: ["Docker Hub Publish"]
+    types: [completed]
+
+  # Allow operators to trigger a deploy manually and optionally pin a release tag.
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: >
+          Image-tag prefix to deploy.
+          Use 'latest' for the rolling build, or a version such as 'v0.1.1-alpha'
+          for a pinned release.  Defaults to 'latest'.
+        required: false
+        default: "latest"
+
+jobs:
+
+  deploy:
+    name: Apply Kustomize stack
+    runs-on: self-hosted
+
+    # For workflow_run: only proceed when every build matrix job succeeded.
+    # For workflow_dispatch: always proceed.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    permissions:
+      contents: read
+
+    steps:
+
+      # ── 1. Source code ────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. CLI tools ──────────────────────────────────────────────────────────
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install kustomize
+        env:
+          KUSTOMIZE_VERSION: "v5.4.3"
+        run: |
+          # Skip installation if kustomize is already present (e.g. cached on runner).
+          if command -v kustomize &>/dev/null; then
+            echo "kustomize $(kustomize version --short) already installed — skipping."
+            exit 0
+          fi
+          OS="linux"
+          ARCH="amd64"
+          URL="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_${OS}_${ARCH}.tar.gz"
+          curl -sL "${URL}" | tar xz -C /tmp
+          mkdir -p "${HOME}/.local/bin"
+          mv /tmp/kustomize "${HOME}/.local/bin/kustomize"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+      # ── 3. Cluster authentication ─────────────────────────────────────────────
+      - name: Validate required secrets
+        run: |
+          missing=()
+          [[ -z "${{ secrets.KUBE_CONFIG }}"            ]] && missing+=(KUBE_CONFIG)
+          [[ -z "${{ secrets.DELTA_MASTER_KEY }}"       ]] && missing+=(DELTA_MASTER_KEY)
+          [[ -z "${{ secrets.DELTA_ADMIN_KEY }}"        ]] && missing+=(DELTA_ADMIN_KEY)
+          [[ -z "${{ secrets.GRAFANA_ADMIN_PASSWORD }}" ]] && missing+=(GRAFANA_ADMIN_PASSWORD)
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::The following required secrets are not set: ${missing[*]}"
+            echo "::error::See docs/usage/deployment.md#github-actions-deploy for setup instructions."
+            exit 1
+          fi
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "${HOME}/.kube"
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"
+
+      - name: Verify cluster connectivity
+        run: kubectl cluster-info --request-timeout=10s
+
+      # ── 4. Compute image-tag prefix ───────────────────────────────────────────
+      - name: Compute image-tag prefix
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PREFIX="${{ github.event.inputs.image_tag }}"
+          else
+            # workflow_run: head_branch is the tag name for tag-push triggers,
+            # or the branch name (e.g. "main") for branch-push triggers.
+            REF="${{ github.event.workflow_run.head_branch }}"
+            if [[ "$REF" =~ ^v[0-9] ]]; then
+              PREFIX="$REF"
+            else
+              PREFIX="latest"
+            fi
+          fi
+          echo "prefix=${PREFIX}" >> "${GITHUB_OUTPUT}"
+          echo "Deploying images with tag prefix: ${PREFIX}"
+
+      # ── 5. Ensure namespace exists ────────────────────────────────────────────
+      - name: Ensure namespace
+        run: |
+          kubectl create namespace deltadatabase \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ── 6. Sync Kubernetes secrets from GitHub secrets ────────────────────────
+      #
+      # We create or update all three secrets before applying Kustomize so that
+      # every Secret reference in the manifests resolves correctly on first apply.
+      # Using --dry-run=client -o yaml | kubectl apply makes this idempotent.
+      - name: Sync Kubernetes secrets
+        env:
+          DELTA_MASTER_KEY: ${{ secrets.DELTA_MASTER_KEY }}
+          DELTA_ADMIN_KEY: ${{ secrets.DELTA_ADMIN_KEY }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: |
+          # delta-master-key — AES-256 encryption key used by all DeltaDatabase workers.
+          kubectl -n deltadatabase create secret generic delta-master-key \
+            --from-literal=master-key="${DELTA_MASTER_KEY}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # delta-admin-key — admin API key for the DeltaDatabase REST / gRPC API.
+          kubectl -n deltadatabase create secret generic delta-admin-key \
+            --from-literal=admin-key="${DELTA_ADMIN_KEY}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # grafana-admin — Grafana web-UI admin credentials.
+          kubectl -n deltadatabase create secret generic grafana-admin \
+            --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ── 7. Pin image tags (version deployments only) ──────────────────────────
+      - name: Pin image tags in Kustomize overlay
+        working-directory: deploy/kubernetes/kustomize
+        run: |
+          PREFIX="${{ steps.tag.outputs.prefix }}"
+          IMAGE="${{ vars.DOCKERHUB_USERNAME }}/deltadatabase"
+
+          # For the rolling 'latest' builds the manifests already reference
+          # the correct :latest-main / :latest-proc tags — nothing to change.
+          if [[ "$PREFIX" == "latest" ]]; then
+            echo "Using default 'latest' image tags — no override needed."
+            exit 0
+          fi
+
+          # For pinned releases, override both image references so kustomize
+          # builds manifests that reference the exact version that was just built.
+          kustomize edit set image \
+            "${IMAGE}:latest-main=${IMAGE}:${PREFIX}-main" \
+            "${IMAGE}:latest-proc=${IMAGE}:${PREFIX}-proc"
+
+          echo "Image tags pinned to: ${PREFIX}-main / ${PREFIX}-proc"
+
+      # ── 8. Apply the full Kustomize overlay ───────────────────────────────────
+      - name: Apply Kustomize overlay
+        run: |
+          kubectl apply -k deploy/kubernetes/kustomize
+
+      # ── 9. Wait for rollout ───────────────────────────────────────────────────
+      - name: Wait for rollout — main-worker
+        run: kubectl -n deltadatabase rollout status deployment/main-worker --timeout=300s
+
+      - name: Wait for rollout — proc-worker
+        run: kubectl -n deltadatabase rollout status deployment/proc-worker --timeout=300s
+
+      - name: Wait for rollout — prometheus
+        run: kubectl -n deltadatabase rollout status deployment/prometheus --timeout=300s
+
+      - name: Wait for rollout — grafana
+        run: kubectl -n deltadatabase rollout status deployment/grafana --timeout=300s
+
+      # ── 10. Deployment summary ────────────────────────────────────────────────
+      - name: Print deployment summary
+        run: |
+          echo "===== DeltaDatabase deployment summary ====="
+          kubectl -n deltadatabase get deployments,hpa,svc \
+            -o wide --no-headers 2>/dev/null || true
+          echo ""
+          echo "===== Running images ====="
+          kubectl -n deltadatabase get pods \
+            -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' \
+            2>/dev/null || true
