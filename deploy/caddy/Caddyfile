@@ -19,10 +19,10 @@
 
 # Grafana dashboard
 :${CADDY_GRAFANA_PORT} {
-    reverse_proxy ${K8S_NODE_IP}:${GRAFANA_NODEPORT}
+	reverse_proxy ${K8S_NODE_IP}:${GRAFANA_NODEPORT}
 }
 
 # DeltaDatabase Main Worker (REST API + frontend)
 :${CADDY_MAINWORKER_PORT} {
-    reverse_proxy ${K8S_NODE_IP}:${MAINWORKER_NODEPORT}
+	reverse_proxy ${K8S_NODE_IP}:${MAINWORKER_NODEPORT}
 }
