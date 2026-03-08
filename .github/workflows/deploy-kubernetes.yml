@@ -48,6 +48,17 @@ on:
           for a pinned release.  Defaults to 'latest'.
         required: false
         default: "latest"
+      allow_pvc_deletion:
+        description: >
+          Set to 'true' to allow automatic deletion and recreation of the
+          delta-shared-pvc PersistentVolumeClaim when its storageClass does not
+          match the manifest (e.g. migrating from nfs-client to seaweedfs-storage).
+          WARNING: deleting the PVC destroys all data it holds.
+          Back up any data you want to keep before enabling this option.
+          When triggered automatically by workflow_run this check is skipped and
+          the PVC is always migrated.
+        required: false
+        default: "false"
 
 jobs:
 
@@ -252,12 +263,68 @@ jobs:
 
           echo "Image tags pinned to: ${PREFIX}-main / ${PREFIX}-proc"
 
-      # ── 9. Apply the full Kustomize overlay ───────────────────────────────────
+      # ── 9. Migrate shared PVC if storageClass changed ────────────────────────
+      #
+      # Kubernetes PVC specs are immutable after the claim is bound (except for
+      # resources.requests and volumeAttributesClassName).  When the desired
+      # storageClass changes (e.g. from nfs-client to seaweedfs-storage), kubectl
+      # apply returns a "spec is immutable" error and the deploy fails.
+      #
+      # This step detects that situation and deletes the existing PVC so that the
+      # subsequent Kustomize apply can recreate it with the correct storageClass.
+      # NOTE: deleting a PVC removes the data it holds.  Back up any data you want
+      #       to preserve before running this workflow with PVC migration enabled.
+      - name: Migrate shared PVC if storageClass changed
+        run: |
+          DESIRED_SC="seaweedfs-storage"
+
+          # Query the current storageClass.  Distinguish "not found" (safe to
+          # continue) from other errors (authentication failure, network issues,
+          # etc.) which must abort the deploy.
+          SC_OUTPUT=$(kubectl -n deltadatabase get pvc delta-shared-pvc \
+            -o jsonpath='{.spec.storageClassName}' 2>/tmp/pvc_query_error) \
+            && QUERY_EXIT=0 || QUERY_EXIT=$?
+
+          if [[ $QUERY_EXIT -ne 0 ]]; then
+            if grep -qi "not found" /tmp/pvc_query_error 2>/dev/null; then
+              echo "PVC delta-shared-pvc does not exist yet — will be created by Kustomize apply."
+              exit 0
+            else
+              echo "::error::Failed to query PVC delta-shared-pvc: $(cat /tmp/pvc_query_error)"
+              exit 1
+            fi
+          fi
+
+          CURRENT_SC="$SC_OUTPUT"
+
+          if [[ "$CURRENT_SC" == "$DESIRED_SC" ]]; then
+            echo "PVC delta-shared-pvc already uses storageClass '${DESIRED_SC}' — no migration needed."
+            exit 0
+          fi
+
+          # storageClass mismatch: deletion required.
+          echo "PVC delta-shared-pvc has storageClass '${CURRENT_SC}' but manifest requires '${DESIRED_SC}'."
+
+          # For manual workflow_dispatch runs, require the operator to explicitly
+          # acknowledge the data loss by setting allow_pvc_deletion=true.
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && \
+                "${{ github.event.inputs.allow_pvc_deletion }}" != "true" ]]; then
+            echo "::error::PVC storageClass migration requires data deletion."
+            echo "::error::Re-run this workflow with 'allow_pvc_deletion' set to 'true' to proceed."
+            echo "::error::WARNING: this will permanently destroy all data in delta-shared-pvc."
+            exit 1
+          fi
+
+          echo "Deleting PVC so it can be recreated with storageClass '${DESIRED_SC}'..."
+          kubectl -n deltadatabase delete pvc delta-shared-pvc --wait=true
+          echo "PVC deleted — it will be recreated by the Kustomize apply step."
+
+      # ── 10. Apply the full Kustomize overlay ──────────────────────────────────
       - name: Apply Kustomize overlay
         run: |
           kubectl apply -k deploy/kubernetes/kustomize
 
-      # ── 10. Wait for rollout ──────────────────────────────────────────────────
+      # ── 11. Wait for rollout ──────────────────────────────────────────────────
       - name: Wait for rollout — main-worker
         run: kubectl -n deltadatabase rollout status deployment/main-worker --timeout=300s
 
@@ -270,7 +337,7 @@ jobs:
       - name: Wait for rollout — grafana
         run: kubectl -n deltadatabase rollout status deployment/grafana --timeout=300s
 
-      # ── 11. Deployment summary ────────────────────────────────────────────────
+      # ── 12. Deployment summary ────────────────────────────────────────────────
       - name: Print deployment summary
         run: |
           echo "===== DeltaDatabase deployment summary ====="
