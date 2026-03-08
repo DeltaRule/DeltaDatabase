@@ -163,19 +163,30 @@ jobs:
       # already present in the cluster; if not, it installs it via Helm so that the
       # StorageClass is available before the Kustomize overlay is applied.
       #
+      # IMPORTANT: The check uses `helm status` (not `kubectl get storageclass`)
+      # because the 'seaweedfs-storage' StorageClass is created by the Kustomize
+      # overlay (Step 10), not by Helm.  Checking the StorageClass would falsely
+      # indicate that SeaweedFS is installed after any previous Kustomize apply,
+      # even when the SeaweedFS Helm release (and its CSI provisioner) has since
+      # been removed — leaving the PVC stuck in Pending indefinitely.
+      #
       # Note on encryption: DeltaDatabase Processing Workers encrypt all JSON blobs
       # before writing them to the shared filesystem (AES-256, key managed by the
       # Main Worker).  SeaweedFS therefore acts as a plain shared block store — no
       # additional at-rest encryption is configured at the SeaweedFS layer.
       - name: Ensure SeaweedFS CSI driver is installed
         run: |
-          # Consider SeaweedFS present if its StorageClass already exists.
-          if kubectl get storageclass seaweedfs-storage &>/dev/null; then
-            echo "StorageClass 'seaweedfs-storage' already exists — skipping SeaweedFS installation."
+          # Detect SeaweedFS via its Helm release, not via the StorageClass.
+          # The 'seaweedfs-storage' StorageClass is created by the Kustomize overlay
+          # in Step 10, so it would persist on the cluster even after SeaweedFS
+          # itself is uninstalled, making it an unreliable indicator of whether the
+          # CSI provisioner is actually running.
+          if helm status seaweedfs --namespace seaweedfs &>/dev/null; then
+            echo "SeaweedFS Helm release already present — skipping installation."
             exit 0
           fi
 
-          echo "StorageClass 'seaweedfs-storage' not found — installing SeaweedFS via Helm..."
+          echo "SeaweedFS Helm release not found — installing SeaweedFS via Helm..."
 
           helm repo add seaweedfs https://seaweedfs.github.io/seaweedfs/helm
           helm repo update
@@ -185,7 +196,9 @@ jobs:
           # Resource limits keep SeaweedFS from starving other workloads on the node.
           # --wait ensures the CSI driver (and therefore the StorageClass) is ready
           # before this step exits.
-          helm install seaweedfs seaweedfs/seaweedfs \
+          # helm upgrade --install is used so this step is idempotent: it installs
+          # SeaweedFS on a fresh cluster and upgrades it if a partial install exists.
+          helm upgrade --install seaweedfs seaweedfs/seaweedfs \
             --namespace seaweedfs \
             --create-namespace \
             --set filer.enabled=true \
@@ -205,6 +218,30 @@ jobs:
             --set filer.resources.limits.memory=256Mi \
             --wait \
             --timeout=300s
+
+          # Wait for the SeaweedFS CSI controller pod to be ready so that the
+          # 'seaweedfs-csi-driver' provisioner is registered with the API server
+          # before the Kustomize overlay creates the PVC.  Without this extra wait
+          # there is a race window where the PVC is created but no provisioner has
+          # yet claimed it, leaving it stuck in Pending.
+          #
+          # Two label selectors are tried in sequence to accommodate different
+          # versions of the SeaweedFS Helm chart which may use either label.
+          echo "Waiting for SeaweedFS CSI controller to be ready..."
+          if kubectl wait --for=condition=ready pod \
+               --selector=app.kubernetes.io/component=csi-controller \
+               --namespace=seaweedfs \
+               --timeout=120s 2>/dev/null; then
+            echo "CSI controller ready (matched app.kubernetes.io/component=csi-controller)."
+          elif kubectl wait --for=condition=ready pod \
+               --selector=app=seaweedfs-csi-controller \
+               --namespace=seaweedfs \
+               --timeout=120s 2>/dev/null; then
+            echo "CSI controller ready (matched app=seaweedfs-csi-controller)."
+          else
+            echo "::warning::Could not confirm CSI controller readiness via pod selector — proceeding anyway."
+            echo "If the PVC stays Pending, check: kubectl get pods -n seaweedfs"
+          fi
 
           echo "SeaweedFS installed.  Available storage classes:"
           kubectl get storageclass
