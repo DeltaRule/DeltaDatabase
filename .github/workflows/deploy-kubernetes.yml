@@ -396,8 +396,8 @@ jobs:
       # global reverse proxy that forwards traffic from well-known host
       # ports to the NodePort services exposed by k3d:
       #
-      #   HOST_IP:3000  →  k8s-node:30300  →  Grafana pod :3000
-      #   HOST_IP:8080  →  k8s-node:30080  →  Main Worker pod :8080
+      #   HOST_IP:1337  →  k8s-node:30300  →  Grafana pod :3000
+      #   HOST_IP:42069  →  k8s-node:30080  →  Main Worker pod :8080
       #
       # The node IP is resolved at deploy time from the running cluster so
       # that the Caddyfile always points at the correct k3d container IP.
@@ -415,8 +415,8 @@ jobs:
           export K8S_NODE_IP
           export GRAFANA_NODEPORT=30300
           export MAINWORKER_NODEPORT=30080
-          export CADDY_GRAFANA_PORT=3000
-          export CADDY_MAINWORKER_PORT=8080
+          export CADDY_GRAFANA_PORT=1337
+          export CADDY_MAINWORKER_PORT=42069
 
           # Substitute environment variables into the Caddyfile template and
           # write the result to the system Caddy configuration path.
@@ -455,5 +455,5 @@ jobs:
           echo ""
           echo "===== Access URLs (via global Caddy reverse proxy) ====="
           HOST_IP=$(hostname -I | awk '{print $1}')
-          echo "  Grafana dashboard : http://${HOST_IP}:3000"
-          echo "  Main Worker UI    : http://${HOST_IP}:8080"
+          echo "  Grafana dashboard : http://${HOST_IP}:1337"
+          echo "  Main Worker UI    : http://${HOST_IP}:42069"
