@@ -1,7 +1,7 @@
 # Kustomize overlay: shared filesystem (no S3) + autoscaling + Prometheus & Grafana.
 #
 # Deploys the full DeltaDatabase stack with:
-#   - Shared PVC (ReadWriteMany) for the filesystem backend
+#   - Shared PVC (ReadWriteOnce, local-path) for the filesystem backend
 #   - Main Worker and Processing Workers
 #   - Memory-based HorizontalPodAutoscaler (deallocation-driven scaling)
 #   - Prometheus scraping both workers via Kubernetes service-discovery
@@ -10,7 +10,7 @@
 # Prerequisites:
 #   - Kubernetes cluster v1.26+ with the Metrics Server installed:
 #       kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-#   - A ReadWriteMany StorageClass (edit ../shared-pvc.yaml to set storageClassName).
+#   - A local-path StorageClass (available by default on k3s/Rancher Desktop clusters).
 #   - A master-key secret (create once before applying):
 #       kubectl create namespace deltadatabase
 #       kubectl -n deltadatabase create secret generic delta-master-key \

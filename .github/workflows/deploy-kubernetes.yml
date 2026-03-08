@@ -23,7 +23,7 @@
 #      (delta-master-key, delta-admin-key, grafana-admin) from the GitHub secrets above.
 #   3. Optionally pins the image tags to a specific release version.
 #   4. Applies the full Kustomize overlay  (kubectl apply -k deploy/kubernetes/kustomize),
-#      which deploys:  Namespace · Shared PVC · Main Worker · Processing Workers ·
+#      which deploys:  Namespace · Shared PVC (local-path) · Main Worker · Processing Workers ·
 #      memory-based HPA · Prometheus · Grafana (with pre-built dashboard).
 #   5. Waits for all four Deployments to roll out successfully.
 
