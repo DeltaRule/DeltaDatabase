@@ -253,7 +253,8 @@ spec:
           emptyDir: {}
 
 ---
-# Service: expose Grafana inside the cluster.
+# Service: expose Grafana — NodePort so Caddy on the host can reach it.
+# nodePort 30300 is used by the global Caddy reverse proxy on the runner host.
 apiVersion: v1
 kind: Service
 metadata:
@@ -268,4 +269,5 @@ spec:
     - name: web
       port: 3000
       targetPort: 3000
-  type: ClusterIP
+      nodePort: 30300
+  type: NodePort
