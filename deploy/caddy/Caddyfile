@@ -1,0 +1,28 @@
+# Global Caddy reverse proxy for DeltaDatabase services.
+#
+# This file is a template: the GitHub Actions deploy workflow processes it
+# with `envsubst` (substituting the variables listed below) and writes the
+# result to /etc/caddy/Caddyfile on the self-hosted runner host.  This makes
+# the DeltaDatabase services running inside k3d reachable from outside the
+# cluster via a well-known IP:Port pair.
+#
+# Caddy proxies two services:
+#   :${CADDY_GRAFANA_PORT}     →  ${K8S_NODE_IP}:${GRAFANA_NODEPORT}     (Grafana)
+#   :${CADDY_MAINWORKER_PORT}  →  ${K8S_NODE_IP}:${MAINWORKER_NODEPORT}  (Main Worker REST)
+#
+# Variables substituted by envsubst at deploy time:
+#   K8S_NODE_IP           IP of the Kubernetes node (k3d container IP).
+#   GRAFANA_NODEPORT      NodePort of the Grafana service        (deploy default: 30300).
+#   MAINWORKER_NODEPORT   NodePort of the Main Worker service    (deploy default: 30080).
+#   CADDY_GRAFANA_PORT    Host port for the Grafana proxy        (deploy default: 3000).
+#   CADDY_MAINWORKER_PORT Host port for the Main Worker proxy    (deploy default: 8080).
+
+# Grafana dashboard
+:${CADDY_GRAFANA_PORT} {
+    reverse_proxy ${K8S_NODE_IP}:${GRAFANA_NODEPORT}
+}
+
+# DeltaDatabase Main Worker (REST API + frontend)
+:${CADDY_MAINWORKER_PORT} {
+    reverse_proxy ${K8S_NODE_IP}:${MAINWORKER_NODEPORT}
+}

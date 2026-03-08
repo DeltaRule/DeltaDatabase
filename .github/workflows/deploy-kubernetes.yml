@@ -85,6 +85,22 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
+      - name: Ensure Caddy is installed
+        run: |
+          if command -v caddy &>/dev/null; then
+            echo "Caddy $(caddy version) already installed — skipping installation."
+            exit 0
+          fi
+          echo "Caddy not found — installing via the official apt repository..."
+          sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
+          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | \
+            sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | \
+            sudo tee /etc/apt/sources.list.d/caddy-stable.list
+          sudo apt-get update
+          sudo apt-get install -y caddy
+          echo "Caddy $(caddy version) installed."
+
       - name: Install kustomize
         env:
           KUSTOMIZE_VERSION: "v5.4.3"
@@ -374,7 +390,51 @@ jobs:
       - name: Wait for rollout — grafana
         run: kubectl -n deltadatabase rollout status deployment/grafana --timeout=300s
 
-      # ── 12. Deployment summary ────────────────────────────────────────────────
+      # ── 13. Configure global Caddy reverse proxy ──────────────────────────
+      #
+      # Caddy is installed on the runner host (Step 2) and acts as a
+      # global reverse proxy that forwards traffic from well-known host
+      # ports to the NodePort services exposed by k3d:
+      #
+      #   HOST_IP:3000  →  k8s-node:30300  →  Grafana pod :3000
+      #   HOST_IP:8080  →  k8s-node:30080  →  Main Worker pod :8080
+      #
+      # The node IP is resolved at deploy time from the running cluster so
+      # that the Caddyfile always points at the correct k3d container IP.
+      - name: Configure global Caddy reverse proxy
+        run: |
+          # Resolve the Kubernetes node IP (the k3d Docker container IP on the runner).
+          K8S_NODE_IP=$(kubectl get nodes \
+            -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+          if [[ -z "${K8S_NODE_IP}" ]]; then
+            echo "::error::Could not resolve Kubernetes node IP. Ensure the cluster is reachable."
+            exit 1
+          fi
+          echo "Kubernetes node IP: ${K8S_NODE_IP}"
+
+          export K8S_NODE_IP
+          export GRAFANA_NODEPORT=30300
+          export MAINWORKER_NODEPORT=30080
+          export CADDY_GRAFANA_PORT=3000
+          export CADDY_MAINWORKER_PORT=8080
+
+          # Substitute environment variables into the Caddyfile template and
+          # write the result to the system Caddy configuration path.
+          envsubst < deploy/caddy/Caddyfile | sudo tee /etc/caddy/Caddyfile > /dev/null
+
+          # Validate the Caddyfile syntax before reloading.
+          sudo caddy validate --config /etc/caddy/Caddyfile
+
+          # Reload Caddy if already running, otherwise start the systemd service.
+          if systemctl is-active --quiet caddy; then
+            sudo systemctl reload caddy
+            echo "Caddy reloaded with new configuration."
+          else
+            sudo systemctl enable --now caddy
+            echo "Caddy service started."
+          fi
+
+      # ── 14. Deployment summary ────────────────────────────────────────────────
       - name: Print deployment summary
         run: |
           echo "===== DeltaDatabase deployment summary ====="
@@ -385,3 +445,8 @@ jobs:
           kubectl -n deltadatabase get pods \
             -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' \
             2>/dev/null || true
+          echo ""
+          echo "===== Access URLs (via global Caddy reverse proxy) ====="
+          HOST_IP=$(hostname -I | awk '{print $1}')
+          echo "  Grafana dashboard : http://${HOST_IP}:3000"
+          echo "  Main Worker UI    : http://${HOST_IP}:8080"
