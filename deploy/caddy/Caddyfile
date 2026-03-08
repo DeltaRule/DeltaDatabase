@@ -14,8 +14,8 @@
 #   K8S_NODE_IP           IP of the Kubernetes node (k3d container IP).
 #   GRAFANA_NODEPORT      NodePort of the Grafana service        (deploy default: 30300).
 #   MAINWORKER_NODEPORT   NodePort of the Main Worker service    (deploy default: 30080).
-#   CADDY_GRAFANA_PORT    Host port for the Grafana proxy        (deploy default: 3000).
-#   CADDY_MAINWORKER_PORT Host port for the Main Worker proxy    (deploy default: 8080).
+#   CADDY_GRAFANA_PORT    Host port for the Grafana proxy        (deploy default: 1337).
+#   CADDY_MAINWORKER_PORT Host port for the Main Worker proxy    (deploy default: 42069).
 
 # Grafana dashboard
 :${CADDY_GRAFANA_PORT} {
