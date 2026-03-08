@@ -93,7 +93,7 @@ jobs:
 
       - name: Install Helm
         env:
-          HELM_VERSION: "v3.15.0"
+          HELM_VERSION: "v4.1.1"
         run: |
           # Skip installation if Helm is already present (e.g. cached on runner).
           if command -v helm &>/dev/null; then
