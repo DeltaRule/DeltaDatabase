@@ -1,0 +1,18 @@
+# StorageClass backed by the SeaweedFS CSI driver.
+# Provides ReadWriteMany (RWX) access so all DeltaDatabase pods (Main Worker
+# and every Processing Worker replica) can mount the shared PVC concurrently,
+# regardless of which nodes they are scheduled on.
+#
+# The SeaweedFS CSI driver must be running in the cluster before this
+# StorageClass is applied.  The GitHub Actions deploy workflow installs it
+# automatically (via Helm) when it is not yet present.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: seaweedfs-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: seaweedfs-csi-driver
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true

@@ -1,7 +1,9 @@
-# Kustomize overlay: shared filesystem (no S3) + autoscaling + Prometheus & Grafana.
+# Kustomize overlay: SeaweedFS shared filesystem + autoscaling + Prometheus & Grafana.
 #
 # Deploys the full DeltaDatabase stack with:
-#   - Shared PVC (ReadWriteOnce, local-path) for the filesystem backend
+#   - SeaweedFS StorageClass (seaweedfs-storage) backed by the SeaweedFS CSI driver
+#   - Shared PVC (ReadWriteMany, seaweedfs-storage) for the filesystem backend,
+#     allowing all pods to mount the volume simultaneously across any node
 #   - Main Worker and Processing Workers
 #   - Memory-based HorizontalPodAutoscaler (deallocation-driven scaling)
 #   - Prometheus scraping both workers via Kubernetes service-discovery
@@ -10,7 +12,10 @@
 # Prerequisites:
 #   - Kubernetes cluster v1.26+ with the Metrics Server installed:
 #       kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-#   - A local-path StorageClass (available by default on k3s/Rancher Desktop clusters).
+#   - SeaweedFS with its CSI driver deployed in the cluster so that the
+#     'seaweedfs-storage' StorageClass is available (ReadWriteMany capable).
+#     The GitHub Actions deploy workflow installs SeaweedFS automatically via
+#     Helm when it is not yet present.
 #   - A master-key secret (create once before applying):
 #       kubectl create namespace deltadatabase
 #       kubectl -n deltadatabase create secret generic delta-master-key \
@@ -31,6 +36,7 @@ namespace: deltadatabase
 
 resources:
   - namespace.yaml
+  - seaweedfs-storageclass.yaml
   - shared-pvc.yaml
   - main-worker.yaml
   - proc-worker.yaml
