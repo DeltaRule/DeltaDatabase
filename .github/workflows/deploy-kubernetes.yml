@@ -423,14 +423,21 @@ jobs:
           envsubst < deploy/caddy/Caddyfile | sudo tee /etc/caddy/Caddyfile > /dev/null
 
           # Validate the Caddyfile syntax before reloading.
-          sudo caddy validate --config /etc/caddy/Caddyfile
+          sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
-          # Reload Caddy if already running, otherwise start the systemd service.
-          if systemctl is-active --quiet caddy; then
-            sudo systemctl reload caddy
+          # Reload Caddy if already running, otherwise enable and start it.
+          # caddy reload sends the new config directly via the admin API, which
+          # avoids a full service restart and returns as soon as the new config
+          # is accepted.  For a fresh start, --no-block prevents systemctl from
+          # waiting for the service to reach its active state (which can hang
+          # indefinitely when Caddy's sd_notify never fires, e.g. if the ports
+          # are briefly occupied by a previous run).
+          if sudo systemctl is-active --quiet caddy 2>/dev/null; then
+            sudo caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
             echo "Caddy reloaded with new configuration."
           else
-            sudo systemctl enable --now caddy
+            sudo systemctl enable caddy
+            sudo systemctl start --no-block caddy
             echo "Caddy service started."
           fi
 
