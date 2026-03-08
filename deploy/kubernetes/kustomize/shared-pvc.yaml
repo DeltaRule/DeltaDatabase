@@ -1,8 +1,12 @@
 # Shared PersistentVolumeClaim used by the Main Worker and all Processing Workers.
-# Uses the local-path StorageClass (rancher.io/local-path) which is available by
-# default on many lightweight clusters (k3s, Rancher Desktop, etc.).
-# Note: local-path only supports ReadWriteOnce — all pods sharing this volume
-# must be scheduled on the same node.
+# Uses the SeaweedFS CSI StorageClass (seaweedfs-storage) which supports
+# ReadWriteMany so that the Main Worker and every Processing Worker replica can
+# mount the volume simultaneously, even when pods are spread across multiple nodes.
+#
+# Prerequisites:
+#   SeaweedFS must be deployed in the cluster and its CSI driver must have
+#   created the 'seaweedfs-storage' StorageClass.  The GitHub Actions deploy
+#   workflow installs SeaweedFS automatically when it is not yet present.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -10,8 +14,8 @@ metadata:
   namespace: deltadatabase
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 10Gi
-  storageClassName: local-path
+  storageClassName: seaweedfs-storage

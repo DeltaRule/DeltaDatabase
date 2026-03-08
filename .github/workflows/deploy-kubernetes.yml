@@ -21,11 +21,14 @@
 #   1. Validates that all required secrets are set.
 #   2. Creates or updates the three Kubernetes secrets
 #      (delta-master-key, delta-admin-key, grafana-admin) from the GitHub secrets above.
-#   3. Optionally pins the image tags to a specific release version.
-#   4. Applies the full Kustomize overlay  (kubectl apply -k deploy/kubernetes/kustomize),
-#      which deploys:  Namespace · Shared PVC (local-path) · Main Worker · Processing Workers ·
-#      memory-based HPA · Prometheus · Grafana (with pre-built dashboard).
-#   5. Waits for all four Deployments to roll out successfully.
+#   3. Ensures SeaweedFS (with its CSI driver) is installed in the cluster so that
+#      the 'seaweedfs-storage' ReadWriteMany StorageClass is available.
+#   4. Optionally pins the image tags to a specific release version.
+#   5. Applies the full Kustomize overlay  (kubectl apply -k deploy/kubernetes/kustomize),
+#      which deploys:  Namespace · SeaweedFS StorageClass · Shared PVC (ReadWriteMany) ·
+#      Main Worker · Processing Workers · memory-based HPA · Prometheus · Grafana
+#      (with pre-built dashboard).
+#   6. Waits for all four Deployments to roll out successfully.
 
 name: Deploy — Kubernetes (Kustomize)
 
@@ -88,6 +91,18 @@ jobs:
           mv /tmp/kustomize "${HOME}/.local/bin/kustomize"
           echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 
+      - name: Install Helm
+        env:
+          HELM_VERSION: "v3.14.4"
+        run: |
+          # Skip installation if Helm is already present (e.g. cached on runner).
+          if command -v helm &>/dev/null; then
+            echo "Helm $(helm version --short) already installed — skipping."
+            exit 0
+          fi
+          curl -sL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | \
+            DESIRED_VERSION="${HELM_VERSION}" bash
+
       # ── 3. Cluster authentication ─────────────────────────────────────────────
       - name: Validate required secrets
         run: |
@@ -130,13 +145,66 @@ jobs:
           echo "prefix=${PREFIX}" >> "${GITHUB_OUTPUT}"
           echo "Deploying images with tag prefix: ${PREFIX}"
 
-      # ── 5. Ensure namespace exists ────────────────────────────────────────────
+      # ── 5. Ensure SeaweedFS is installed ─────────────────────────────────────
+      #
+      # DeltaDatabase uses a ReadWriteMany PVC backed by the SeaweedFS CSI driver
+      # (StorageClass 'seaweedfs-storage').  This step checks whether SeaweedFS is
+      # already present in the cluster; if not, it installs it via Helm so that the
+      # StorageClass is available before the Kustomize overlay is applied.
+      #
+      # Note on encryption: DeltaDatabase Processing Workers encrypt all JSON blobs
+      # before writing them to the shared filesystem (AES-256, key managed by the
+      # Main Worker).  SeaweedFS therefore acts as a plain shared block store — no
+      # additional at-rest encryption is configured at the SeaweedFS layer.
+      - name: Ensure SeaweedFS CSI driver is installed
+        run: |
+          # Consider SeaweedFS present if its StorageClass already exists.
+          if kubectl get storageclass seaweedfs-storage &>/dev/null; then
+            echo "StorageClass 'seaweedfs-storage' already exists — skipping SeaweedFS installation."
+            exit 0
+          fi
+
+          echo "StorageClass 'seaweedfs-storage' not found — installing SeaweedFS via Helm..."
+
+          helm repo add seaweedfs https://seaweedfs.github.io/seaweedfs/helm
+          helm repo update
+
+          # Deploy SeaweedFS with filer and CSI driver enabled into its own namespace.
+          # Persistence is explicitly enabled so volume data survives pod restarts.
+          # Resource limits keep SeaweedFS from starving other workloads on the node.
+          # --wait ensures the CSI driver (and therefore the StorageClass) is ready
+          # before this step exits.
+          helm install seaweedfs seaweedfs/seaweedfs \
+            --namespace seaweedfs \
+            --create-namespace \
+            --set filer.enabled=true \
+            --set csi.enabled=true \
+            --set global.persistence.enabled=true \
+            --set master.resources.requests.cpu=100m \
+            --set master.resources.requests.memory=128Mi \
+            --set master.resources.limits.cpu=500m \
+            --set master.resources.limits.memory=256Mi \
+            --set volume.resources.requests.cpu=100m \
+            --set volume.resources.requests.memory=256Mi \
+            --set volume.resources.limits.cpu=1000m \
+            --set volume.resources.limits.memory=512Mi \
+            --set filer.resources.requests.cpu=100m \
+            --set filer.resources.requests.memory=128Mi \
+            --set filer.resources.limits.cpu=500m \
+            --set filer.resources.limits.memory=256Mi \
+            --wait \
+            --timeout=300s
+
+          echo "SeaweedFS installed.  Available storage classes:"
+          kubectl get storageclass
+
+      # ── 6. Ensure namespace exists ────────────────────────────────────────────
       - name: Ensure namespace
         run: |
           kubectl create namespace deltadatabase \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      # ── 6. Sync Kubernetes secrets from GitHub secrets ────────────────────────
+      # ── 7. Sync Kubernetes secrets from GitHub secrets ────────────────────────
       #
       # We create or update all three secrets before applying Kustomize so that
       # every Secret reference in the manifests resolves correctly on first apply.
@@ -162,7 +230,7 @@ jobs:
             --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      # ── 7. Pin image tags (version deployments only) ──────────────────────────
+      # ── 8. Pin image tags (version deployments only) ──────────────────────────
       - name: Pin image tags in Kustomize overlay
         working-directory: deploy/kubernetes/kustomize
         run: |
@@ -184,12 +252,12 @@ jobs:
 
           echo "Image tags pinned to: ${PREFIX}-main / ${PREFIX}-proc"
 
-      # ── 8. Apply the full Kustomize overlay ───────────────────────────────────
+      # ── 9. Apply the full Kustomize overlay ───────────────────────────────────
       - name: Apply Kustomize overlay
         run: |
           kubectl apply -k deploy/kubernetes/kustomize
 
-      # ── 9. Wait for rollout ───────────────────────────────────────────────────
+      # ── 10. Wait for rollout ──────────────────────────────────────────────────
       - name: Wait for rollout — main-worker
         run: kubectl -n deltadatabase rollout status deployment/main-worker --timeout=300s
 
@@ -202,7 +270,7 @@ jobs:
       - name: Wait for rollout — grafana
         run: kubectl -n deltadatabase rollout status deployment/grafana --timeout=300s
 
-      # ── 10. Deployment summary ────────────────────────────────────────────────
+      # ── 11. Deployment summary ────────────────────────────────────────────────
       - name: Print deployment summary
         run: |
           echo "===== DeltaDatabase deployment summary ====="
