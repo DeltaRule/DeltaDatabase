@@ -284,7 +284,6 @@ def test_benchmark_schema_validated_put(benchmark, proc_grpc_stub, sample_schema
         counter[0] += 1
         payload = json.dumps({"chat": [{"type": "user", "text": f"msg-{counter[0]}"}]}).encode()
         resp = stub.Process(pb2.ProcessRequest(
-            schema_id="chatdb",
             entity_key=f"SchemaBench-{counter[0]}",
             schema_id="chat.v1",
             operation="PUT",

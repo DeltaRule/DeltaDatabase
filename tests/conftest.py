@@ -298,8 +298,8 @@ class ProcessRequest(_Msg):
 
     def __init__(self, schema_id: str = "", entity_key: str = "",
                  operation: str = "", payload: bytes = b"", token: str = "",
-                 # database_name is accepted for backwards compatibility but
-                 # ignored — schema_id now serves as both namespace and schema.
+                 # database_name is accepted for backwards compatibility —
+                 # when schema_id is not provided it falls back to database_name.
                  database_name: str = ""):
         # If callers still pass the old database_name kwarg without schema_id,
         # fall back to database_name so existing tests continue to work.
