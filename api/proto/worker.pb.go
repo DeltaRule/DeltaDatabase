@@ -66,21 +66,14 @@ func (x *SubscribeResponse) GetKeyId() string {
 }
 
 // ProcessRequest requests a GET or PUT operation on an entity.
+// SchemaId serves as both the storage namespace and the JSON Schema identifier —
+// the schema IS the database.
 type ProcessRequest struct {
-	DatabaseName string `json:"database_name,omitempty"`
-	EntityKey    string `json:"entity_key,omitempty"`
-	SchemaId     string `json:"schema_id,omitempty"`
-	Operation    string `json:"operation,omitempty"`
-	Payload      []byte `json:"payload,omitempty"`
-	Token        string `json:"token,omitempty"`
-}
-
-// GetDatabaseName returns the database name.
-func (x *ProcessRequest) GetDatabaseName() string {
-	if x != nil {
-		return x.DatabaseName
-	}
-	return ""
+	SchemaId  string `json:"schema_id,omitempty"`
+	EntityKey string `json:"entity_key,omitempty"`
+	Operation string `json:"operation,omitempty"`
+	Payload   []byte `json:"payload,omitempty"`
+	Token     string `json:"token,omitempty"`
 }
 
 // GetEntityKey returns the entity key.

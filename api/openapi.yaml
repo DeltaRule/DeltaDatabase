@@ -356,14 +356,19 @@ paths:
   # ---------------------------------------------------------------------------
   # Entities
   # ---------------------------------------------------------------------------
-  /entity/{database}:
+  /entity/{schema_id}:
     put:
       operationId: putEntities
       summary: Create or update entities
       description: |
-        Create or update one or more entities in a database. The request body
-        is a JSON object where each key is an entity key and the value is the
-        entity's JSON document. Requires `write` permission.
+        Create or update one or more entities in the schema-database identified by
+        `schema_id`. The schema IS the database — `schema_id` serves as both the
+        storage namespace and the JSON Schema identifier used for validation.
+
+        The request body is a JSON object where each key is an entity key and the
+        value is the entity's JSON document. If a JSON Schema template with the
+        given `schema_id` exists, each entity is validated against it before being
+        stored. Requires `write` permission.
 
         The body must not exceed **1 MiB**. Entity keys must not contain `/`,
         `\`, or `..` sequences.
@@ -371,14 +376,16 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: database
+        - name: schema_id
           in: path
           required: true
           description: |
-            Name of the database. Must not contain `/`, `\`, or `..` sequences.
+            Schema ID that identifies both the storage namespace and the JSON
+            Schema template used for validation. Must not contain `/`, `\`, or
+            `..` sequences.
           schema:
             type: string
-          example: chatdb
+          example: chat.v1
       requestBody:
         required: true
         content:
@@ -430,18 +437,19 @@ paths:
       operationId: getEntity
       summary: Retrieve a single entity
       description: |
-        Retrieve a single entity by key from a database. Requires `read` permission.
+        Retrieve a single entity by key from the schema-database identified by
+        `schema_id`. Requires `read` permission.
       tags: [entities]
       security:
         - BearerAuth: []
       parameters:
-        - name: database
+        - name: schema_id
           in: path
           required: true
-          description: Name of the database.
+          description: Schema ID (storage namespace and schema template identifier).
           schema:
             type: string
-          example: chatdb
+          example: chat.v1
         - name: key
           in: query
           required: true
@@ -490,18 +498,19 @@ paths:
       operationId: deleteEntity
       summary: Delete a single entity
       description: |
-        Delete a single entity by key from a database. Requires `write` permission.
+        Delete a single entity by key from the schema-database identified by
+        `schema_id`. Requires `write` permission.
       tags: [entities]
       security:
         - BearerAuth: []
       parameters:
-        - name: database
+        - name: schema_id
           in: path
           required: true
-          description: Name of the database.
+          description: Schema ID (storage namespace and schema template identifier).
           schema:
             type: string
-          example: chatdb
+          example: chat.v1
         - name: key
           in: query
           required: true

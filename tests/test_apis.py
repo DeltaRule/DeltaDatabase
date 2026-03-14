@@ -45,17 +45,15 @@ def test_rest_rejects_bad_json(settings):
 def test_grpc_process_get_put(grpc_stub, grpc_token):
     pb2, stub = grpc_stub
     put = pb2.ProcessRequest(
-        database_name="chatdb",
-        entity_key="Chat_id",
         schema_id="chat.v1",
+        entity_key="Chat_id",
         operation="PUT",
         payload=json.dumps({"chat": []}).encode("utf-8"),
         token=grpc_token,
     )
     get = pb2.ProcessRequest(
-        database_name="chatdb",
-        entity_key="Chat_id",
         schema_id="chat.v1",
+        entity_key="Chat_id",
         operation="GET",
         payload=b"",
         token=grpc_token,
@@ -69,9 +67,8 @@ def test_grpc_process_get_put(grpc_stub, grpc_token):
 def test_grpc_rejects_invalid_operation(grpc_stub, grpc_token):
     pb2, stub = grpc_stub
     req = pb2.ProcessRequest(
-        database_name="chatdb",
-        entity_key="Chat_id",
         schema_id="chat.v1",
+        entity_key="Chat_id",
         operation="BAD",
         payload=b"",
         token=grpc_token,

@@ -236,7 +236,7 @@ func TestProcess(t *testing.T) {
 
 	t.Run("returns error for empty token", func(t *testing.T) {
 		req := &proto.ProcessRequest{
-			DatabaseName: "testdb",
+			SchemaId:     "testdb",
 			EntityKey:    "test-entity",
 			Operation:    "GET",
 		}
@@ -249,7 +249,7 @@ func TestProcess(t *testing.T) {
 
 	t.Run("returns error for invalid token", func(t *testing.T) {
 		req := &proto.ProcessRequest{
-			DatabaseName: "testdb",
+			SchemaId:     "testdb",
 			EntityKey:    "test-entity",
 			Operation:    "GET",
 			Token:        "invalid-token",
@@ -267,7 +267,7 @@ func TestProcess(t *testing.T) {
 		require.NoError(t, err)
 
 		req := &proto.ProcessRequest{
-			DatabaseName: "testdb",
+			SchemaId:     "testdb",
 			EntityKey:    "test-entity",
 			Operation:    "GET",
 			Token:        token.Token,
@@ -929,8 +929,8 @@ func TestSessionTokenInheritsPermissions(t *testing.T) {
 	})
 }
 
-// TestHandleDatabases tests the GET /api/databases endpoint.
-func TestHandleDatabases(t *testing.T) {
+// TestHandleSchemas tests the GET /api/schemas endpoint.
+func TestHandleSchemas(t *testing.T) {
 config := createTestConfigWithTempDir(t)
 server, err := NewMainWorkerServer(config)
 require.NoError(t, err)
@@ -940,73 +940,73 @@ require.NoError(t, err)
 authHeader := "Bearer " + ct.Token
 
 t.Run("returns empty list when no entities cached", func(t *testing.T) {
-req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+req := httptest.NewRequest(http.MethodGet, "/api/schemas", nil)
 req.Header.Set("Authorization", authHeader)
 w := httptest.NewRecorder()
 
-server.handleDatabases(w, req)
+server.handleSchemas(w, req)
 
 assert.Equal(t, http.StatusOK, w.Code)
-var dbs []string
-require.NoError(t, json.NewDecoder(w.Body).Decode(&dbs))
-assert.Empty(t, dbs)
+var schemas []string
+require.NoError(t, json.NewDecoder(w.Body).Decode(&schemas))
+assert.Empty(t, schemas)
 })
 
-t.Run("returns database names after entities are cached", func(t *testing.T) {
-// Seed two databases via the entity store.
+t.Run("returns schema IDs after entities are cached", func(t *testing.T) {
+// Seed two schemas via the entity store.
 server.entityStore.Set("alpha/k1", []byte(`{}`), "1")
 server.entityStore.Set("alpha/k2", []byte(`{}`), "1")
 server.entityStore.Set("beta/k1", []byte(`{}`), "1")
 
-req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+req := httptest.NewRequest(http.MethodGet, "/api/schemas", nil)
 req.Header.Set("Authorization", authHeader)
 w := httptest.NewRecorder()
 
-server.handleDatabases(w, req)
+server.handleSchemas(w, req)
 
 assert.Equal(t, http.StatusOK, w.Code)
-var dbs []string
-require.NoError(t, json.NewDecoder(w.Body).Decode(&dbs))
-assert.Contains(t, dbs, "alpha")
-assert.Contains(t, dbs, "beta")
+var schemas []string
+require.NoError(t, json.NewDecoder(w.Body).Decode(&schemas))
+assert.Contains(t, schemas, "alpha")
+assert.Contains(t, schemas, "beta")
 })
 
 t.Run("returns sorted list", func(t *testing.T) {
 server.entityStore.Set("zz/k1", []byte(`{}`), "1")
 server.entityStore.Set("aa/k1", []byte(`{}`), "1")
 
-req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+req := httptest.NewRequest(http.MethodGet, "/api/schemas", nil)
 req.Header.Set("Authorization", authHeader)
 w := httptest.NewRecorder()
 
-server.handleDatabases(w, req)
+server.handleSchemas(w, req)
 
 assert.Equal(t, http.StatusOK, w.Code)
-var dbs []string
-require.NoError(t, json.NewDecoder(w.Body).Decode(&dbs))
+var schemas []string
+require.NoError(t, json.NewDecoder(w.Body).Decode(&schemas))
 // Verify sorted (first element <= last element for any list size ≥ 2).
-if len(dbs) >= 2 {
-for i := 1; i < len(dbs); i++ {
-assert.LessOrEqual(t, dbs[i-1], dbs[i], "databases should be sorted")
+if len(schemas) >= 2 {
+for i := 1; i < len(schemas); i++ {
+assert.LessOrEqual(t, schemas[i-1], schemas[i], "schemas should be sorted")
 }
 }
 })
 
 t.Run("rejects unauthenticated request", func(t *testing.T) {
-req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+req := httptest.NewRequest(http.MethodGet, "/api/schemas", nil)
 w := httptest.NewRecorder()
 
-server.handleDatabases(w, req)
+server.handleSchemas(w, req)
 
 assert.Equal(t, http.StatusUnauthorized, w.Code)
 })
 
 t.Run("rejects POST method", func(t *testing.T) {
-req := httptest.NewRequest(http.MethodPost, "/api/databases", nil)
+req := httptest.NewRequest(http.MethodPost, "/api/schemas", nil)
 req.Header.Set("Authorization", authHeader)
 w := httptest.NewRecorder()
 
-server.handleDatabases(w, req)
+server.handleSchemas(w, req)
 
 assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 })

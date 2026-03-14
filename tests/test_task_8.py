@@ -142,7 +142,7 @@ def test_process_get_returns_ok_after_put(live_proc_worker_task8, proto_modules)
 
     payload = json.dumps({"chat": [{"type": "user", "text": "hello"}]}).encode()
     put_resp = stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="Task8GETPut",
         operation="PUT",
         payload=payload,
@@ -151,7 +151,7 @@ def test_process_get_returns_ok_after_put(live_proc_worker_task8, proto_modules)
     assert put_resp.status == "OK"
 
     get_resp = stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="Task8GETPut",
         operation="GET",
         payload=b"",
@@ -170,7 +170,7 @@ def test_process_get_not_found(live_proc_worker_task8, proto_modules):
 
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name="missingdb",
+            schema_id="missingdb",
             entity_key="no_such_key",
             operation="GET",
             payload=b"",
@@ -188,7 +188,7 @@ def test_process_rejects_invalid_operation(live_proc_worker_task8, proto_modules
 
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key="Chat_id",
             operation="DELETE",
             payload=b"",
@@ -363,7 +363,7 @@ def test_proc_worker_process_get_returns_not_found(live_proc_worker_task8, proto
 
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key="no_such_key",
             operation="GET",
             payload=b"",
@@ -391,7 +391,7 @@ def test_proc_worker_rejects_non_get_operation(live_proc_worker_task8, proto_mod
 
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key="Chat_id",
             operation="DELETE",
             payload=b"{}",

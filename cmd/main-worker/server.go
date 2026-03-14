@@ -338,7 +338,7 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 	}
 
 	if op == "DELETE" {
-		storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
+		storeKey := req.GetSchemaId() + "/" + req.GetEntityKey()
 		s.entityStore.Evict(storeKey)
 		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "success").Inc()
 		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "success").Observe(time.Since(start).Seconds())
@@ -348,7 +348,7 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 
 	// PUT: cache immediately (LRU evicts the least-recently-used entry if full).
 	// Full encrypted persistence is handled by a Processing Worker.
-	storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
+	storeKey := req.GetSchemaId() + "/" + req.GetEntityKey()
 	s.entityStore.Set(storeKey, req.GetPayload(), "1")
 
 	s.metrics.ProcessRequestsTotal.WithLabelValues(op, "success").Inc()
@@ -391,7 +391,7 @@ func (s *MainWorkerServer) updateCacheMetrics() {
 // If no Processing Worker is reachable the entity is served from the Main
 // Worker's own LRU entity store (cached by a previous PUT).
 func (s *MainWorkerServer) routeGETToProcWorker(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
-	entityID := req.GetDatabaseName() + "/" + req.GetEntityKey()
+	entityID := req.GetSchemaId() + "/" + req.GetEntityKey()
 
 	// Tier 1: prefer the worker that last served this entity (cache-aware).
 	worker := s.registry.FindWorkerForEntity(entityID)
@@ -432,11 +432,11 @@ func (s *MainWorkerServer) routeGETToProcWorker(ctx context.Context, req *proto.
 	}
 
 	// Fallback: serve from the LRU entity store.
-	storeKey := req.GetDatabaseName() + "/" + req.GetEntityKey()
+	storeKey := req.GetSchemaId() + "/" + req.GetEntityKey()
 	entry, found := s.entityStore.Get(storeKey)
 	if !found {
 		return nil, status.Errorf(codes.NotFound, "entity %q/%q not found",
-			req.GetDatabaseName(), req.GetEntityKey())
+			req.GetSchemaId(), req.GetEntityKey())
 	}
 
 	return &proto.ProcessResponse{
@@ -472,7 +472,7 @@ func (s *MainWorkerServer) Run() error {
 		mux.HandleFunc("/api/keys", s.handleAPIKeys)
 		mux.HandleFunc("/api/keys/", s.handleAPIKeyByID)
 		// Frontend-specific authenticated endpoints
-		mux.HandleFunc("/api/databases", s.handleDatabases)
+		mux.HandleFunc("/api/schemas", s.handleSchemas)
 		mux.HandleFunc("/api/me", s.handleMe)
 
 		log.Printf("Main Worker REST server listening on %s", s.config.RESTAddr)
@@ -547,14 +547,14 @@ func normalisePath(p string) string {
 		return "/api/keys"
 	case strings.HasPrefix(p, "/api/keys/"):
 		return "/api/keys/:id"
-	case p == "/api/databases":
-		return "/api/databases"
+	case p == "/api/schemas":
+		return "/api/schemas"
 	case p == "/api/me":
 		return "/api/me"
 	case strings.HasPrefix(p, "/schema/"):
 		return "/schema/:id"
 	case strings.HasPrefix(p, "/entity/"):
-		return "/entity/:db"
+		return "/entity/:schema_id"
 	default:
 		return p
 	}
@@ -658,7 +658,7 @@ func (s *MainWorkerServer) requirePermission(w http.ResponseWriter, r *http.Requ
 	return false
 }
 
-// handleEntity handles GET, PUT, and DELETE requests for /entity/{db}[?key=...].
+// handleEntity handles GET, PUT, and DELETE requests for /entity/{schema_id}[?key=...].
 func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -678,11 +678,11 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Extract database name from path: /entity/{db}
+	// Extract schema ID from path: /entity/{schema_id}
 	pathParts := strings.TrimPrefix(r.URL.Path, "/entity/")
-	db := strings.Split(pathParts, "?")[0]
-	if db == "" || strings.ContainsAny(db, `/\`) || strings.Contains(db, "..") {
-		http.Error(w, `{"error":"invalid database name"}`, http.StatusBadRequest)
+	schemaID := strings.Split(pathParts, "?")[0]
+	if schemaID == "" || strings.ContainsAny(schemaID, `/\`) || strings.Contains(schemaID, "..") {
+		http.Error(w, `{"error":"invalid schema id"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -698,7 +698,7 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, `{"error":"invalid key"}`, http.StatusBadRequest)
 			return
 		}
-		storeKey := db + "/" + key
+		storeKey := schemaID + "/" + key
 		entry, found := s.entityStore.Get(storeKey)
 		if !found {
 			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
@@ -730,7 +730,7 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 		// bounded: the least-recently-used entry is dropped when the cache is full.
 		// json.RawMessage is defined as []byte, so a direct slice conversion is safe.
 		for key, value := range payload {
-			s.entityStore.Set(db+"/"+key, value, "1")
+			s.entityStore.Set(schemaID+"/"+key, value, "1")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -747,7 +747,7 @@ func (s *MainWorkerServer) handleEntity(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, `{"error":"invalid key"}`, http.StatusBadRequest)
 			return
 		}
-		storeKey := db + "/" + key
+		storeKey := schemaID + "/" + key
 		s.entityStore.Evict(storeKey)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -830,10 +830,10 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// handleDatabases serves GET /api/databases.
-// It returns a sorted list of all database names that currently have at least
+// handleSchemas serves GET /api/schemas.
+// It returns a sorted list of all schema IDs that currently have at least
 // one entity in the in-memory cache.  Requires read permission.
-func (s *MainWorkerServer) handleDatabases(w http.ResponseWriter, r *http.Request) {
+func (s *MainWorkerServer) handleSchemas(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		return
@@ -842,23 +842,23 @@ func (s *MainWorkerServer) handleDatabases(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Extract unique database names from the entity store keys.
-	// Cache keys are formatted as "db/entityKey".
+	// Extract unique schema IDs from the entity store keys.
+	// Cache keys are formatted as "schemaID/entityKey".
 	seen := make(map[string]struct{})
 	for _, k := range s.entityStore.Keys() {
 		if idx := strings.Index(k, "/"); idx > 0 {
 			seen[k[:idx]] = struct{}{}
 		}
 	}
-	dbs := make([]string, 0, len(seen))
-	for db := range seen {
-		dbs = append(dbs, db)
+	schemas := make([]string, 0, len(seen))
+	for id := range seen {
+		schemas = append(schemas, id)
 	}
 	// Stable sort for deterministic responses.
-	sort.Strings(dbs)
+	sort.Strings(schemas)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(dbs) //nolint:errcheck
+	json.NewEncoder(w).Encode(schemas) //nolint:errcheck
 }
 
 // meResponse is the JSON body returned by GET /api/me.

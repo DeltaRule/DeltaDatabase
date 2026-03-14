@@ -40,7 +40,7 @@ The **Dashboard** is the first screen after login. It shows:
 
 - **Health** — live status from `GET /health`. A green **● Online** indicator means the server is reachable.
 - **Available Workers** — number of Processing Workers currently available for routing.
-- **Databases** — count of databases currently in the in-memory cache.
+- **Databases** — count of schema-databases currently in the in-memory cache.
 - **API Keys** — total number of configured API keys.
 - **System Health** — key-value breakdown of all fields returned by `/health`.
 - **Cache Statistics** — LRU cache entries, fill level, hits, misses, and evictions.
@@ -49,28 +49,28 @@ The header always shows your current session identity (e.g. `👑 admin`) and a 
 
 ---
 
-## Databases
+## Schemas
 
-![Databases page](https://github.com/user-attachments/assets/afb838e5-2018-4417-b21f-41cbdb723b8a)
+![Schemas page](https://github.com/user-attachments/assets/afb838e5-2018-4417-b21f-41cbdb723b8a)
 
-The **Databases** tab lists all databases that have at least one entity in the in-memory cache. Powered by the new `GET /api/databases` endpoint.
+The **Schemas** tab lists all schema-databases that have at least one entity in the in-memory cache. Powered by the `GET /api/schemas` endpoint.
 
 ### Database Cards & Dropdown
 
-- **Database dropdown** — select any database from the dropdown to jump directly to the Entities page pre-filtered for that database.
-- **Database cards** — click any card to open the Entities page for that database immediately.
+- **Schema dropdown** — select any schema from the dropdown to jump directly to the Entities page pre-filtered for that database.
+- **Schema cards** — click any card to open the Entities page for that schema immediately.
 
 ### Create New Database
 
-Databases are created automatically when you write the first entity. Use the form to write an initial entity:
+Schemas are created automatically when you write the first entity. Use the form to write an initial entity:
 
 | Field | Description |
 |---|---|
-| Database Name | The new database name (e.g. `users`) |
-| Entity Key | The first entity key inside the database |
+| Schema ID | The schema ID (e.g. `chat.v1`) |
+| Entity Key | The first entity key inside the schema |
 | JSON Body | A valid JSON object for the entity value |
 
-Click **Write Entity**. The database card appears after the next refresh.
+Click **Write Entity**. The schema card appears after the next refresh.
 
 ---
 
@@ -80,7 +80,7 @@ The **Entities** tab lets you read and write JSON entities directly from the bro
 
 ### Get Entity
 
-1. Select a **Database** from the dropdown (populated from `GET /api/databases`).
+1. Select a **Schema** from the dropdown (populated from `GET /api/schemas`).
 2. Enter the **Entity Key**.
 3. Click **GET Entity**.
 
@@ -182,7 +182,7 @@ Pre-built buttons to quickly invoke common endpoints:
 |---|---|
 | GET /health | Checks server health |
 | GET /admin/workers | Lists registered Processing Workers |
-| GET /api/databases | Lists all databases (cached) |
+| GET /api/schemas | Lists all schema-databases (cached) |
 | GET /api/me | Returns current user identity and permissions |
 | GET /api/keys | Lists API keys |
 
@@ -192,12 +192,12 @@ Pre-built buttons to quickly invoke common endpoints:
 
 The UI uses two new endpoints designed specifically for the frontend:
 
-### GET /api/databases
+### GET /api/schemas
 
-Returns a sorted JSON array of database names currently held in the entity cache. Requires **read** permission.
+Returns a sorted JSON array of schema-database IDs currently held in the entity cache. Requires **read** permission.
 
 ```bash
-curl -s http://localhost:8080/api/databases \
+curl -s http://localhost:8080/api/schemas \
   -H 'Authorization: Bearer YOUR_TOKEN'
 # → ["products","sessions","users"]
 ```

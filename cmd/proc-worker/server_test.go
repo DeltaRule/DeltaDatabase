@@ -116,7 +116,7 @@ func TestProcess_InvalidOperation(t *testing.T) {
 	for _, op := range []string{"bad", ""} {
 		t.Run(fmt.Sprintf("op=%q", op), func(t *testing.T) {
 			req := &proto.ProcessRequest{
-				DatabaseName: "db",
+				SchemaId:     "db",
 				EntityKey:    "key",
 				Operation:    op,
 			}
@@ -127,11 +127,11 @@ func TestProcess_InvalidOperation(t *testing.T) {
 	}
 }
 
-func TestProcess_MissingDatabaseName(t *testing.T) {
+func TestProcess_MissingSchemaId(t *testing.T) {
 	srv, _, _ := setupProcWorkerServer(t)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "",
+		SchemaId:     "",
 		EntityKey:    "Chat_id",
 		Operation:    "GET",
 	}
@@ -144,7 +144,7 @@ func TestProcess_MissingEntityKey(t *testing.T) {
 	srv, _, _ := setupProcWorkerServer(t)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "",
 		Operation:    "GET",
 	}
@@ -157,7 +157,7 @@ func TestProcess_EntityNotFound(t *testing.T) {
 	srv, _, _ := setupProcWorkerServer(t)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "nonexistent",
 		Operation:    "GET",
 	}
@@ -193,7 +193,7 @@ func TestProcess_NoEncryptionKey(t *testing.T) {
 	writeEncryptedEntity(t, storage, "chatdb_Chat_id", []byte(`{"chat":[]}`), key)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "Chat_id",
 		Operation:    "GET",
 	}
@@ -220,7 +220,7 @@ func TestProcess_GET_Success(t *testing.T) {
 	writeEncryptedEntity(t, storage, "chatdb_Chat_id", plaintext, key)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "Chat_id",
 		Operation:    "GET",
 	}
@@ -242,7 +242,7 @@ func TestProcess_GET_CacheHit(t *testing.T) {
 	writeEncryptedEntity(t, storage, "chatdb_CacheKey", plaintext, key)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "CacheKey",
 		Operation:    "GET",
 	}
@@ -293,7 +293,7 @@ func TestProcess_GET_VersionForwarded(t *testing.T) {
 	require.NoError(t, err)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "versiondb",
+		SchemaId:     "versiondb",
 		EntityKey:    "versioned",
 		Operation:    "GET",
 	}
@@ -315,7 +315,7 @@ func TestProcess_GET_WrongKey(t *testing.T) {
 	writeEncryptedEntity(t, storage, "chatdb_WrongKey", []byte(`{"chat":[]}`), wrongKey)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "WrongKey",
 		Operation:    "GET",
 	}
@@ -332,7 +332,7 @@ func TestProcess_PUT_EmptyPayload(t *testing.T) {
 	srv, _, _ := setupProcWorkerServer(t)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "Chat_id",
 		Operation:    "PUT",
 		Payload:      nil,
@@ -356,11 +356,10 @@ func TestProcess_PUT_SchemaValidationFailure(t *testing.T) {
 
 	// Payload missing required "name" field → validation should fail.
 	req := &proto.ProcessRequest{
-		DatabaseName: "db",
-		EntityKey:    "entity1",
-		Operation:    "PUT",
-		SchemaId:     "test_schema",
-		Payload:      []byte(`{"other": "field"}`),
+		SchemaId: "test_schema",
+		EntityKey: "entity1",
+		Operation: "PUT",
+		Payload:  []byte(`{"other": "field"}`),
 	}
 	_, err = srv.Process(context.Background(), req)
 	require.Error(t, err)
@@ -388,7 +387,7 @@ func TestProcess_PUT_NoEncryptionKey(t *testing.T) {
 	srv := NewProcWorkerServer(worker, storage, fs.NewLockManager(storage), c)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "Chat_id",
 		Operation:    "PUT",
 		Payload:      []byte(`{"chat":[]}`),
@@ -407,7 +406,7 @@ func TestProcess_PUT_CreateNew(t *testing.T) {
 
 	payload := []byte(`{"chat":[{"type":"assistant","text":"hello"}]}`)
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "NewEntity",
 		Operation:    "PUT",
 		Payload:      payload,
@@ -463,7 +462,7 @@ func TestProcess_PUT_VersionIncrement(t *testing.T) {
 	require.NoError(t, err)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "VersionTest",
 		Operation:    "PUT",
 		Payload:      []byte(`{"chat":[{"type":"user","text":"hi"}]}`),
@@ -493,7 +492,7 @@ func TestProcess_PUT_UpdatesCache(t *testing.T) {
 	entityID := "chatdb_CacheWrite"
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "CacheWrite",
 		Operation:    "PUT",
 		Payload:      payload,
@@ -527,11 +526,10 @@ func TestProcess_PUT_SchemaValidationSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "db",
-		EntityKey:    "entity2",
-		Operation:    "PUT",
-		SchemaId:     "name_schema",
-		Payload:      []byte(`{"name": "alice"}`),
+		SchemaId: "name_schema",
+		EntityKey: "entity2",
+		Operation: "PUT",
+		Payload:  []byte(`{"name": "alice"}`),
 	}
 	resp, err := srv.Process(context.Background(), req)
 	require.NoError(t, err)
@@ -549,7 +547,7 @@ func TestProcess_PUT_MetadataFields(t *testing.T) {
 	srv, storage, _ := setupProcWorkerServer(t)
 
 	req := &proto.ProcessRequest{
-		DatabaseName: "mydb",
+		SchemaId:     "mydb",
 		EntityKey:    "MetaKey",
 		Operation:    "PUT",
 		Payload:      []byte(`{"chat":[]}`),
@@ -586,7 +584,7 @@ func TestProcess_PUT_then_GET(t *testing.T) {
 	payload := []byte(`{"chat":[{"type":"assistant","text":"roundtrip"}]}`)
 
 	putReq := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "RoundTrip",
 		Operation:    "PUT",
 		Payload:      payload,
@@ -603,7 +601,7 @@ func TestProcess_PUT_then_GET(t *testing.T) {
 	srv.cache.Clear()
 
 	getReq := &proto.ProcessRequest{
-		DatabaseName: "chatdb",
+		SchemaId:     "chatdb",
 		EntityKey:    "RoundTrip",
 		Operation:    "GET",
 	}

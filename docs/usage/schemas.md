@@ -191,7 +191,7 @@ Schema IDs use the format `{name}.{version}`:
 
 ## What Happens on Validation Failure
 
-If a `PUT /entity/{database}` request contains data that does not match the registered schema:
+If a `PUT /entity/{schema_id}` request contains data that does not match the registered schema:
 
 1. The Processing Worker rejects the payload.
 2. The Main Worker returns `HTTP 400` with an error message.
@@ -201,7 +201,7 @@ Example:
 
 ```bash
 # This will fail — "messages" is required but missing
-curl -s -X PUT http://127.0.0.1:8080/entity/chatdb \
+curl -s -X PUT http://127.0.0.1:8080/entity/chat.v1 \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"session_bad": {"wrong_field": "oops"}}'

@@ -35,7 +35,7 @@ def test_concurrent_puts_no_corruption(settings, shared_fs, proc_grpc_stub):
         try:
             payload = json.dumps({"chat": [{"type": "assistant", "text": f"value-{i}"}]}).encode()
             resp = stub.Process(pb2.ProcessRequest(
-                database_name="chatdb",
+                schema_id="chatdb",
                 entity_key=key,
                 operation="PUT",
                 payload=payload,

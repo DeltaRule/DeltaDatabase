@@ -71,7 +71,7 @@ def test_grpc_path_traversal_entity_key_rejected(proc_grpc_stub, key):
     pb2, stub = proc_grpc_stub
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chat.v1",
             entity_key=key,
             operation="PUT",
             payload=json.dumps({"chat": [{"type": "user", "text": "pwn"}]}).encode(),
@@ -89,12 +89,12 @@ def test_grpc_path_traversal_entity_key_rejected(proc_grpc_stub, key):
     "../../etc",
     "chatdb/../../templates",
 ])
-def test_grpc_path_traversal_database_name_rejected(proc_grpc_stub, db):
-    """gRPC PUT/GET with path-traversal database names must be rejected."""
+def test_grpc_path_traversal_schema_id_rejected(proc_grpc_stub, db):
+    """gRPC PUT/GET with path-traversal schema IDs must be rejected."""
     pb2, stub = proc_grpc_stub
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name=db,
+            schema_id=db,
             entity_key="Chat_id",
             operation="PUT",
             payload=json.dumps({"chat": [{"type": "user", "text": "pwn"}]}).encode(),
@@ -220,8 +220,8 @@ def test_json_depth_bomb_rejected(settings):
     )
 
 
-def test_empty_database_name_rejected(settings):
-    """PUT to /entity/ (empty database name) must be rejected."""
+def test_empty_schema_id_rejected(settings):
+    """PUT to /entity/ (empty schema id) must be rejected."""
     resp = requests.put(
         _url(settings, "/entity/"),
         headers=_auth(settings["token"]),
@@ -229,7 +229,7 @@ def test_empty_database_name_rejected(settings):
         timeout=2,
     )
     assert resp.status_code in {400, 404, 405}, (
-        f"Expected 4xx for empty db name, got {resp.status_code}"
+        f"Expected 4xx for empty schema id, got {resp.status_code}"
     )
 
 
@@ -478,7 +478,7 @@ def test_no_plaintext_in_encrypted_blob(proc_grpc_stub, shared_fs):
     secret_text = "super-secret-value-XYZ"
     payload = json.dumps({"chat": [{"type": "user", "text": secret_text}]}).encode()
     resp = stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="PlaintextCheck",
         operation="PUT",
         payload=payload,
@@ -501,7 +501,7 @@ def test_different_writes_produce_different_nonces(proc_grpc_stub, shared_fs):
     for i in range(10):
         payload = json.dumps({"chat": [{"type": "user", "text": f"msg-{i}"}]}).encode()
         stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key="NonceTest",
             operation="PUT",
             payload=payload,

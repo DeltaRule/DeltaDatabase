@@ -14,7 +14,7 @@ This section covers everything you need to use DeltaDatabase in your application
 | [JSON Schema Templates](schemas) | Defining and validating entity shapes |
 | [Deployment](deployment) | Docker, Docker Compose, Kubernetes, S3 |
 | [Security Model](security) | Encryption, key management, hardening |
-| [Management UI](frontend) | Browser-based UI for managing databases, schemas, and API keys |
+| [Management UI](frontend) | Browser-based UI for managing schema-databases, schemas, and API keys |
 | [Caching Model](caching) | How the LRU cache works |
 | [Benchmark Results](benchmarks) | Measured performance numbers |
 | [Examples](examples/) | Real-world usage examples |
@@ -23,15 +23,15 @@ This section covers everything you need to use DeltaDatabase in your application
 
 ### Databases and Entities
 
-DeltaDatabase organizes data into **databases** and **entities**:
+DeltaDatabase organizes data into **schema-databases** and **entities**:
 
-- A **database** is a named collection (e.g., `chatdb`, `userdb`).
-- An **entity** is a named JSON document within a database (e.g., `session_001`).
+- A **schema-database** is identified by a `schema_id` (e.g., `chat.v1`, `user.v1`). The schema IS the database.
+- An **entity** is a named JSON document within a schema-database (e.g., `session_001`).
 
-Think of it as: `database` = table, `entity key` = primary key, `entity value` = JSON row.
+Think of it as: `schema_id` = table, `entity key` = primary key, `entity value` = JSON row.
 
 ```
-chatdb/
+chat.v1/
 ├── session_001  →  {"messages": [...]}
 ├── session_002  →  {"messages": [...]}
 └── session_003  →  {"messages": [...]}
@@ -42,14 +42,14 @@ chatdb/
 All entity operations use two endpoints:
 
 ```
-PUT  /entity/{database}          — create or update one or more entities
-GET  /entity/{database}?key=...  — retrieve a single entity
+PUT  /entity/{schema_id}          — create or update one or more entities
+GET  /entity/{schema_id}?key=...  — retrieve a single entity
 ```
 
 Both require an `Authorization: Bearer <token>` header.
 
 ### JSON Schema Validation
 
-Before any entity is stored, it is validated against the JSON Schema registered for that database. Invalid data is rejected with an HTTP `400` response.
+Before any entity is stored, it is validated against the JSON Schema registered for that schema_id (if a template exists). Invalid data is rejected with an HTTP `400` response.
 
 Schemas are stored in `{shared-fs}/templates/` or can be managed via the REST API or the web UI.

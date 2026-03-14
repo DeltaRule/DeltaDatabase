@@ -105,23 +105,23 @@ func (s *ProcWorkerServer) Subscribe(_ context.Context, _ *proto.SubscribeReques
 //  3. Delete the entity's .json.enc and .meta.json files from disk.
 //  4. Release lock and return response to the caller.
 func (s *ProcWorkerServer) Process(ctx context.Context, req *proto.ProcessRequest) (*proto.ProcessResponse, error) {
-	if req.GetDatabaseName() == "" || req.GetEntityKey() == "" {
-		return nil, status.Error(codes.InvalidArgument, "database_name and entity_key are required")
+	if req.GetSchemaId() == "" || req.GetEntityKey() == "" {
+		return nil, status.Error(codes.InvalidArgument, "schema_id and entity_key are required")
 	}
 
-	// Reject path-traversal characters in database_name and entity_key to prevent
+	// Reject path-traversal characters in schema_id and entity_key to prevent
 	// an attacker from escaping the shared-filesystem files directory.
-	dbName := req.GetDatabaseName()
+	schemaID := req.GetSchemaId()
 	entityKey := req.GetEntityKey()
-	if strings.ContainsAny(dbName, `/\`) || strings.Contains(dbName, "..") {
-		return nil, status.Error(codes.InvalidArgument, "invalid database_name: must not contain path separators or '..'")
+	if strings.ContainsAny(schemaID, `/\`) || strings.Contains(schemaID, "..") {
+		return nil, status.Error(codes.InvalidArgument, "invalid schema_id: must not contain path separators or '..'")
 	}
 	if strings.ContainsAny(entityKey, `/\`) || strings.Contains(entityKey, "..") {
 		return nil, status.Error(codes.InvalidArgument, "invalid entity_key: must not contain path separators or '..'")
 	}
 
-	// Build the entity ID used as the storage and cache key (e.g. "chatdb_Chat_id").
-	entityID := req.GetDatabaseName() + "_" + req.GetEntityKey()
+	// Build the entity ID used as the storage and cache key (e.g. "chat.v1_Chat_id").
+	entityID := req.GetSchemaId() + "_" + req.GetEntityKey()
 
 	start := time.Now()
 	op := req.GetOperation()
@@ -269,14 +269,18 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 		return nil, status.Error(codes.InvalidArgument, "payload is required for PUT operations")
 	}
 
-	// Step 1: Validate incoming JSON against the schema.
+	// Step 1: Validate incoming JSON against the schema if a template exists.
 	// Security: if validation fails, reject the write (fail closed per guidelines).
+	// If no schema template is defined for this schema_id, any valid JSON is accepted.
 	if req.GetSchemaId() != "" && s.validator != nil {
 		result, err := s.validator.Validate(req.GetSchemaId(), req.GetPayload())
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "schema validation error: %v", err)
-		}
-		if !result.Valid {
+			// Schema template not found → no validation constraint, proceed.
+			// Any other validation infrastructure error is propagated.
+			if !strings.Contains(err.Error(), "schema template not found") {
+				return nil, status.Errorf(codes.InvalidArgument, "schema validation error: %v", err)
+			}
+		} else if !result.Valid {
 			return nil, status.Errorf(codes.InvalidArgument,
 				"payload does not match schema %q: %d error(s)", req.GetSchemaId(), len(result.Errors))
 		}
@@ -332,7 +336,7 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 		Version:   nextVersion,
 		WriterID:  s.worker.config.WorkerID,
 		Timestamp: time.Now().UTC(),
-		Database:  req.GetDatabaseName(),
+		Database:  req.GetSchemaId(),
 		EntityKey: req.GetEntityKey(),
 	}
 	versionStr := strconv.Itoa(nextVersion)

@@ -192,7 +192,7 @@ Processing Worker (in-memory)
 ┌──────────────────────────────────┐
 │  LRU Cache (configurable size)   │
 │                                  │
-│  key: "chatdb/session_001"       │
+│  key: "chat.v1/session_001"       │
 │  value: {"messages": [...]}       │
 │  version: 3                      │
 │                                  │

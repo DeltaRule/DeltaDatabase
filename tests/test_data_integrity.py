@@ -20,7 +20,7 @@ def test_schema_validation_rejects_invalid(proc_grpc_stub, sample_schema):
     payload = json.dumps({"chat": [{"type": "assistant"}]}).encode()  # missing "text"
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key="SchemaRejectTest",
             schema_id="chat.v1",
             operation="PUT",
@@ -42,7 +42,7 @@ def test_metadata_matches_schema_id(proc_grpc_stub, shared_fs, sample_schema):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "user", "text": "hello"}]}).encode()
     resp = stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="MetaCheck",
         schema_id="chat.v1",
         operation="PUT",
@@ -66,7 +66,7 @@ def test_file_metadata_has_version(proc_grpc_stub, shared_fs, iteration):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "user", "text": f"v{iteration}"}]}).encode()
     stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key=f"Meta-{iteration}",
         operation="PUT",
         payload=payload,

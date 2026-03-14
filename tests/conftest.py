@@ -296,12 +296,15 @@ class SubscribeResponse(_Msg):
 class ProcessRequest(_Msg):
     _bytes_fields = frozenset(["payload"])
 
-    def __init__(self, database_name: str = "", entity_key: str = "",
-                 schema_id: str = "", operation: str = "",
-                 payload: bytes = b"", token: str = ""):
-        self.database_name = database_name
+    def __init__(self, schema_id: str = "", entity_key: str = "",
+                 operation: str = "", payload: bytes = b"", token: str = "",
+                 # database_name is accepted for backwards compatibility but
+                 # ignored — schema_id now serves as both namespace and schema.
+                 database_name: str = ""):
+        # If callers still pass the old database_name kwarg without schema_id,
+        # fall back to database_name so existing tests continue to work.
+        self.schema_id = schema_id or database_name
         self.entity_key = entity_key
-        self.schema_id = schema_id
         self.operation = operation
         self.payload = payload
         self.token = token
