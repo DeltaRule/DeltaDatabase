@@ -136,7 +136,6 @@ def test_worker_token_expiry_enforced(proto_modules):
         time.sleep(1.1)
 
         req = pb2.ProcessRequest(
-            database_name="chatdb",
             entity_key="Chat_id",
             schema_id="chat.v1",
             operation="GET",

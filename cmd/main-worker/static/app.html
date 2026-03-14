@@ -33,8 +33,8 @@
         <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
           <span class="nav-icon">🏠</span><span>Dashboard</span>
         </button>
-        <button class="nav-item" data-page="databases" onclick="navigate('databases')">
-          <span class="nav-icon">🗄️</span><span>Databases</span>
+        <button class="nav-item" data-page="schemas" onclick="navigate('schemas')">
+          <span class="nav-icon">🗄️</span><span>Schemas</span>
         </button>
         <button class="nav-item" data-page="entities" onclick="navigate('entities')">
           <span class="nav-icon">📦</span><span>Entities</span>
@@ -108,7 +108,7 @@
             <div class="stat-card">
               <div class="stat-header"><span class="stat-icon">🗄️</span><span class="badge badge-slate">cached</span></div>
               <div class="stat-value" id="statDbs">0</div>
-              <div class="stat-label">Databases</div>
+              <div class="stat-label">Schemas</div>
             </div>
             <div class="stat-card">
               <div class="stat-header"><span class="stat-icon">🗝️</span><span class="badge badge-yellow">keys</span></div>
@@ -142,17 +142,17 @@
         </div>
 
         <!-- ── DATABASES ──────────────────────────────────────────── -->
-        <div class="page hidden" id="page-databases">
+        <div class="page hidden" id="page-schemas">
           <div class="row mb-3">
             <div class="flex-1">
-              <label class="label">Select Database</label>
+              <label class="label">Select Schema</label>
               <select id="dbDropdown" onchange="onDbDropdownChange()">
-                <option value="">— choose a database —</option>
+                <option value="">— choose a schema —</option>
               </select>
             </div>
             <div>
               <label class="label">&nbsp;</label>
-              <button class="btn btn-ghost" onclick="loadDatabases()">↻ Refresh</button>
+              <button class="btn btn-ghost" onclick="loadSchemas()">↻ Refresh</button>
             </div>
           </div>
 
@@ -161,19 +161,19 @@
           <div class="card" id="dbEmptyCard" style="display:none">
             <div class="empty-state">
               <div class="empty-icon">🗄️</div>
-              <div class="empty-title">No databases found</div>
-              <div class="empty-sub">Write entities to create databases, then refresh.</div>
+              <div class="empty-title">No schemas found</div>
+              <div class="empty-sub">Write entities to create schemas, then refresh.</div>
             </div>
           </div>
 
           <!-- Create new DB -->
           <div class="card">
-            <div class="card-header"><div class="card-title"><span class="card-title-icon">➕</span> Create New Database</div></div>
-            <p style="font-size:.8rem;color:#64748b;margin-bottom:.875rem">Databases are created automatically when you write the first entity.</p>
+            <div class="card-header"><div class="card-title"><span class="card-title-icon">➕</span> Create New Schema</div></div>
+            <p style="font-size:.8rem;color:#64748b;margin-bottom:.875rem">Schemas are used as databases — write entities to a schema to create it.</p>
             <div class="grid-2 mb-2">
               <div class="field mb-1">
-                <label class="label">Database Name</label>
-                <input id="newDbName" type="text" placeholder="e.g. users" />
+                <label class="label">Schema ID</label>
+                <input id="newDbName" type="text" placeholder="e.g. chat.v1" />
               </div>
               <div class="field mb-1">
                 <label class="label">Entity Key</label>
@@ -196,7 +196,7 @@
             <div class="card">
               <div class="card-header"><div class="card-title"><span class="card-title-icon">📥</span> Get Entity</div></div>
               <div class="field">
-                <label class="label">Database</label>
+                <label class="label">Schema</label>
                 <select id="getDbSel"></select>
               </div>
               <div class="field">
@@ -211,13 +211,13 @@
             <div class="card">
               <div class="card-header"><div class="card-title"><span class="card-title-icon">📤</span> Put Entity</div></div>
               <div class="field">
-                <label class="label">Database</label>
+                <label class="label">Schema</label>
                 <div class="row" style="gap:.375rem">
                   <div style="flex:1">
                     <select id="putDbSel"></select>
                   </div>
                   <div style="flex:1">
-                    <input id="putDbCustom" type="text" placeholder="or type new…" />
+                    <input id="putDbCustom" type="text" placeholder="or type new schema id…" />
                   </div>
                 </div>
               </div>
@@ -374,7 +374,7 @@
               <div class="quick-btns">
                 <button class="btn btn-ghost btn-xs" onclick="quickReq('GET','/health')">GET /health</button>
                 <button class="btn btn-ghost btn-xs" onclick="quickReq('GET','/admin/workers')">GET /admin/workers</button>
-                <button class="btn btn-ghost btn-xs" onclick="quickReq('GET','/api/databases')">GET /api/databases</button>
+                <button class="btn btn-ghost btn-xs" onclick="quickReq('GET','/api/schemas')">GET /api/schemas</button>
                 <button class="btn btn-ghost btn-xs" onclick="quickReq('GET','/api/me')">GET /api/me</button>
                 <button class="btn btn-ghost btn-xs" onclick="quickReq('GET','/api/keys')">GET /api/keys</button>
               </div>
@@ -400,7 +400,7 @@
     clientId: sessionStorage.getItem('delta_client') || '',
     isAdmin:  false,
     healthy:  false,
-    databases:[],
+    schemas:[],
     currentPage: 'dashboard',
   };
 
@@ -457,7 +457,7 @@
   // ── Navigation ────────────────────────────────────────────────────────
   function navigate(page) {
     // Update page titles map
-    const titles = { dashboard:'Dashboard', databases:'Databases', entities:'Entities',
+    const titles = { dashboard:'Dashboard', schemas:'Schemas', entities:'Entities',
       workers:'Workers', schemas:'Schemas', apikeys:'API Keys', explorer:'Explorer' };
     // Hide all pages
     document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
@@ -472,7 +472,7 @@
     closeSidebar();
     // Load data for page
     if (page === 'dashboard')  loadDashboard();
-    if (page === 'databases')  loadDatabases();
+    if (page === 'schemas')  loadSchemas();
     if (page === 'entities')   { populateDbSelects(); }
     if (page === 'workers')    loadWorkers();
     if (page === 'schemas')    loadSchemas();
@@ -495,7 +495,7 @@
   async function refreshAll() {
     const icon = document.getElementById('refreshIcon');
     icon.classList.add('spin');
-    await Promise.all([loadDashboard(), loadDatabases()]);
+    await Promise.all([loadDashboard(), loadSchemas()]);
     icon.classList.remove('spin');
   }
 
@@ -512,7 +512,7 @@
         document.getElementById('healthBadge').textContent = '✓ online';
         document.getElementById('statWorkers').textContent = h.available_workers ?? '—';
         document.getElementById('statKeys').textContent    = h.api_keys ?? '—';
-        document.getElementById('statDbs').textContent     = STATE.databases.length;
+        document.getElementById('statDbs').textContent     = STATE.schemas.length;
 
         // Build health table
         const rows = Object.entries(h).map(([k,v]) => {
@@ -549,34 +549,34 @@
     document.getElementById('healthBody').innerHTML = '<span style="color:#f87171;font-size:.8rem">Server unreachable</span>';
   }
 
-  // ── Databases ─────────────────────────────────────────────────────────
-  async function loadDatabases() {
+  // ── Schemas ─────────────────────────────────────────────────────────
+  async function loadSchemas() {
     try {
-      const r = await api('/api/databases');
+      const r = await api('/api/schemas');
       if (r.ok) {
-        STATE.databases = await r.json() || [];
-        renderDatabaseGrid();
+        STATE.schemas = await r.json() || [];
+        renderSchemaGrid();
         populateDbSelects();
-        document.getElementById('statDbs').textContent = STATE.databases.length;
+        document.getElementById('statDbs').textContent = STATE.schemas.length;
       }
     } catch {}
   }
 
-  function renderDatabaseGrid() {
+  function renderSchemaGrid() {
     const wrap = document.getElementById('dbGridWrap');
     const empty = document.getElementById('dbEmptyCard');
     const dropdown = document.getElementById('dbDropdown');
 
     // Rebuild dropdown
-    dropdown.innerHTML = '<option value="">— choose a database —</option>' +
-      STATE.databases.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
+    dropdown.innerHTML = '<option value="">— choose a schema —</option>' +
+      STATE.schemas.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
 
-    if (STATE.databases.length === 0) {
+    if (STATE.schemas.length === 0) {
       wrap.innerHTML = '';
       empty.style.display = '';
     } else {
       empty.style.display = 'none';
-      wrap.innerHTML = STATE.databases.map(db => `
+      wrap.innerHTML = STATE.schemas.map(db => `
         <button class="db-card" onclick="openDb(${JSON.stringify(db)})">
           <div class="db-card-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -604,11 +604,11 @@
   }
 
   function populateDbSelects() {
-    const opts = '<option value="">— select database —</option>' +
-      STATE.databases.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
+    const opts = '<option value="">— select schema —</option>' +
+      STATE.schemas.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
     document.getElementById('getDbSel').innerHTML = opts;
     document.getElementById('putDbSel').innerHTML = '<option value="">— select or type below —</option>' +
-      STATE.databases.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
+      STATE.schemas.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
   }
 
   function createNewDb() {
@@ -616,7 +616,7 @@
     const key  = document.getElementById('newDbKey').value.trim();
     const body = document.getElementById('newDbBody').value.trim() || '{}';
     const alertEl = document.getElementById('newDbAlert');
-    if (!name || !key) { showAlert(alertEl, 'error', 'Database name and key are required.'); return; }
+    if (!name || !key) { showAlert(alertEl, 'error', 'Schema ID and key are required.'); return; }
     let parsed;
     try { parsed = JSON.parse(body); } catch { showAlert(alertEl, 'error', 'Invalid JSON body.'); return; }
     api('/entity/' + encodeURIComponent(name), {
@@ -624,8 +624,8 @@
       body: JSON.stringify({ [key]: parsed })
     }).then(r => r.json().then(d => {
       if (r.ok) {
-        showAlert(alertEl, 'success', `Database "${name}" created with entity "${key}".`);
-        loadDatabases();
+        showAlert(alertEl, 'success', `Schema "${name}" created with entity "${key}".`);
+        loadSchemas();
       } else {
         showAlert(alertEl, 'error', d.error || 'Failed.');
       }
@@ -640,7 +640,7 @@
     const boxEl  = document.getElementById('getResultBox');
     errEl.classList.add('hidden');
     boxEl.classList.add('hidden');
-    if (!db || !key) { showAlert(errEl, 'error', 'Database and key are required.'); return; }
+    if (!db || !key) { showAlert(errEl, 'error', 'Schema and key are required.'); return; }
     try {
       const r = await api('/entity/' + encodeURIComponent(db) + '?key=' + encodeURIComponent(key));
       if (r.ok) {
@@ -658,7 +658,7 @@
     const body = document.getElementById('putBody').value.trim();
     const alertEl = document.getElementById('putAlert');
     alertEl.classList.add('hidden');
-    if (!db) { showAlert(alertEl, 'error', 'Database is required.'); return; }
+    if (!db) { showAlert(alertEl, 'error', 'Schema is required.'); return; }
     if (!body) { showAlert(alertEl, 'error', 'JSON body is required.'); return; }
     let payload;
     try { payload = JSON.parse(body); } catch { showAlert(alertEl, 'error', 'Invalid JSON.'); return; }
@@ -669,7 +669,7 @@
       });
       if (r.ok) {
         showAlert(alertEl, 'success', 'Entity written successfully.');
-        await loadDatabases();
+        await loadSchemas();
       } else {
         const d = await r.json().catch(() => ({}));
         showAlert(alertEl, 'error', d.error || 'Failed.');

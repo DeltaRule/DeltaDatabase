@@ -45,7 +45,10 @@
 ## Overview
 
 DeltaDatabase stores arbitrary JSON documents — called **entities** — inside
-named **databases**.  Every entity is:
+**schema-databases** identified by a `schema_id`.  The schema IS the database —
+there is no separate database namespace.  Every entity is stored under its
+`schema_id`, which also acts as the JSON Schema template identifier for
+validation.  Every entity is:
 
 * **Validated** against a JSON Schema template before being persisted.
 * **Encrypted** at rest using AES-256-GCM before touching disk.
@@ -57,7 +60,7 @@ named **databases**.  Every entity is:
   straightforward from any programming language.
 
 A built-in multi-page web UI is served by the Main Worker at `/` so you can
-browse and manage databases without any external tooling.
+browse and manage schemas without any external tooling.
 
 ---
 
@@ -224,7 +227,7 @@ Use the admin key directly as a Bearer token — no separate login step needed:
 ```bash
 ADMIN_KEY=mysecretkey
 
-curl -s -X PUT http://127.0.0.1:8080/entity/chatdb \
+curl -s -X PUT http://127.0.0.1:8080/entity/chat.v1 \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"session_001": {"messages": [{"role":"user","content":"Hello!"}]}}'
@@ -239,7 +242,7 @@ Response:
 ### 5. Retrieve the entity
 
 ```bash
-curl -s "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
+curl -s "http://127.0.0.1:8080/entity/chat.v1?key=session_001" \
   -H "Authorization: Bearer $ADMIN_KEY"
 ```
 
@@ -252,7 +255,7 @@ Response:
 ### 6. Delete the entity
 
 ```bash
-curl -s -X DELETE "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
+curl -s -X DELETE "http://127.0.0.1:8080/entity/chat.v1?key=session_001" \
   -H "Authorization: Bearer $ADMIN_KEY"
 ```
 
@@ -413,11 +416,13 @@ Requires `admin` permission.
 
 ---
 
-### `PUT /entity/{database}`
+### `PUT /entity/{schema_id}`
 
-Create or update one or more entities in a database.
+Create or update one or more entities in the schema-database identified by `schema_id`.
+The schema IS the database — `schema_id` serves as both the storage namespace and the
+JSON Schema template used for validation (if a template with that ID exists).
 
-**Path parameter:** `database` — name of the database (e.g., `chatdb`).
+**Path parameter:** `schema_id` — schema identifier (e.g., `chat.v1`).
 
 **Request body** — a JSON object where each key is an entity key and each
 value is the entity's JSON document:
@@ -437,11 +442,11 @@ value is the entity's JSON document:
 
 ---
 
-### `GET /entity/{database}?key={entityKey}`
+### `GET /entity/{schema_id}?key={entityKey}`
 
 Retrieve a single entity.
 
-**Path parameter:** `database` — name of the database.
+**Path parameter:** `schema_id` — schema identifier.
 
 **Query parameter:** `key` — entity key.
 
@@ -455,17 +460,17 @@ Retrieve a single entity.
 
 | HTTP code | Meaning |
 |-----------|---------|
-| `400` | Missing `key` query parameter or missing database |
+| `400` | Missing `key` query parameter or missing schema id |
 | `401` | Missing or invalid Bearer token |
 | `404` | Entity not found |
 
 ---
 
-### `DELETE /entity/{database}?key={entityKey}`
+### `DELETE /entity/{schema_id}?key={entityKey}`
 
-Delete a single entity by key from a database. Requires `write` permission.
+Delete a single entity by key from a schema-database. Requires `write` permission.
 
-**Path parameter:** `database` — name of the database.
+**Path parameter:** `schema_id` — schema identifier.
 
 **Query parameter:** `key` — entity key.
 
@@ -479,7 +484,7 @@ Delete a single entity by key from a database. Requires `write` permission.
 
 | HTTP code | Meaning |
 |-----------|---------|
-| `400` | Missing `key` query parameter or missing database |
+| `400` | Missing `key` query parameter or missing schema id |
 | `401` | Missing or invalid Bearer token |
 | `403` | Token lacks `write` permission |
 
@@ -621,14 +626,32 @@ curl http://127.0.0.1:8080/schema/chat.v1
 The web management UI exposes a **📋 Schemas** tab where you can list, load,
 and edit schemas through a form — no `curl` or file editing needed.
 
+### Using a schema-database via the REST API
+
+The `schema_id` in the URL path is both the storage namespace and the schema
+validator.  When a JSON Schema template with the given `schema_id` exists, each
+PUT is validated before storage.
+
+```bash
+# Store entities in the "chat.v1" schema-database
+curl -X PUT http://127.0.0.1:8080/entity/chat.v1 \
+  -H "Authorization: Bearer $ADMIN_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"session_001": {"messages": [{"role":"user","content":"Hello!"}]}}'
+
+# Retrieve an entity from the "chat.v1" schema-database
+curl "http://127.0.0.1:8080/entity/chat.v1?key=session_001" \
+  -H "Authorization: Bearer $ADMIN_KEY"
+```
+
 ### Using a schema on a PUT (gRPC)
 
 When calling the gRPC `Process` RPC directly, set the `schema_id` field of
-`ProcessRequest` to `"chat.v1"`. The Processing Worker will reject any payload
-that does not match the schema.
-
-The REST API currently accepts any valid JSON; schema enforcement is applied
-when the Main Worker routes to a Processing Worker with schema awareness.
+`ProcessRequest` to the desired schema-database identifier (e.g. `"chat.v1"`).
+The Processing Worker will:
+1. Store the entity under that namespace.
+2. Validate the payload against the `chat.v1` JSON Schema template (if it exists).
+   If no template exists, any valid JSON is accepted.
 
 ---
 
@@ -652,13 +675,13 @@ Use it directly as a Bearer token on every request — full access, no RBAC:
 
 ```bash
 # Write an entity directly with the admin key
-curl -X PUT http://127.0.0.1:8080/entity/mydb \
+curl -X PUT http://127.0.0.1:8080/entity/chat.v1 \
   -H "Authorization: Bearer mysecretkey" \
   -H "Content-Type: application/json" \
   -d '{"user:1": {"name": "Alice"}}'
 
 # Read it back
-curl http://127.0.0.1:8080/entity/mydb?key=user:1 \
+curl http://127.0.0.1:8080/entity/chat.v1?key=user:1 \
   -H "Authorization: Bearer mysecretkey"
 ```
 
@@ -680,7 +703,7 @@ curl -X POST http://127.0.0.1:8080/api/keys \
 Use the returned secret directly as a Bearer token — no login needed:
 
 ```bash
-curl http://127.0.0.1:8080/entity/mydb?key=user:1 \
+curl http://127.0.0.1:8080/entity/chat.v1?key=user:1 \
   -H "Authorization: Bearer dk_…"
 ```
 
@@ -745,9 +768,9 @@ http://127.0.0.1:8080/
 | Page | Description |
 |------|-------------|
 | **Login** | Beautiful sign-in card — enter your admin key, API key, or a dev-mode Client ID |
-| **Dashboard** | Live health status, worker counts, database count, and cache statistics |
-| **Databases** | Dropdown + card grid of all databases; click any card to explore its entities |
-| **Entities** | GET, PUT, and DELETE entities with a database dropdown pre-populated from `GET /api/databases` |
+| **Dashboard** | Live health status, worker counts, schema count, and cache statistics |
+| **Schemas** | Dropdown + card grid of all schema-databases; click any card to explore its entities |
+| **Entities** | GET, PUT, and DELETE entities with a schema dropdown pre-populated from `GET /api/schemas` |
 | **Workers** | Table of all registered Processing Workers with status, key ID, last-seen, and tags |
 | **Schemas** | List, load, create, and edit JSON Schema templates; export as Pydantic or TypeScript |
 | **API Keys** | Create and delete RBAC API keys (admin only) with permissions and optional expiry |
@@ -757,7 +780,7 @@ http://127.0.0.1:8080/
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/databases` | Returns a sorted list of databases currently in the entity cache (requires `read`) |
+| `GET /api/schemas` | Returns a sorted list of schema-databases currently in the entity cache (requires `read`) |
 | `GET /api/me` | Returns the caller's `client_id`, `permissions`, and `is_admin` flag |
 
 The UI is **fully responsive** — on mobile a hamburger menu opens the sidebar as an overlay.

@@ -37,9 +37,8 @@ def test_invalid_token_always_rejected(settings):
 def test_grpc_requires_mtls_or_token(grpc_stub):
     pb2, stub = grpc_stub
     req = pb2.ProcessRequest(
-        database_name="chatdb",
-        entity_key="Chat_id",
         schema_id="chat.v1",
+        entity_key="Chat_id",
         operation="GET",
         payload=b"",
         token="",

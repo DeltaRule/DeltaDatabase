@@ -28,7 +28,7 @@ def test_put_creates_encrypted_blob(proc_grpc_stub, shared_fs):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "assistant", "text": "hello"}]}).encode()
     resp = stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="EncBlob",
         operation="PUT",
         payload=payload,
@@ -43,7 +43,7 @@ def test_blob_metadata_has_crypto_fields(proc_grpc_stub, shared_fs):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "assistant", "text": "meta check"}]}).encode()
     stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="EncBlob",
         operation="PUT",
         payload=payload,
@@ -93,7 +93,7 @@ def test_tamper_detection_on_blob(proc_grpc_stub, shared_fs):
     pb2, stub = proc_grpc_stub
     with pytest.raises(grpc.RpcError) as exc:
         stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key="TamperDetect",
             operation="GET",
             payload=b"",
@@ -134,7 +134,7 @@ def test_encryption_payload_sizes(proc_grpc_stub, size):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "assistant", "text": "x" * size}]}).encode()
     resp = stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key=f"SizePad-{size}",
         operation="PUT",
         payload=payload,
@@ -148,7 +148,7 @@ def test_repeated_put_does_not_reuse_nonce(proc_grpc_stub, shared_fs, iteration)
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "assistant", "text": f"msg-{iteration}"}]}).encode()
     resp = stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="Chat_id",
         operation="PUT",
         payload=payload,

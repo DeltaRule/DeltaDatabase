@@ -70,16 +70,18 @@ Returns system health. No authentication required.
 
 ## Entities
 
-### `PUT /entity/{database}`
+### `PUT /entity/{schema_id}`
 
-Create or update one or more entities in a database. Requires `write` permission.
+Create or update one or more entities in the schema-database identified by `schema_id`.
+The schema IS the database — `schema_id` serves as both the storage namespace and the
+JSON Schema template identifier. Requires `write` permission.
 
-**Path parameter:** `database` — name of the database (e.g., `chatdb`).
+**Path parameter:** `schema_id` — schema identifier (e.g., `chat.v1`).
 
 **Request:**
 
 ```http
-PUT /entity/chatdb
+PUT /entity/chat.v1
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -108,7 +110,7 @@ The request body is a JSON **object** where each key is an entity key and each v
 **Example:**
 
 ```bash
-curl -s -X PUT http://127.0.0.1:8080/entity/chatdb \
+curl -s -X PUT http://127.0.0.1:8080/entity/chat.v1 \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"session_001": {"messages": [{"role":"user","content":"Hello!"}]}}'
@@ -116,18 +118,18 @@ curl -s -X PUT http://127.0.0.1:8080/entity/chatdb \
 
 ---
 
-### `GET /entity/{database}?key={entityKey}`
+### `GET /entity/{schema_id}?key={entityKey}`
 
 Retrieve a single entity by key. Requires `read` permission.
 
-**Path parameter:** `database` — name of the database.
+**Path parameter:** `schema_id` — schema identifier.
 
 **Query parameter:** `key` — entity key.
 
 **Request:**
 
 ```http
-GET /entity/chatdb?key=session_001
+GET /entity/chat.v1?key=session_001
 Authorization: Bearer <token>
 ```
 
@@ -149,24 +151,24 @@ Authorization: Bearer <token>
 **Example:**
 
 ```bash
-curl -s "http://127.0.0.1:8080/entity/chatdb?key=session_001" \
+curl -s "http://127.0.0.1:8080/entity/chat.v1?key=session_001" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
 
-### `DELETE /entity/{database}?key={entityKey}`
+### `DELETE /entity/{schema_id}?key={entityKey}`
 
 Delete a single entity by key. Requires `write` permission.
 
-**Path parameter:** `database` — name of the database.
+**Path parameter:** `schema_id` — schema identifier.
 
 **Query parameter:** `key` — entity key.
 
 **Request:**
 
 ```http
-DELETE /entity/chatdb?key=session_001
+DELETE /entity/chat.v1?key=session_001
 Authorization: Bearer <token>
 ```
 

@@ -12,14 +12,14 @@
 
 ## What is DeltaDatabase?
 
-DeltaDatabase stores arbitrary **JSON documents** — called *entities* — inside named *databases*. Every entity is:
+DeltaDatabase stores arbitrary **JSON documents** — called *entities* — inside *schema-databases* — the schema IS the database. Every entity is:
 
 - **Validated** against a JSON Schema template before being persisted.
 - **Encrypted** at rest using AES-256-GCM before touching disk.
 - **Cached** in memory using a smart LRU policy for high-speed reads.
 - **Accessed** through a plain HTTP REST API or gRPC from any language.
 
-A built-in single-page web UI is served at `/` so you can browse and manage databases without any external tooling.
+A built-in single-page web UI is served at `/` so you can browse and manage schema-databases without any external tooling.
 
 ---
 

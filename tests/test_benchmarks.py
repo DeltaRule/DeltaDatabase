@@ -224,7 +224,7 @@ def test_benchmark_grpc_put(benchmark, proc_grpc_stub):
         counter[0] += 1
         payload = json.dumps({"chat": [{"type": "user", "text": f"grpc-{counter[0]}"}]}).encode()
         resp = stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key=f"GrpcPUT-{counter[0]}",
             operation="PUT",
             payload=payload,
@@ -247,7 +247,7 @@ def test_benchmark_grpc_get_warm(benchmark, proc_grpc_stub):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "user", "text": "warm"}]}).encode()
     stub.Process(pb2.ProcessRequest(
-        database_name="chatdb",
+        schema_id="chatdb",
         entity_key="GrpcGET-warm",
         operation="PUT",
         payload=payload,
@@ -256,7 +256,7 @@ def test_benchmark_grpc_get_warm(benchmark, proc_grpc_stub):
 
     def _bench():
         resp = stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
+            schema_id="chatdb",
             entity_key="GrpcGET-warm",
             operation="GET",
             payload=b"",
@@ -284,7 +284,6 @@ def test_benchmark_schema_validated_put(benchmark, proc_grpc_stub, sample_schema
         counter[0] += 1
         payload = json.dumps({"chat": [{"type": "user", "text": f"msg-{counter[0]}"}]}).encode()
         resp = stub.Process(pb2.ProcessRequest(
-            database_name="chatdb",
             entity_key=f"SchemaBench-{counter[0]}",
             schema_id="chat.v1",
             operation="PUT",
