@@ -42,7 +42,7 @@ func main() {
 		Version:   1,
 		WriterID:  "worker-1",
 		Timestamp: time.Now(),
-		Database:  "chatdb",
+		Schema:    "chatdb",
 		EntityKey: entityID,
 	}
 

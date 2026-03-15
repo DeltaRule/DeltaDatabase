@@ -14,7 +14,7 @@ import (
 type MainWorkerClient interface {
 	// Subscribe registers a Processing Worker and returns a token and wrapped key material.
 	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*SubscribeResponse, error)
-	// Process performs internal GET/PUT operations for database entities.
+	// Process performs internal GET/PUT operations for schema entities.
 	Process(ctx context.Context, in *ProcessRequest, opts ...grpc.CallOption) (*ProcessResponse, error)
 }
 
@@ -49,7 +49,7 @@ func (c *mainWorkerClient) Process(ctx context.Context, in *ProcessRequest, opts
 type MainWorkerServer interface {
 	// Subscribe registers a Processing Worker and returns a token and wrapped key material.
 	Subscribe(context.Context, *SubscribeRequest) (*SubscribeResponse, error)
-	// Process performs internal GET/PUT operations for database entities.
+	// Process performs internal GET/PUT operations for schema entities.
 	Process(context.Context, *ProcessRequest) (*ProcessResponse, error)
 }
 

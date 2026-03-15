@@ -67,7 +67,7 @@ func (x *SubscribeResponse) GetKeyId() string {
 
 // ProcessRequest requests a GET or PUT operation on an entity.
 // SchemaId serves as both the storage namespace and the JSON Schema identifier —
-// the schema IS the database.
+// the schema is the namespace for all its entities.
 type ProcessRequest struct {
 	SchemaId  string `json:"schema_id,omitempty"`
 	EntityKey string `json:"entity_key,omitempty"`

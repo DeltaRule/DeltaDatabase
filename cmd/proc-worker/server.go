@@ -77,7 +77,7 @@ func (s *ProcWorkerServer) Subscribe(_ context.Context, _ *proto.SubscribeReques
 	return nil, status.Error(codes.Unimplemented, "Subscribe is not handled by the Processing Worker")
 }
 
-// Process handles GET, PUT, and DELETE operations for database entities.
+// Process handles GET, PUT, and DELETE operations for schema entities.
 //
 // GET flow:
 //  1. Check pkg/cache; if hit, return metadata + data.
@@ -336,7 +336,7 @@ func (s *ProcWorkerServer) processPUT(_ context.Context, req *proto.ProcessReque
 		Version:   nextVersion,
 		WriterID:  s.worker.config.WorkerID,
 		Timestamp: time.Now().UTC(),
-		Database:  req.GetSchemaId(),
+		Schema:    req.GetSchemaId(),
 		EntityKey: req.GetEntityKey(),
 	}
 	versionStr := strconv.Itoa(nextVersion)

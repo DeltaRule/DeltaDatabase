@@ -45,8 +45,8 @@
 ## Overview
 
 DeltaDatabase stores arbitrary JSON documents — called **entities** — inside
-**schema-databases** identified by a `schema_id`.  The schema IS the database —
-there is no separate database namespace.  Every entity is stored under its
+**schemas** identified by a `schema_id`.  The schema is the namespace —
+there is no separate grouping above it.  Every entity is stored under its
 `schema_id`, which also acts as the JSON Schema template identifier for
 validation.  Every entity is:
 
@@ -418,8 +418,8 @@ Requires `admin` permission.
 
 ### `PUT /entity/{schema_id}`
 
-Create or update one or more entities in the schema-database identified by `schema_id`.
-The schema IS the database — `schema_id` serves as both the storage namespace and the
+Create or update one or more entities in the schema identified by `schema_id`.
+The schema is the namespace — `schema_id` serves as both the storage namespace and the
 JSON Schema template used for validation (if a template with that ID exists).
 
 **Path parameter:** `schema_id` — schema identifier (e.g., `chat.v1`).
@@ -468,7 +468,7 @@ Retrieve a single entity.
 
 ### `DELETE /entity/{schema_id}?key={entityKey}`
 
-Delete a single entity by key from a schema-database. Requires `write` permission.
+Delete a single entity by key from a schema. Requires `write` permission.
 
 **Path parameter:** `schema_id` — schema identifier.
 
@@ -626,20 +626,20 @@ curl http://127.0.0.1:8080/schema/chat.v1
 The web management UI exposes a **📋 Schemas** tab where you can list, load,
 and edit schemas through a form — no `curl` or file editing needed.
 
-### Using a schema-database via the REST API
+### Using a schema via the REST API
 
 The `schema_id` in the URL path is both the storage namespace and the schema
 validator.  When a JSON Schema template with the given `schema_id` exists, each
 PUT is validated before storage.
 
 ```bash
-# Store entities in the "chat.v1" schema-database
+# Store entities in the "chat.v1" schema
 curl -X PUT http://127.0.0.1:8080/entity/chat.v1 \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"session_001": {"messages": [{"role":"user","content":"Hello!"}]}}'
 
-# Retrieve an entity from the "chat.v1" schema-database
+# Retrieve an entity from the "chat.v1" schema
 curl "http://127.0.0.1:8080/entity/chat.v1?key=session_001" \
   -H "Authorization: Bearer $ADMIN_KEY"
 ```
@@ -647,7 +647,7 @@ curl "http://127.0.0.1:8080/entity/chat.v1?key=session_001" \
 ### Using a schema on a PUT (gRPC)
 
 When calling the gRPC `Process` RPC directly, set the `schema_id` field of
-`ProcessRequest` to the desired schema-database identifier (e.g. `"chat.v1"`).
+`ProcessRequest` to the desired schema identifier (e.g. `"chat.v1"`).
 The Processing Worker will:
 1. Store the entity under that namespace.
 2. Validate the payload against the `chat.v1` JSON Schema template (if it exists).
@@ -761,7 +761,7 @@ http://127.0.0.1:8080/
 
 ![Login](https://github.com/user-attachments/assets/bcba6cbc-61a1-4377-9b6f-455153edea53)
 ![Dashboard](https://github.com/user-attachments/assets/82004499-a0f7-49f5-9ee6-79c9ff893e2f)
-![Databases](https://github.com/user-attachments/assets/afb838e5-2018-4417-b21f-41cbdb723b8a)
+![Schemas](https://github.com/user-attachments/assets/afb838e5-2018-4417-b21f-41cbdb723b8a)
 
 **Pages:**
 
@@ -769,10 +769,10 @@ http://127.0.0.1:8080/
 |------|-------------|
 | **Login** | Beautiful sign-in card — enter your admin key, API key, or a dev-mode Client ID |
 | **Dashboard** | Live health status, worker counts, schema count, and cache statistics |
-| **Schemas** | Dropdown + card grid of all schema-databases; click any card to explore its entities |
+| **Schemas** | Dropdown + card grid of all schemas; click any card to explore its entities |
 | **Entities** | GET, PUT, and DELETE entities with a schema dropdown pre-populated from `GET /api/schemas` |
 | **Workers** | Table of all registered Processing Workers with status, key ID, last-seen, and tags |
-| **Schemas** | List, load, create, and edit JSON Schema templates; export as Pydantic or TypeScript |
+| **Templates** | List, load, create, and edit JSON Schema templates; export as Pydantic or TypeScript |
 | **API Keys** | Create and delete RBAC API keys (admin only) with permissions and optional expiry |
 | **Explorer** | Send arbitrary HTTP requests to any endpoint with quick-access buttons |
 
@@ -780,7 +780,7 @@ http://127.0.0.1:8080/
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/schemas` | Returns a sorted list of schema-databases currently in the entity cache (requires `read`) |
+| `GET /api/schemas` | Returns a sorted list of schemas currently in the entity cache (requires `read`) |
 | `GET /api/me` | Returns the caller's `client_id`, `permissions`, and `is_admin` flag |
 
 The UI is **fully responsive** — on mobile a hamburger menu opens the sidebar as an overlay.
@@ -794,7 +794,7 @@ No additional installation is required — the UI is embedded directly in the
 
 The following examples demonstrate a complete **chat session backend** where:
 
-* Each user session is stored under database `chatdb`.
+* Each user session is stored in schema `chatdb`.
 * The entity key is the session ID (e.g., `session_001`).
 * The entity value is a JSON object containing the conversation history.
 
@@ -814,7 +814,7 @@ import (
 
 const (
     baseURL  = "http://127.0.0.1:8080"
-    database = "chatdb"
+    schema   = "chatdb"
 )
 
 // Message represents a single chat turn.
@@ -860,7 +860,7 @@ func (c *ChatClient) doRequest(method, path string, body io.Reader) (*http.Respo
 // GetSession retrieves the conversation history for a session.
 // Returns an empty session if the session does not yet exist.
 func (c *ChatClient) GetSession(sessionID string) (Session, error) {
-    path := fmt.Sprintf("/entity/%s?key=%s", database, url.QueryEscape(sessionID))
+    path := fmt.Sprintf("/entity/%s?key=%s", schema, url.QueryEscape(sessionID))
     resp, err := c.doRequest(http.MethodGet, path, nil)
     if err != nil {
         return Session{}, err
@@ -896,7 +896,7 @@ func (c *ChatClient) AppendMessage(sessionID string, msg Message) error {
         return err
     }
 
-    path := fmt.Sprintf("/entity/%s", database)
+    path := fmt.Sprintf("/entity/%s", schema)
     resp, err := c.doRequest(http.MethodPut, path, bytes.NewReader(payload))
     if err != nil {
         return err
@@ -977,7 +977,7 @@ import requests
 import json
 
 BASE_URL = "http://127.0.0.1:8080"
-DATABASE = "chatdb"
+SCHEMA = "chatdb"
 
 
 class DeltaChatClient:
@@ -994,7 +994,7 @@ class DeltaChatClient:
     def get_session(self, session_id: str) -> dict:
         """Return the conversation dict; empty if session does not exist yet."""
         resp = self.session.get(
-            f"{self.base_url}/entity/{DATABASE}",
+            f"{self.base_url}/entity/{SCHEMA}",
             params={"key": session_id},
             timeout=10,
         )
@@ -1009,7 +1009,7 @@ class DeltaChatClient:
         data.setdefault("messages", []).append({"role": role, "content": content})
 
         resp = self.session.put(
-            f"{self.base_url}/entity/{DATABASE}",
+            f"{self.base_url}/entity/{SCHEMA}",
             json={session_id: data},
             timeout=10,
         )
@@ -1238,7 +1238,7 @@ for a complete Docker Compose and Kubernetes walkthrough.
 | Schema validation | JSON Schema draft-07 enforced before every write |
 | Log redaction | No plaintext entity data or key material is emitted in logs |
 | Token expiry | Worker tokens: 1 h (configurable). Client tokens: 24 h (configurable) |
-| Path traversal | Entity keys, database names and schema IDs are validated to reject `/`, `\`, and `..` |
+| Path traversal | Entity keys and schema IDs are validated to reject `/`, `\`, and `..` |
 | Request body limit | REST PUT/schema endpoints reject bodies larger than 1 MiB |
 | Admin endpoints | `GET /admin/workers` requires a valid Bearer token; `GET /admin/schemas` is public |
 | Write durability (FS) | `fdatasync` before atomic rename guarantees no data loss on worker crash |
@@ -1327,7 +1327,7 @@ For full build instructions, prerequisites, and testing setup, see
 │   ├── main-worker/        # Main Worker entry point & server
 │   │   ├── main.go
 │   │   ├── server.go       # gRPC + REST handler
-│   │   ├── frontend.go     # Embedded web UI + /api/login, /api/databases, /api/me
+│   │   ├── frontend.go     # Embedded web UI + /api/login, /api/schemas, /api/me
 │   │   └── static/
 │   │       ├── index.html  # Login page
 │   │       ├── app.html    # Multi-page management SPA

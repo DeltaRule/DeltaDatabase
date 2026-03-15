@@ -58,7 +58,7 @@ func TestWriteAndReadFile(t *testing.T) {
 		Version:   1,
 		WriterID:  "worker-1",
 		Timestamp: time.Now(),
-		Database:  "testdb",
+		Schema:    "testdb",
 		EntityKey: id,
 	}
 
@@ -347,7 +347,7 @@ func TestMetadataJSONFormat(t *testing.T) {
 		Version:   1,
 		WriterID:  "worker-1",
 		Timestamp: time.Now().Round(time.Second),
-		Database:  "testdb",
+		Schema:    "testdb",
 		EntityKey: id,
 	}
 
@@ -372,7 +372,7 @@ func TestMetadataJSONFormat(t *testing.T) {
 	assert.Equal(t, metadata.SchemaID, parsed.SchemaID)
 	assert.Equal(t, metadata.Version, parsed.Version)
 	assert.Equal(t, metadata.WriterID, parsed.WriterID)
-	assert.Equal(t, metadata.Database, parsed.Database)
+	assert.Equal(t, metadata.Schema, parsed.Schema)
 	assert.Equal(t, metadata.EntityKey, parsed.EntityKey)
 }
 

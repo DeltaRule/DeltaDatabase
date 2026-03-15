@@ -44,8 +44,8 @@ type FileMetadata struct {
 	Version    int       `json:"version"`      // File version for cache coherence
 	WriterID   string    `json:"writer_id"`    // ID of the worker that wrote this file
 	Timestamp  time.Time `json:"timestamp"`    // When the file was written
-	Database   string    `json:"database"`     // Database name
-	EntityKey  string    `json:"entity_key"`   // Entity key within database
+	Schema     string    `json:"schema"`       // Schema identifier
+	EntityKey  string    `json:"entity_key"`   // Entity key within the schema
 }
 
 // FileData represents the complete file information

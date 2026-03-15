@@ -566,7 +566,7 @@ func TestProcess_PUT_MetadataFields(t *testing.T) {
 	meta := fileData.Metadata
 
 	assert.Equal(t, "AES-GCM", meta.Algorithm)
-	assert.Equal(t, "mydb", meta.Database)
+	assert.Equal(t, "mydb", meta.Schema)
 	assert.Equal(t, "MetaKey", meta.EntityKey)
 	assert.Equal(t, "test-worker", meta.WriterID)
 	assert.Equal(t, "test-key-id", meta.KeyID)

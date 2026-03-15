@@ -33,8 +33,8 @@
         <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
           <span class="nav-icon">🏠</span><span>Dashboard</span>
         </button>
-        <button class="nav-item" data-page="databases" onclick="navigate('databases')">
-          <span class="nav-icon">🗄️</span><span>Databases</span>
+        <button class="nav-item" data-page="schemas" onclick="navigate('schemas')">
+          <span class="nav-icon">🗄️</span><span>Schemas</span>
         </button>
         <button class="nav-item" data-page="entities" onclick="navigate('entities')">
           <span class="nav-icon">📦</span><span>Entities</span>
@@ -42,8 +42,8 @@
         <button class="nav-item" data-page="workers" onclick="navigate('workers')">
           <span class="nav-icon">⚙️</span><span>Workers</span>
         </button>
-        <button class="nav-item" data-page="schemas" onclick="navigate('schemas')">
-          <span class="nav-icon">📋</span><span>Schemas</span>
+        <button class="nav-item" data-page="templates" onclick="navigate('templates')">
+          <span class="nav-icon">📋</span><span>Templates</span>
         </button>
         <button class="nav-item" data-page="apikeys" onclick="navigate('apikeys')">
           <span class="nav-icon">🔑</span><span>API Keys</span>
@@ -141,24 +141,24 @@
           </div>
         </div>
 
-        <!-- ── DATABASES ──────────────────────────────────────────── -->
-        <div class="page hidden" id="page-databases">
+        <!-- ── SCHEMAS ────────────────────────────────────────────── -->
+        <div class="page hidden" id="page-schemas">
           <div class="row mb-3">
             <div class="flex-1">
               <label class="label">Select Schema</label>
-              <select id="dbDropdown" onchange="onDbDropdownChange()">
+              <select id="schemaDropdown" onchange="onSchemaDropdownChange()">
                 <option value="">— choose a schema —</option>
               </select>
             </div>
             <div>
               <label class="label">&nbsp;</label>
-              <button class="btn btn-ghost" onclick="loadDatabases()">↻ Refresh</button>
+              <button class="btn btn-ghost" onclick="loadSchemas()">↻ Refresh</button>
             </div>
           </div>
 
-          <div id="dbGridWrap" class="db-grid mb-3"></div>
+          <div id="schemaGridWrap" class="db-grid mb-3"></div>
 
-          <div class="card" id="dbEmptyCard" style="display:none">
+          <div class="card" id="schemaEmptyCard" style="display:none">
             <div class="empty-state">
               <div class="empty-icon">🗄️</div>
               <div class="empty-title">No schemas found</div>
@@ -166,26 +166,26 @@
             </div>
           </div>
 
-          <!-- Create new DB -->
+          <!-- Create new Schema -->
           <div class="card">
             <div class="card-header"><div class="card-title"><span class="card-title-icon">➕</span> Create New Schema</div></div>
-            <p style="font-size:.8rem;color:#64748b;margin-bottom:.875rem">Schemas are used as databases — write entities to a schema to create it.</p>
+            <p style="font-size:.8rem;color:#64748b;margin-bottom:.875rem">Write entities to a schema to create it. The schema is the namespace for all its entities.</p>
             <div class="grid-2 mb-2">
               <div class="field mb-1">
                 <label class="label">Schema ID</label>
-                <input id="newDbName" type="text" placeholder="e.g. chat.v1" />
+                <input id="newSchemaName" type="text" placeholder="e.g. chat.v1" />
               </div>
               <div class="field mb-1">
                 <label class="label">Entity Key</label>
-                <input id="newDbKey" type="text" placeholder="e.g. record_001" />
+                <input id="newSchemaKey" type="text" placeholder="e.g. record_001" />
               </div>
             </div>
             <div class="field mb-2">
               <label class="label">JSON Body</label>
-              <textarea id="newDbBody" rows="3" placeholder='{"field": "value"}'></textarea>
+              <textarea id="newSchemaBody" rows="3" placeholder='{"field": "value"}'></textarea>
             </div>
-            <div id="newDbAlert" class="alert hidden mb-2"></div>
-            <button class="btn btn-primary" onclick="createNewDb()">Write Entity</button>
+            <div id="newSchemaAlert" class="alert hidden mb-2"></div>
+            <button class="btn btn-primary" onclick="createNewSchema()">Write Entity</button>
           </div>
         </div>
 
@@ -197,7 +197,7 @@
               <div class="card-header"><div class="card-title"><span class="card-title-icon">📥</span> Get Entity</div></div>
               <div class="field">
                 <label class="label">Schema</label>
-                <select id="getDbSel"></select>
+                <select id="getSchemaSel"></select>
               </div>
               <div class="field">
                 <label class="label">Entity Key</label>
@@ -214,10 +214,10 @@
                 <label class="label">Schema</label>
                 <div class="row" style="gap:.375rem">
                   <div style="flex:1">
-                    <select id="putDbSel"></select>
+                    <select id="putSchemaSel"></select>
                   </div>
                   <div style="flex:1">
-                    <input id="putDbCustom" type="text" placeholder="or type new schema id…" />
+                    <input id="putSchemaCustom" type="text" placeholder="or type new schema id…" />
                   </div>
                 </div>
               </div>
@@ -248,15 +248,15 @@
           </div>
         </div>
 
-        <!-- ── SCHEMAS ────────────────────────────────────────────── -->
-        <div class="page hidden" id="page-schemas">
+        <!-- ── TEMPLATES ──────────────────────────────────────────── -->
+        <div class="page hidden" id="page-templates">
           <div class="grid-panel">
             <!-- List -->
             <div class="card">
               <div class="card-header">
                 <div class="card-title" style="justify-content:space-between">
-                  <span class="flex-1 card-title"><span class="card-title-icon">📋</span> Schemas</span>
-                  <button class="btn btn-xs btn-ghost" onclick="loadSchemas()">↻</button>
+                  <span class="flex-1 card-title"><span class="card-title-icon">📋</span> Templates</span>
+                  <button class="btn btn-xs btn-ghost" onclick="loadTemplates()">↻</button>
                 </div>
               </div>
               <div id="schemaListWrap">
@@ -457,7 +457,7 @@
   // ── Navigation ────────────────────────────────────────────────────────
   function navigate(page) {
     // Update page titles map
-    const titles = { dashboard:'Dashboard', databases:'Databases', schemas:'Schemas', entities:'Entities',
+    const titles = { dashboard:'Dashboard', schemas:'Schemas', templates:'Templates', entities:'Entities',
       workers:'Workers', apikeys:'API Keys', explorer:'Explorer' };
     // Hide all pages
     document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
@@ -472,10 +472,10 @@
     closeSidebar();
     // Load data for page
     if (page === 'dashboard')  loadDashboard();
-    if (page === 'databases')  loadDatabases();
-    if (page === 'entities')   { populateDbSelects(); }
-    if (page === 'workers')    loadWorkers();
     if (page === 'schemas')    loadSchemas();
+    if (page === 'entities')   { populateSchemaSelects(); }
+    if (page === 'workers')    loadWorkers();
+    if (page === 'templates')  loadTemplates();
     if (page === 'apikeys')    loadAPIKeysPage();
   }
 
@@ -495,7 +495,7 @@
   async function refreshAll() {
     const icon = document.getElementById('refreshIcon');
     icon.classList.add('spin');
-    await Promise.all([loadDashboard(), loadDatabases()]);
+    await Promise.all([loadDashboard(), loadSchemas()]);
     icon.classList.remove('spin');
   }
 
@@ -549,35 +549,35 @@
     document.getElementById('healthBody').innerHTML = '<span style="color:#f87171;font-size:.8rem">Server unreachable</span>';
   }
 
-  // ── Databases ─────────────────────────────────────────────────────────
-  async function loadDatabases() {
+  // ── Schemas ─────────────────────────────────────────────────────────
+  async function loadSchemas() {
     try {
       const r = await api('/api/schemas');
       if (r.ok) {
         STATE.schemas = await r.json() || [];
         renderSchemaGrid();
-        populateDbSelects();
+        populateSchemaSelects();
         document.getElementById('statDbs').textContent = STATE.schemas.length;
       }
     } catch {}
   }
 
   function renderSchemaGrid() {
-    const wrap = document.getElementById('dbGridWrap');
-    const empty = document.getElementById('dbEmptyCard');
-    const dropdown = document.getElementById('dbDropdown');
+    const wrap = document.getElementById('schemaGridWrap');
+    const empty = document.getElementById('schemaEmptyCard');
+    const dropdown = document.getElementById('schemaDropdown');
 
     // Rebuild dropdown
     dropdown.innerHTML = '<option value="">— choose a schema —</option>' +
-      STATE.schemas.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
+      STATE.schemas.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
 
     if (STATE.schemas.length === 0) {
       wrap.innerHTML = '';
       empty.style.display = '';
     } else {
       empty.style.display = 'none';
-      wrap.innerHTML = STATE.schemas.map(db => `
-        <button class="db-card" onclick="openDb(${JSON.stringify(db)})">
+      wrap.innerHTML = STATE.schemas.map(s => `
+        <button class="db-card" onclick="openSchema(${JSON.stringify(s)})">
           <div class="db-card-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7c0-2-1.5-3-3.5-3h-9C5.5 4 4 5 4 7z"/>
@@ -585,37 +585,37 @@
             </svg>
           </div>
           <div>
-            <div class="db-card-name">${esc(db)}</div>
+            <div class="db-card-name">${esc(s)}</div>
             <div class="db-card-sub">Click to explore</div>
           </div>
         </button>`).join('');
     }
   }
 
-  function openDb(db) {
-    document.getElementById('getDbSel').value = db;
-    document.getElementById('putDbSel').value = db;
+  function openSchema(schema) {
+    document.getElementById('getSchemaSel').value = schema;
+    document.getElementById('putSchemaSel').value = schema;
     navigate('entities');
   }
 
-  function onDbDropdownChange() {
-    const db = document.getElementById('dbDropdown').value;
-    if (db) openDb(db);
+  function onSchemaDropdownChange() {
+    const schema = document.getElementById('schemaDropdown').value;
+    if (schema) openSchema(schema);
   }
 
-  function populateDbSelects() {
+  function populateSchemaSelects() {
     const opts = '<option value="">— select schema —</option>' +
-      STATE.schemas.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
-    document.getElementById('getDbSel').innerHTML = opts;
-    document.getElementById('putDbSel').innerHTML = '<option value="">— select or type below —</option>' +
-      STATE.schemas.map(db => `<option value="${esc(db)}">${esc(db)}</option>`).join('');
+      STATE.schemas.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    document.getElementById('getSchemaSel').innerHTML = opts;
+    document.getElementById('putSchemaSel').innerHTML = '<option value="">— select or type below —</option>' +
+      STATE.schemas.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
   }
 
-  function createNewDb() {
-    const name = document.getElementById('newDbName').value.trim();
-    const key  = document.getElementById('newDbKey').value.trim();
-    const body = document.getElementById('newDbBody').value.trim() || '{}';
-    const alertEl = document.getElementById('newDbAlert');
+  function createNewSchema() {
+    const name = document.getElementById('newSchemaName').value.trim();
+    const key  = document.getElementById('newSchemaKey').value.trim();
+    const body = document.getElementById('newSchemaBody').value.trim() || '{}';
+    const alertEl = document.getElementById('newSchemaAlert');
     if (!name || !key) { showAlert(alertEl, 'error', 'Schema ID and key are required.'); return; }
     let parsed;
     try { parsed = JSON.parse(body); } catch { showAlert(alertEl, 'error', 'Invalid JSON body.'); return; }
@@ -625,7 +625,7 @@
     }).then(r => r.json().then(d => {
       if (r.ok) {
         showAlert(alertEl, 'success', `Schema "${name}" created with entity "${key}".`);
-        loadDatabases();
+        loadSchemas();
       } else {
         showAlert(alertEl, 'error', d.error || 'Failed.');
       }
@@ -634,15 +634,15 @@
 
   // ── Entities ─────────────────────────────────────────────────────────
   async function getEntity() {
-    const db  = document.getElementById('getDbSel').value;
+    const schema = document.getElementById('getSchemaSel').value;
     const key = document.getElementById('getKey').value.trim();
     const errEl  = document.getElementById('getError');
     const boxEl  = document.getElementById('getResultBox');
     errEl.classList.add('hidden');
     boxEl.classList.add('hidden');
-    if (!db || !key) { showAlert(errEl, 'error', 'Schema and key are required.'); return; }
+    if (!schema || !key) { showAlert(errEl, 'error', 'Schema and key are required.'); return; }
     try {
-      const r = await api('/entity/' + encodeURIComponent(db) + '?key=' + encodeURIComponent(key));
+      const r = await api('/entity/' + encodeURIComponent(schema) + '?key=' + encodeURIComponent(key));
       if (r.ok) {
         boxEl.textContent = JSON.stringify(await r.json(), null, 2);
         boxEl.classList.remove('hidden');
@@ -654,22 +654,22 @@
   }
 
   async function putEntity() {
-    const db  = document.getElementById('putDbCustom').value.trim() || document.getElementById('putDbSel').value;
+    const schema = document.getElementById('putSchemaCustom').value.trim() || document.getElementById('putSchemaSel').value;
     const body = document.getElementById('putBody').value.trim();
     const alertEl = document.getElementById('putAlert');
     alertEl.classList.add('hidden');
-    if (!db) { showAlert(alertEl, 'error', 'Schema is required.'); return; }
+    if (!schema) { showAlert(alertEl, 'error', 'Schema is required.'); return; }
     if (!body) { showAlert(alertEl, 'error', 'JSON body is required.'); return; }
     let payload;
     try { payload = JSON.parse(body); } catch { showAlert(alertEl, 'error', 'Invalid JSON.'); return; }
     try {
-      const r = await api('/entity/' + encodeURIComponent(db), {
+      const r = await api('/entity/' + encodeURIComponent(schema), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (r.ok) {
         showAlert(alertEl, 'success', 'Entity written successfully.');
-        await loadDatabases();
+        await loadSchemas();
       } else {
         const d = await r.json().catch(() => ({}));
         showAlert(alertEl, 'error', d.error || 'Failed.');
@@ -717,15 +717,15 @@
     } catch {}
   }
 
-  // ── Schemas ───────────────────────────────────────────────────────────
-  async function loadSchemas() {
+  // ── Templates ─────────────────────────────────────────────────────────
+  async function loadTemplates() {
     try {
       const r = await api('/admin/schemas');
       if (r.ok) {
         const schemas = await r.json() || [];
         const wrap = document.getElementById('schemaListWrap');
         if (schemas.length === 0) {
-          wrap.innerHTML = '<div style="font-size:.8rem;color:#64748b;padding:.5rem 0">No schemas yet</div>';
+          wrap.innerHTML = '<div style="font-size:.8rem;color:#64748b;padding:.5rem 0">No templates yet</div>';
         } else {
           wrap.innerHTML = schemas.map(s => `
             <button class="schema-list-item" onclick="document.getElementById('schemaId').value='${esc(s)}';loadSchemaById()">
@@ -761,7 +761,7 @@
       const r = await api('/schema/' + encodeURIComponent(id), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed)
       });
-      if (r.ok) { showAlert(alertEl, 'success', 'Schema saved.'); await loadSchemas(); }
+      if (r.ok) { showAlert(alertEl, 'success', 'Schema saved.'); await loadTemplates(); }
       else {
         const d = await r.json().catch(() => ({}));
         showAlert(alertEl, 'error', d.error || 'Save failed.');
