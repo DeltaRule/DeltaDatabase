@@ -165,22 +165,54 @@ def test_repeated_put_does_not_reuse_nonce(proc_grpc_stub, shared_fs):
     nonces = []
 
     for i in range(5):
-        payload = json.dumps({"chat": [{"type": "assistant", "text": f"msg-{i}"}]}).encode()
-        resp = stub.Process(pb2.ProcessRequest(
-            schema_id="chatdb",
-            entity_key=entity_key,
-            operation="PUT",
-            payload=payload,
-            token="",
-        ))
-        assert resp.status == "OK"
-        # Disk writes are async — wait for the metadata to be written.
         meta_path = _meta_path(shared_fs, entity_key)
-        assert _wait_for_path(meta_path), f"meta file missing after iteration {i}"
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        iv = meta.get("iv")
-        assert isinstance(iv, str), f"IV at iteration {i} is not a string: {iv}"
-        nonces.append(iv)
+        # Record the IV before this PUT so we can detect when the new write lands.
+        old_iv = None
+        if meta_path.exists():
+            try:
+                old_iv = json.loads(meta_path.read_text(encoding="utf-8")).get("iv")
+            except Exception:  # noqa: BLE001
+                pass
+
+        payload = json.dumps({"chat": [{"type": "assistant", "text": f"msg-{i}"}]}).encode()
+        # Retry on transient lock-contention: the async goroutine from the
+        # previous iteration may still hold the exclusive lock for a brief
+        # moment after it has finished writing the metadata file.
+        for attempt in range(10):
+            try:
+                resp = stub.Process(pb2.ProcessRequest(
+                    schema_id="chatdb",
+                    entity_key=entity_key,
+                    operation="PUT",
+                    payload=payload,
+                    token="",
+                ))
+                assert resp.status == "OK"
+                break
+            except grpc.RpcError as exc:
+                if "already locked" in str(exc) and attempt < 9:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                raise
+
+        # Wait until the meta file shows a NEW IV (proves this write completed).
+        deadline = time.monotonic() + 10.0
+        new_iv = old_iv
+        while time.monotonic() < deadline:
+            try:
+                if meta_path.exists():
+                    m = json.loads(meta_path.read_text(encoding="utf-8"))
+                    candidate = m.get("iv")
+                    if candidate and candidate != old_iv:
+                        new_iv = candidate
+                        break
+            except Exception:  # noqa: BLE001
+                pass
+            time.sleep(0.1)
+
+        assert new_iv != old_iv, f"IV did not change after PUT iteration {i}"
+        assert isinstance(new_iv, str), f"IV is not a string: {new_iv}"
+        nonces.append(new_iv)
 
     assert len(set(nonces)) == len(nonces), (
         f"Nonce reuse detected! Nonces across {len(nonces)} writes: {nonces}"

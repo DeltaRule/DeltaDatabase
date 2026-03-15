@@ -190,7 +190,7 @@ def test_process_rejects_invalid_operation(live_proc_worker_task8, proto_modules
         stub.Process(pb2.ProcessRequest(
             schema_id="chatdb",
             entity_key="Chat_id",
-            operation="DELETE",
+            operation="BADOP",  # not GET, PUT, or DELETE
             payload=b"",
             token="",
         ))
@@ -384,8 +384,8 @@ def test_proc_worker_process_get_returns_not_found(live_proc_worker_task8, proto
 
 def test_proc_worker_rejects_non_get_operation(live_proc_worker_task8, proto_modules):
     """
-    The proc-worker gRPC server must reject unsupported operations (e.g., DELETE)
-    with INVALID_ARGUMENT. Only GET and PUT are valid operations.
+    The proc-worker gRPC server must reject truly unsupported operations
+    with INVALID_ARGUMENT. Valid operations are GET, PUT, and DELETE.
     """
     import grpc
 
@@ -399,7 +399,7 @@ def test_proc_worker_rejects_non_get_operation(live_proc_worker_task8, proto_mod
         stub.Process(pb2.ProcessRequest(
             schema_id="chatdb",
             entity_key="Chat_id",
-            operation="DELETE",
+            operation="BADOP",  # not GET, PUT, or DELETE
             payload=b"{}",
             token="",
         ))
