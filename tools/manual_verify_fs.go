@@ -16,7 +16,7 @@ func main() {
 	tempDir := filepath.Join(os.TempDir(), "deltadatabase_manual_test")
 	defer os.RemoveAll(tempDir)
 
-	fmt.Println("=== DeltaDatabase Filesystem Layer Manual Verification ===\n")
+	fmt.Println("=== DeltaDatabase Filesystem Layer Manual Verification ===")
 	fmt.Printf("Test directory: %s\n\n", tempDir)
 
 	// Create storage
@@ -51,7 +51,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("✓ Entity written successfully\n")
+	fmt.Println("✓ Entity written successfully")
 
 	// Verify files exist
 	blobPath := storage.GetBlobPath(entityID)
@@ -97,7 +97,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("✓ Lock released\n")
+	fmt.Println("✓ Lock released")
 
 	// Write a schema template
 	fmt.Println("Writing schema template...")
