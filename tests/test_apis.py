@@ -91,6 +91,48 @@ def test_admin_workers_endpoint(settings):
     assert isinstance(data, list)
 
 
+def test_admin_workers_shows_connected_worker(settings):
+    """After the application starts, at least one Processing Worker must appear
+    as Available in GET /admin/workers.
+
+    The conftest live_server fixture starts both the main-worker and a
+    proc-worker (worker-id=session-proc-1) and waits for the worker to
+    complete its Subscribe handshake before yielding.  This test confirms
+    that the worker is actually visible through the REST API.
+    """
+    url = _rest_url(settings, "/admin/workers")
+    # Use the admin key directly as a Bearer token for unambiguous admin access.
+    response = requests.get(
+        url, headers=_auth_header(settings["admin_key"]), timeout=5
+    )
+    assert response.status_code == 200
+
+    workers = response.json()
+    assert isinstance(workers, list), "/admin/workers must return a JSON array"
+    assert len(workers) >= 1, (
+        "Expected at least one connected Processing Worker after startup, "
+        f"but /admin/workers returned an empty list: {workers}"
+    )
+
+    available = [w for w in workers if w.get("status") == "Available"]
+    assert available, (
+        f"No worker has status 'Available' after startup. Workers: {workers}"
+    )
+
+    # In local mode the conftest exposes the specific worker ID it started.
+    # Verify that exact worker is present and Available.
+    worker_id = settings.get("proc_worker_id", "")
+    if worker_id:
+        worker_ids = {w.get("worker_id") for w in workers}
+        assert worker_id in worker_ids, (
+            f"Expected proc-worker '{worker_id}' in the registry but got: {worker_ids}"
+        )
+        matching = next(w for w in workers if w.get("worker_id") == worker_id)
+        assert matching.get("status") == "Available", (
+            f"Worker '{worker_id}' is registered but not Available: {matching}"
+        )
+
+
 def test_admin_workers_requires_auth(settings):
     """GET /admin/workers without a token must return 401."""
     url = _rest_url(settings, "/admin/workers")
