@@ -52,7 +52,12 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      - name: Install C compiler (required by go test -race via CGO)
+        run: sudo apt-get install -y --no-install-recommends gcc
+
       - name: Run Go tests (race detector + coverage)
+        env:
+          CGO_ENABLED: '1'
         run: |
           go test \
             -race \
