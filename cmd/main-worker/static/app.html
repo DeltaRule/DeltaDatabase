@@ -33,8 +33,8 @@
         <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
           <span class="nav-icon">🏠</span><span>Dashboard</span>
         </button>
-        <button class="nav-item" data-page="schemas" onclick="navigate('schemas')">
-          <span class="nav-icon">🗄️</span><span>Schemas</span>
+        <button class="nav-item" data-page="databases" onclick="navigate('databases')">
+          <span class="nav-icon">🗄️</span><span>Databases</span>
         </button>
         <button class="nav-item" data-page="entities" onclick="navigate('entities')">
           <span class="nav-icon">📦</span><span>Entities</span>
@@ -142,7 +142,7 @@
         </div>
 
         <!-- ── DATABASES ──────────────────────────────────────────── -->
-        <div class="page hidden" id="page-schemas">
+        <div class="page hidden" id="page-databases">
           <div class="row mb-3">
             <div class="flex-1">
               <label class="label">Select Schema</label>
@@ -152,7 +152,7 @@
             </div>
             <div>
               <label class="label">&nbsp;</label>
-              <button class="btn btn-ghost" onclick="loadSchemas()">↻ Refresh</button>
+              <button class="btn btn-ghost" onclick="loadDatabases()">↻ Refresh</button>
             </div>
           </div>
 
@@ -457,8 +457,8 @@
   // ── Navigation ────────────────────────────────────────────────────────
   function navigate(page) {
     // Update page titles map
-    const titles = { dashboard:'Dashboard', schemas:'Schemas', entities:'Entities',
-      workers:'Workers', schemas:'Schemas', apikeys:'API Keys', explorer:'Explorer' };
+    const titles = { dashboard:'Dashboard', databases:'Databases', schemas:'Schemas', entities:'Entities',
+      workers:'Workers', apikeys:'API Keys', explorer:'Explorer' };
     // Hide all pages
     document.querySelectorAll('.page').forEach(el => el.classList.add('hidden'));
     document.getElementById('page-' + page).classList.remove('hidden');
@@ -472,7 +472,7 @@
     closeSidebar();
     // Load data for page
     if (page === 'dashboard')  loadDashboard();
-    if (page === 'schemas')  loadSchemas();
+    if (page === 'databases')  loadDatabases();
     if (page === 'entities')   { populateDbSelects(); }
     if (page === 'workers')    loadWorkers();
     if (page === 'schemas')    loadSchemas();
@@ -495,7 +495,7 @@
   async function refreshAll() {
     const icon = document.getElementById('refreshIcon');
     icon.classList.add('spin');
-    await Promise.all([loadDashboard(), loadSchemas()]);
+    await Promise.all([loadDashboard(), loadDatabases()]);
     icon.classList.remove('spin');
   }
 
@@ -549,8 +549,8 @@
     document.getElementById('healthBody').innerHTML = '<span style="color:#f87171;font-size:.8rem">Server unreachable</span>';
   }
 
-  // ── Schemas ─────────────────────────────────────────────────────────
-  async function loadSchemas() {
+  // ── Databases ─────────────────────────────────────────────────────────
+  async function loadDatabases() {
     try {
       const r = await api('/api/schemas');
       if (r.ok) {
@@ -625,7 +625,7 @@
     }).then(r => r.json().then(d => {
       if (r.ok) {
         showAlert(alertEl, 'success', `Schema "${name}" created with entity "${key}".`);
-        loadSchemas();
+        loadDatabases();
       } else {
         showAlert(alertEl, 'error', d.error || 'Failed.');
       }
@@ -669,7 +669,7 @@
       });
       if (r.ok) {
         showAlert(alertEl, 'success', 'Entity written successfully.');
-        await loadSchemas();
+        await loadDatabases();
       } else {
         const d = await r.json().catch(() => ({}));
         showAlert(alertEl, 'error', d.error || 'Failed.');

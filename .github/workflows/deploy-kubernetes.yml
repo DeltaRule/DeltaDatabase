@@ -377,6 +377,18 @@ jobs:
         run: |
           kubectl apply -k deploy/kubernetes/kustomize
 
+      # ── 10a. Force rollout restart so pods always pull the latest image ────────
+      #
+      # `kubectl apply` is idempotent: when the image tag is unchanged (e.g.
+      # `:latest-main` / `:latest-proc`) Kubernetes will not schedule new pods
+      # on its own.  `rollout restart` patches the pod-template annotation with
+      # the current timestamp, which always triggers a fresh rollout and ensures
+      # that nodes pull the newest image from the registry.
+      - name: Restart deployments to pull latest images
+        run: |
+          kubectl -n deltadatabase rollout restart deployment/main-worker
+          kubectl -n deltadatabase rollout restart deployment/proc-worker
+
       # ── 11. Wait for rollout ──────────────────────────────────────────────────
       - name: Wait for rollout — main-worker
         run: kubectl -n deltadatabase rollout status deployment/main-worker --timeout=300s
