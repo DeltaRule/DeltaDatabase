@@ -178,6 +178,9 @@ jobs:
           exit 1
 
       # ── 2f. Python E2E tests ──────────────────────────────────────────────────
+      - name: Install C++ compiler (required to build grpcio from source)
+        run: sudo apt-get install -y --no-install-recommends g++ python3-dev
+
       - name: Install Python test dependencies
         run: pip install -q -r tests/requirements.txt
 
@@ -207,7 +210,11 @@ jobs:
           {
             echo "## Python E2E Tests"
             echo '```'
-            cat /tmp/e2e-${{ github.run_id }}.txt
+            if [ -f /tmp/e2e-${{ github.run_id }}.txt ]; then
+              cat /tmp/e2e-${{ github.run_id }}.txt
+            else
+              echo "_E2E tests did not run (dependency installation failed or tests were skipped)._"
+            fi
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
           rm -f /tmp/e2e-${{ github.run_id }}.txt
