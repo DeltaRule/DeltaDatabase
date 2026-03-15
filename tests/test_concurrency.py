@@ -58,9 +58,15 @@ def test_concurrent_puts_no_corruption(settings, shared_fs, proc_grpc_stub):
 
     # Non-lock errors indicate a real problem.
     assert not other_errors, f"Unexpected errors: {other_errors}"
-    # At least one write must have succeeded; the meta file must exist.
+    # At least one write must have succeeded; wait for the async goroutine to
+    # write the metadata file to disk before asserting its existence.
     meta_path = shared_fs["files"] / f"chatdb_{key}.meta.json"
-    assert meta_path.exists()
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        if meta_path.exists():
+            break
+        time.sleep(0.1)
+    assert meta_path.exists(), "meta file not written in time"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     assert int(meta.get("version", 0)) >= 1
 

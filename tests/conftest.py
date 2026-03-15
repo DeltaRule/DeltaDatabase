@@ -71,6 +71,69 @@ def _wait_for_port(host, port, timeout=30.0):
 
 @pytest.fixture(scope="session")
 def live_server(tmp_path_factory):
+    # ── External deployment mode ─────────────────────────────────────────────
+    # When DELTADB_EXTERNAL_URL is set the test suite connects to an already-
+    # running deployment (e.g. the Docker container started by the CI workflow)
+    # instead of spawning local workers via `go run`.
+    #
+    # Supported environment variables:
+    #   DELTADB_EXTERNAL_URL           REST base URL, e.g. http://127.0.0.1:18080
+    #   DELTADB_EXTERNAL_GRPC_ADDR     Main-worker gRPC address, e.g. 127.0.0.1:50051
+    #   DELTADB_EXTERNAL_PROC_GRPC_ADDR  Proc-worker gRPC address, e.g. 127.0.0.1:50052
+    #   DELTADB_EXTERNAL_ADMIN_KEY     Admin key used to obtain a session token
+    #   DELTADB_EXTERNAL_SHARED_FS     Host path of the shared-fs root that is
+    #                                  also mounted inside the container; needed
+    #                                  by filesystem-dependent tests.
+    ext_url    = os.getenv("DELTADB_EXTERNAL_URL", "").rstrip("/")
+    ext_grpc   = os.getenv("DELTADB_EXTERNAL_GRPC_ADDR", "")
+    ext_proc   = os.getenv("DELTADB_EXTERNAL_PROC_GRPC_ADDR", "")
+    ext_key    = os.getenv("DELTADB_EXTERNAL_ADMIN_KEY", "")
+    ext_shared = os.getenv("DELTADB_EXTERNAL_SHARED_FS", "")
+
+    if ext_url:
+        # Authenticate against the external deployment.
+        try:
+            r = _requests.post(
+                ext_url + "/api/login",
+                json={"key": ext_key},
+                timeout=10,
+            )
+            r.raise_for_status()
+            token = r.json()["token"]
+        except Exception as exc:  # noqa: BLE001
+            pytest.fail(f"External deployment unreachable at {ext_url}: {exc}")
+
+        # Resolve the shared filesystem root — needed by filesystem-dependent
+        # fixtures (test_encryption.py, test_data_integrity.py).  The CI
+        # workflow mounts this same directory into the Docker container so
+        # files written by the workers are visible to the test suite on the host.
+        if ext_shared:
+            root = Path(ext_shared)
+        else:
+            root = tmp_path_factory.mktemp("ext_live")
+        db_dir = root / "db"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        (db_dir / "files").mkdir(exist_ok=True)
+        (db_dir / "templates").mkdir(exist_ok=True)
+
+        # Derive gRPC addresses from the REST URL when not explicitly provided.
+        host           = ext_url.split("//")[-1].split(":")[0]
+        grpc_addr      = ext_grpc or f"{host}:50051"
+        proc_grpc_addr = ext_proc or f"{host}:50052"
+
+        yield {
+            "rest_url":       ext_url,
+            "grpc_addr":      grpc_addr,
+            "proc_grpc_addr": proc_grpc_addr,
+            "shared_root":    root,
+            "db_dir":         db_dir,
+            "token":          token,
+            "admin_key":      ext_key,
+            "log_path":       "",
+        }
+        return  # nothing to tear down — the container is managed by CI
+
+    # ── Local mode: spawn workers using go run ────────────────────────────────
     root = tmp_path_factory.mktemp("live_shared_fs")
     db_dir = root / "db"
     (db_dir / "files").mkdir(parents=True, exist_ok=True)

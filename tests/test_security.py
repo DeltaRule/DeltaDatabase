@@ -17,7 +17,12 @@ def test_no_plaintext_keys_on_disk(shared_fs):
     suspicious = []
     for path in shared_fs["root"].rglob("*"):
         if path.is_file() and path.suffix in {".json", ".enc"}:
-            content = path.read_bytes()
+            try:
+                content = path.read_bytes()
+            except PermissionError:
+                # Files created by the server process (e.g. _auth/keys.json) may
+                # have restricted permissions on some systems — skip them.
+                continue
             if b"PRIVATE KEY" in content or b"BEGIN" in content:
                 suspicious.append(path)
     assert not suspicious

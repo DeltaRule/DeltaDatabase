@@ -63,20 +63,28 @@ def live_main_worker():
     grpc_addr = f"127.0.0.1:{grpc_port}"
     rest_addr = f"127.0.0.1:{rest_port}"
     rest_url = f"http://{rest_addr}"
+    admin_key = "task7-test-admin-key"
 
-    proc = subprocess.Popen(
-        [
-            "go",
-            "run",
-            "./cmd/main-worker",
-            f"-grpc-addr={grpc_addr}",
-            f"-rest-addr={rest_addr}",
-            "-shared-fs=/tmp/task7_test_shared_fs",
-        ],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        proc = subprocess.Popen(
+            [
+                "go",
+                "run",
+                "./cmd/main-worker",
+                f"-grpc-addr={grpc_addr}",
+                f"-rest-addr={rest_addr}",
+                "-shared-fs=/tmp/task7_test_shared_fs",
+                f"-admin-key={admin_key}",
+            ],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        pytest.skip(
+            "'go' binary not found; skipping worker-lifecycle integration tests. "
+            "Run against a local Go build instead."
+        )
 
     # Wait until the REST /health endpoint responds.
     health_url = rest_url + "/health"
@@ -88,10 +96,21 @@ def live_main_worker():
             f"stderr: {stderr.decode(errors='replace')}"
         )
 
+    # Obtain a client token via /api/login so tests can call auth-protected
+    # endpoints (e.g. /admin/workers).
+    try:
+        r = requests.post(rest_url + "/api/login", json={"key": admin_key}, timeout=5)
+        r.raise_for_status()
+        token = r.json()["token"]
+    except Exception:  # noqa: BLE001
+        token = admin_key  # fall back: use the admin key directly as a bearer token
+
     yield {
         "process": proc,
         "grpc_addr": grpc_addr,
         "rest_url": rest_url,
+        "admin_key": admin_key,
+        "token": token,
     }
 
     proc.terminate()
@@ -109,27 +128,34 @@ def live_proc_worker(live_main_worker):
     worker_id = "task7-integration-worker"
     grpc_addr = live_main_worker["grpc_addr"]
 
-    proc = subprocess.Popen(
-        [
-            "go",
-            "run",
-            "./cmd/proc-worker",
-            f"-main-addr={grpc_addr}",
-            f"-worker-id={worker_id}",
-        ],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        proc = subprocess.Popen(
+            [
+                "go",
+                "run",
+                "./cmd/proc-worker",
+                f"-main-addr={grpc_addr}",
+                f"-worker-id={worker_id}",
+            ],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        pytest.skip(
+            "'go' binary not found; skipping proc-worker integration tests. "
+            "Run against a local Go build instead."
+        )
 
     # Wait for the proc-worker to compile, start up, and subscribe.
     # Poll the /admin/workers endpoint until the worker appears.
     admin_url = live_main_worker["rest_url"] + "/admin/workers"
+    auth_headers = {"Authorization": f"Bearer {live_main_worker['token']}"}
     deadline = time.monotonic() + 30
     subscribed = False
     while time.monotonic() < deadline:
         try:
-            r = requests.get(admin_url, timeout=2)
+            r = requests.get(admin_url, headers=auth_headers, timeout=2)
             if r.status_code == 200:
                 workers = r.json()
                 if any(w.get("worker_id") == worker_id for w in workers):
@@ -147,6 +173,7 @@ def live_proc_worker(live_main_worker):
         "process": proc,
         "worker_id": worker_id,
         "rest_url": live_main_worker["rest_url"],
+        "token": live_main_worker["token"],
     }
 
     proc.terminate()
@@ -167,8 +194,9 @@ def test_proc_worker_subscribe_appears_in_registry(live_proc_worker):
     """
     rest_url = live_proc_worker["rest_url"]
     worker_id = live_proc_worker["worker_id"]
+    headers = {"Authorization": f"Bearer {live_proc_worker['token']}"}
 
-    response = requests.get(rest_url + "/admin/workers", timeout=5)
+    response = requests.get(rest_url + "/admin/workers", headers=headers, timeout=5)
     assert response.status_code == 200
 
     workers = response.json()
@@ -205,7 +233,8 @@ def test_main_worker_health_endpoint(live_main_worker):
 def test_admin_workers_endpoint_returns_list(live_main_worker):
     """The /admin/workers endpoint returns a JSON list."""
     url = live_main_worker["rest_url"] + "/admin/workers"
-    response = requests.get(url, timeout=5)
+    headers = {"Authorization": f"Bearer {live_main_worker['token']}"}
+    response = requests.get(url, headers=headers, timeout=5)
     assert response.status_code == 200
     workers = response.json()
     assert isinstance(workers, list)
@@ -215,8 +244,9 @@ def test_proc_worker_receives_key_id(live_proc_worker):
     """The registered worker entry must include a non-empty key_id."""
     rest_url = live_proc_worker["rest_url"]
     worker_id = live_proc_worker["worker_id"]
+    headers = {"Authorization": f"Bearer {live_proc_worker['token']}"}
 
-    response = requests.get(rest_url + "/admin/workers", timeout=5)
+    response = requests.get(rest_url + "/admin/workers", headers=headers, timeout=5)
     assert response.status_code == 200
 
     workers = response.json()

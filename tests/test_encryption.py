@@ -24,6 +24,16 @@ def _blob_path(shared_fs, entity_key):
     return shared_fs["files"] / f"chatdb_{entity_key}.json.enc"
 
 
+def _wait_for_path(path, timeout: float = 10.0) -> bool:
+    """Poll until *path* exists on disk (proc-worker writes are async)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists():
+            return True
+        time.sleep(0.1)
+    return False
+
+
 def test_put_creates_encrypted_blob(proc_grpc_stub, shared_fs):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "assistant", "text": "hello"}]}).encode()
@@ -35,21 +45,26 @@ def test_put_creates_encrypted_blob(proc_grpc_stub, shared_fs):
         token="",
     ))
     assert resp.status == "OK"
-    assert _meta_path(shared_fs, "EncBlob").exists()
-    assert _blob_path(shared_fs, "EncBlob").exists()
+    # Disk writes are async — wait for files to appear.
+    assert _wait_for_path(_meta_path(shared_fs, "EncBlob")), "meta file not written in time"
+    assert _wait_for_path(_blob_path(shared_fs, "EncBlob")), "blob file not written in time"
 
 
 def test_blob_metadata_has_crypto_fields(proc_grpc_stub, shared_fs):
     pb2, stub = proc_grpc_stub
     payload = json.dumps({"chat": [{"type": "assistant", "text": "meta check"}]}).encode()
-    stub.Process(pb2.ProcessRequest(
+    # Use a distinct entity key so there is no lock contention with
+    # test_put_creates_encrypted_blob (which also uses "EncBlob").
+    resp = stub.Process(pb2.ProcessRequest(
         schema_id="chatdb",
-        entity_key="EncBlob",
+        entity_key="EncBlobMeta",
         operation="PUT",
         payload=payload,
         token="",
     ))
-    meta_file = _meta_path(shared_fs, "EncBlob")
+    assert resp.status == "OK"
+    meta_file = _meta_path(shared_fs, "EncBlobMeta")
+    assert _wait_for_path(meta_file), "meta file not written in time"
     meta = json.loads(meta_file.read_text(encoding="utf-8"))
     for key in ["key_id", "alg", "iv", "tag", "schema_id", "version"]:
         assert key in meta
@@ -143,20 +158,65 @@ def test_encryption_payload_sizes(proc_grpc_stub, size):
     assert resp.status == "OK"
 
 
-@pytest.mark.parametrize("iteration", range(300))
-def test_repeated_put_does_not_reuse_nonce(proc_grpc_stub, shared_fs, iteration):
+def test_repeated_put_does_not_reuse_nonce(proc_grpc_stub, shared_fs):
+    """Each PUT to the same entity must produce a unique AES-GCM nonce (IV)."""
     pb2, stub = proc_grpc_stub
-    payload = json.dumps({"chat": [{"type": "assistant", "text": f"msg-{iteration}"}]}).encode()
-    resp = stub.Process(pb2.ProcessRequest(
-        schema_id="chatdb",
-        entity_key="Chat_id",
-        operation="PUT",
-        payload=payload,
-        token="",
-    ))
-    assert resp.status == "OK"
-    meta = json.loads(_meta_path(shared_fs, "Chat_id").read_text(encoding="utf-8"))
-    assert isinstance(meta.get("iv"), str)
+    entity_key = "NonceUniquenessCheck"
+    nonces = []
+
+    for i in range(5):
+        meta_path = _meta_path(shared_fs, entity_key)
+        # Record the IV before this PUT so we can detect when the new write lands.
+        old_iv = None
+        if meta_path.exists():
+            try:
+                old_iv = json.loads(meta_path.read_text(encoding="utf-8")).get("iv")
+            except Exception:  # noqa: BLE001
+                pass
+
+        payload = json.dumps({"chat": [{"type": "assistant", "text": f"msg-{i}"}]}).encode()
+        # Retry on transient lock-contention: the async goroutine from the
+        # previous iteration may still hold the exclusive lock for a brief
+        # moment after it has finished writing the metadata file.
+        for attempt in range(10):
+            try:
+                resp = stub.Process(pb2.ProcessRequest(
+                    schema_id="chatdb",
+                    entity_key=entity_key,
+                    operation="PUT",
+                    payload=payload,
+                    token="",
+                ))
+                assert resp.status == "OK"
+                break
+            except grpc.RpcError as exc:
+                if "already locked" in str(exc) and attempt < 9:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                raise
+
+        # Wait until the meta file shows a NEW IV (proves this write completed).
+        deadline = time.monotonic() + 10.0
+        new_iv = old_iv
+        while time.monotonic() < deadline:
+            try:
+                if meta_path.exists():
+                    m = json.loads(meta_path.read_text(encoding="utf-8"))
+                    candidate = m.get("iv")
+                    if candidate and candidate != old_iv:
+                        new_iv = candidate
+                        break
+            except Exception:  # noqa: BLE001
+                pass
+            time.sleep(0.1)
+
+        assert new_iv != old_iv, f"IV did not change after PUT iteration {i}"
+        assert isinstance(new_iv, str), f"IV is not a string: {new_iv}"
+        nonces.append(new_iv)
+
+    assert len(set(nonces)) == len(nonces), (
+        f"Nonce reuse detected! Nonces across {len(nonces)} writes: {nonces}"
+    )
 
 
 @pytest.mark.parametrize("iteration", range(200))

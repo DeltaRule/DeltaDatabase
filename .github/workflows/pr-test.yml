@@ -1,0 +1,275 @@
+# PR Tests — Go unit tests · Docker deploy · Python E2E tests · Benchmarks
+#
+# Runs automatically on every pull request (any branch).
+#
+# Pipeline
+# --------
+#   1. go-tests         Run the full Go test suite with race detector and
+#                       coverage report, publish results to the job summary.
+#   2. deploy-and-e2e   Build the all-in-one Docker image from the PR branch
+#                       (local build only — never pushed to Docker Hub), start
+#                       it as an isolated test container, run all Python E2E
+#                       tests against the live container, collect benchmark
+#                       results, publish a benchmark table to the job summary,
+#                       then unconditionally tear the container down.
+#
+# This workflow never touches the production 'deltadatabase' Kubernetes
+# namespace and does not require KUBE_CONFIG or any cluster credentials.
+# Each run uses a unique container name and shared-filesystem path derived
+# from the run ID so concurrent PR builds cannot collide.
+#
+# Tool versions are installed by the workflow itself — no pre-installed tools
+# are assumed on the runner beyond Docker and a POSIX shell:
+#   - Go      installed via actions/setup-go@v5  (version read from go.mod)
+#   - Python  installed via actions/setup-python@v5  (3.x, latest patch)
+#   - Docker  must be present on the self-hosted runner
+
+name: PR Tests — Go · Deploy · Python E2E
+
+on:
+  pull_request:
+    branches: ['**']
+
+jobs:
+
+  # ============================================================================
+  # Job 1: Go unit tests
+  # ============================================================================
+  go-tests:
+    name: Go unit tests
+    runs-on: self-hosted
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Install C compiler (required by go test -race via CGO)
+        run: sudo apt-get install -y --no-install-recommends gcc
+
+      - name: Run Go tests (race detector + coverage)
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go test \
+            -race \
+            -count=1 \
+            -timeout 120s \
+            -coverprofile=/tmp/coverage-${{ github.run_id }}.out \
+            ./... \
+            2>&1 | tee /tmp/go-test-${{ github.run_id }}.txt
+          exit "${PIPESTATUS[0]}"
+
+      - name: Publish Go test summary
+        if: always()
+        run: |
+          {
+            echo "## Go Unit Tests"
+            echo ""
+            if [ -f /tmp/coverage-${{ github.run_id }}.out ]; then
+              COVERAGE=$(go tool cover \
+                -func=/tmp/coverage-${{ github.run_id }}.out \
+                | tail -1 | awk '{print $3}')
+              echo "**Total coverage:** ${COVERAGE}"
+              echo ""
+            fi
+            echo '```'
+            cat /tmp/go-test-${{ github.run_id }}.txt
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          rm -f \
+            /tmp/go-test-${{ github.run_id }}.txt \
+            /tmp/coverage-${{ github.run_id }}.out
+
+  # ============================================================================
+  # Job 2: Build Docker image → Deploy → Python E2E tests → Benchmarks
+  # ============================================================================
+  deploy-and-e2e:
+    name: Deploy (Docker) · Python E2E · Benchmarks
+    runs-on: self-hosted
+    needs: go-tests
+
+    permissions:
+      contents: read
+
+    env:
+      # Unique names so concurrent PR runs do not collide on the same host.
+      CI_CONTAINER:   deltadatabase-pr-${{ github.run_id }}
+      CI_IMAGE:       deltadatabase-pr-img:${{ github.run_id }}
+      # Shared filesystem mounted into the container so filesystem-dependent
+      # tests (test_encryption.py, test_data_integrity.py) can inspect files
+      # that the workers write to disk.
+      CI_SHARED_ROOT: /tmp/delta-ci-${{ github.run_id }}
+      # Admin key used only for this ephemeral test run.
+      CI_ADMIN_KEY:   ci-test-key-${{ github.run_id }}
+
+    steps:
+      # ── 2a. Source ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2b. Set up Python ─────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # ── 2c. Build Docker image (local only — not pushed to Docker Hub) ────────
+      - name: Build all-in-one Docker image
+        run: |
+          docker build \
+            -f deploy/docker/Dockerfile.all-in-one \
+            -t "${{ env.CI_IMAGE }}" \
+            .
+
+      # ── 2d. Prepare shared filesystem and launch container ───────────────────
+      - name: Prepare shared filesystem
+        run: |
+          mkdir -p "${{ env.CI_SHARED_ROOT }}/db/files"
+          mkdir -p "${{ env.CI_SHARED_ROOT }}/db/templates"
+          # The container runs as an unprivileged 'delta' user (UID differs from
+          # the runner's UID). Make the volume world-writable so the container
+          # can create data files and advisory lock files inside the mount.
+          chmod -R 777 "${{ env.CI_SHARED_ROOT }}"
+
+      - name: Start test container
+        run: |
+          docker run -d \
+            --name  "${{ env.CI_CONTAINER }}" \
+            --publish 0:8080  \
+            --publish 0:50051 \
+            --publish 0:50052 \
+            --env ADMIN_KEY="${{ env.CI_ADMIN_KEY }}" \
+            --env SHARED_FS=/shared/db \
+            --volume "${{ env.CI_SHARED_ROOT }}/db:/shared/db" \
+            "${{ env.CI_IMAGE }}"
+
+      - name: Discover container ports
+        id: ports
+        run: |
+          REST_PORT=$(docker port "${{ env.CI_CONTAINER }}" 8080/tcp  | cut -d: -f2)
+          MAIN_PORT=$(docker port "${{ env.CI_CONTAINER }}" 50051/tcp | cut -d: -f2)
+          PROC_PORT=$(docker port "${{ env.CI_CONTAINER }}" 50052/tcp | cut -d: -f2)
+          echo "rest=${REST_PORT}" >> "${GITHUB_OUTPUT}"
+          echo "main=${MAIN_PORT}" >> "${GITHUB_OUTPUT}"
+          echo "proc=${PROC_PORT}" >> "${GITHUB_OUTPUT}"
+          echo "REST API  : http://127.0.0.1:${REST_PORT}"
+          echo "Main gRPC : 127.0.0.1:${MAIN_PORT}"
+          echo "Proc gRPC : 127.0.0.1:${PROC_PORT}"
+
+      # ── 2e. Wait for health ───────────────────────────────────────────────────
+      - name: Wait for DeltaDatabase to be healthy
+        run: |
+          REST="http://127.0.0.1:${{ steps.ports.outputs.rest }}"
+          echo "Polling ${REST}/health ..."
+          for i in $(seq 1 60); do
+            if curl -sf "${REST}/health" > /dev/null 2>&1; then
+              echo "DeltaDatabase is healthy (attempt ${i})"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::DeltaDatabase did not become healthy within 120 s"
+          docker logs "${{ env.CI_CONTAINER }}" 2>&1 | tail -50
+          exit 1
+
+      # ── 2f. Python E2E tests ──────────────────────────────────────────────────
+      - name: Install C++ compiler (required to build grpcio from source)
+        run: sudo apt-get install -y --no-install-recommends g++ python3-dev
+
+      - name: Install Python test dependencies
+        run: pip install -q -r tests/requirements.txt
+
+      - name: Run Python E2E tests against deployed container
+        env:
+          # conftest.py live_server fixture reads these to skip spawning go run
+          # workers and connect directly to the running Docker container instead.
+          DELTADB_EXTERNAL_URL:            http://127.0.0.1:${{ steps.ports.outputs.rest }}
+          DELTADB_EXTERNAL_GRPC_ADDR:      127.0.0.1:${{ steps.ports.outputs.main }}
+          DELTADB_EXTERNAL_PROC_GRPC_ADDR: 127.0.0.1:${{ steps.ports.outputs.proc }}
+          DELTADB_EXTERNAL_ADMIN_KEY:      ${{ env.CI_ADMIN_KEY }}
+          # Point filesystem fixtures at the host-side volume mount so tests
+          # that inspect encrypted blobs on disk work correctly.
+          DELTADB_EXTERNAL_SHARED_FS:      ${{ env.CI_SHARED_ROOT }}
+        run: |
+          python -m pytest tests/ \
+            --benchmark-disable \
+            --tb=short \
+            -v \
+            -p no:cacheprovider \
+            2>&1 | tee /tmp/e2e-${{ github.run_id }}.txt
+          exit "${PIPESTATUS[0]}"
+
+      - name: Publish E2E test summary
+        if: always()
+        run: |
+          {
+            echo "## Python E2E Tests"
+            echo '```'
+            if [ -f /tmp/e2e-${{ github.run_id }}.txt ]; then
+              # Limit output to the last 500 lines so the summary stays within
+              # GitHub Actions' 1 MiB $GITHUB_STEP_SUMMARY size limit.
+              tail -n 500 /tmp/e2e-${{ github.run_id }}.txt
+            else
+              echo "_E2E tests did not run (dependency installation failed or tests were skipped)._"
+            fi
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          rm -f /tmp/e2e-${{ github.run_id }}.txt
+
+      # ── 2g. Benchmarks ────────────────────────────────────────────────────────
+      - name: Run benchmarks
+        if: success()
+        env:
+          DELTADB_EXTERNAL_URL:            http://127.0.0.1:${{ steps.ports.outputs.rest }}
+          DELTADB_EXTERNAL_GRPC_ADDR:      127.0.0.1:${{ steps.ports.outputs.main }}
+          DELTADB_EXTERNAL_PROC_GRPC_ADDR: 127.0.0.1:${{ steps.ports.outputs.proc }}
+          DELTADB_EXTERNAL_ADMIN_KEY:      ${{ env.CI_ADMIN_KEY }}
+          DELTADB_EXTERNAL_SHARED_FS:      ${{ env.CI_SHARED_ROOT }}
+        run: |
+          python -m pytest tests/test_benchmarks.py \
+            --benchmark-json=/tmp/bench-${{ github.run_id }}.json \
+            --benchmark-columns=min,max,mean,stddev,rounds \
+            --benchmark-sort=mean \
+            -v \
+            2>&1 | tee /tmp/bench-out-${{ github.run_id }}.txt
+          exit "${PIPESTATUS[0]}"
+
+      - name: Publish benchmark report
+        if: always()
+        run: |
+          {
+            echo "## Benchmark Results"
+            echo ""
+            BENCH_JSON="/tmp/bench-${{ github.run_id }}.json"
+            if [ -f "${BENCH_JSON}" ]; then
+              python3 .github/scripts/format_benchmarks.py "${BENCH_JSON}"
+            else
+              echo "_No benchmark data collected (benchmarks may have been skipped)._"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+          rm -f \
+            /tmp/bench-${{ github.run_id }}.json \
+            /tmp/bench-out-${{ github.run_id }}.txt
+
+      # ── 2h. Container logs on failure ─────────────────────────────────────────
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs "${{ env.CI_CONTAINER }}" 2>&1 | tail -100
+
+      # ── 2i. Tear down test deployment (always) ────────────────────────────────
+      - name: Tear down test deployment
+        if: always()
+        run: |
+          docker stop "${{ env.CI_CONTAINER }}" 2>/dev/null || true
+          docker rm   "${{ env.CI_CONTAINER }}" 2>/dev/null || true
+          docker rmi  "${{ env.CI_IMAGE }}"     2>/dev/null || true
+          rm -rf      "${{ env.CI_SHARED_ROOT }}"

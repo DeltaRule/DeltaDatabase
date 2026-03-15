@@ -71,17 +71,23 @@ def live_main_worker_schemas():
     rest_url = f"http://{rest_addr}"
     shared_fs = f"/tmp/schema_test_fs_{rest_port}"
 
-    proc = subprocess.Popen(
-        [
-            "go", "run", "./cmd/main-worker",
-            f"-grpc-addr={grpc_addr}",
-            f"-rest-addr={rest_addr}",
-            f"-shared-fs={shared_fs}",
-        ],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        proc = subprocess.Popen(
+            [
+                "go", "run", "./cmd/main-worker",
+                f"-grpc-addr={grpc_addr}",
+                f"-rest-addr={rest_addr}",
+                f"-shared-fs={shared_fs}",
+            ],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        pytest.skip(
+            "'go' binary not found; skipping schema-API integration tests. "
+            "Run against a local Go build instead."
+        )
 
     if not _wait_for_http(rest_url + "/health", timeout=60):
         proc.terminate()
