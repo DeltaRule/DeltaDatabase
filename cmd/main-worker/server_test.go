@@ -1290,3 +1290,146 @@ assert.False(t, resp.IsAdmin)
 assert.Contains(t, resp.Permissions, auth.PermRead)
 })
 }
+
+// TestHandleAdminWorkers tests the GET /admin/workers endpoint and verifies
+// that workers appear as connected after they subscribe.
+func TestHandleAdminWorkers(t *testing.T) {
+	const adminKey = "test-admin-workers-key"
+	config := createTestConfigWithAdminKey(t, adminKey)
+	server, err := NewMainWorkerServer(config)
+	require.NoError(t, err)
+
+	t.Run("returns empty list when no workers have subscribed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/admin/workers", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAdminWorkers(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+		var workers []map[string]interface{}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&workers))
+		assert.Empty(t, workers)
+	})
+
+	t.Run("shows worker as connected after subscribe", func(t *testing.T) {
+		// Simulate a processing worker subscribing via the gRPC Subscribe RPC.
+		// The Main Worker must vend a session token and a master key wrapped
+		// with the worker's public key before the worker can be considered
+		// connected.
+		privKey, pubKey, err := crypto.GenerateRSAKeyPair(2048)
+		require.NoError(t, err)
+		pubKeyPEM, err := crypto.MarshalPublicKeyToPEM(pubKey)
+		require.NoError(t, err)
+
+		subReq := &proto.SubscribeRequest{
+			WorkerId: "proc-worker-1",
+			Pubkey:   pubKeyPEM,
+			Tags:     map[string]string{"env": "test"},
+		}
+		subResp, err := server.Subscribe(context.Background(), subReq)
+		require.NoError(t, err)
+
+		// Verify the subscription response carries the required key material:
+		// a short-lived worker token and the master key wrapped to the worker's
+		// RSA public key.  Without these the worker cannot decrypt entities.
+		assert.NotEmpty(t, subResp.Token, "subscribe response must contain a worker session token")
+		assert.NotEmpty(t, subResp.WrappedKey, "subscribe response must contain the wrapped encryption key")
+		assert.NotEmpty(t, subResp.KeyId, "subscribe response must identify the encryption key")
+
+		// Confirm the wrapped key can actually be unwrapped with the worker's
+		// private key — proving the Main Worker encrypted it correctly.
+		unwrapped, err := crypto.UnwrapKey(privKey, subResp.WrappedKey)
+		require.NoError(t, err)
+		assert.Equal(t, server.masterKey, unwrapped,
+			"unwrapped key must match the Main Worker's master key")
+
+		// The admin/workers endpoint must now list the subscribed worker.
+		req := httptest.NewRequest(http.MethodGet, "/admin/workers", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAdminWorkers(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var workers []map[string]interface{}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&workers))
+		require.Len(t, workers, 1, "expected exactly one connected worker")
+
+		worker := workers[0]
+		assert.Equal(t, "proc-worker-1", worker["worker_id"])
+		assert.Equal(t, "Available", worker["status"],
+			"worker should be shown as Available (connected)")
+	})
+
+	t.Run("shows multiple workers as connected after each subscribes", func(t *testing.T) {
+		freshConfig := createTestConfigWithAdminKey(t, adminKey)
+		freshServer, err := NewMainWorkerServer(freshConfig)
+		require.NoError(t, err)
+
+		workerIDs := []string{"proc-worker-a", "proc-worker-b", "proc-worker-c"}
+		for _, id := range workerIDs {
+			privKey, pubKey, err := crypto.GenerateRSAKeyPair(2048)
+			require.NoError(t, err)
+			pubKeyPEM, err := crypto.MarshalPublicKeyToPEM(pubKey)
+			require.NoError(t, err)
+
+			subResp, err := freshServer.Subscribe(context.Background(), &proto.SubscribeRequest{
+				WorkerId: id,
+				Pubkey:   pubKeyPEM,
+			})
+			require.NoError(t, err)
+
+			// Each worker must receive a token and the wrapped master key so it
+			// can decrypt entity data.
+			assert.NotEmpty(t, subResp.Token)
+			assert.NotEmpty(t, subResp.WrappedKey)
+
+			// Each worker must be able to unwrap the key it received.
+			_, err = crypto.UnwrapKey(privKey, subResp.WrappedKey)
+			require.NoError(t, err, "worker %s must be able to unwrap its key", id)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/admin/workers", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		freshServer.handleAdminWorkers(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var workers []map[string]interface{}
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&workers))
+		assert.Len(t, workers, len(workerIDs), "all subscribed workers should be shown as connected")
+		for _, wk := range workers {
+			assert.Equal(t, "Available", wk["status"])
+		}
+	})
+
+	t.Run("rejects unauthenticated request with 401", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/admin/workers", nil)
+		w := httptest.NewRecorder()
+		server.handleAdminWorkers(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("rejects non-admin token with 403", func(t *testing.T) {
+		secret, _, err := server.keyManager.CreateKey("readonly", []auth.Permission{auth.PermRead}, nil)
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodGet, "/admin/workers", nil)
+		req.Header.Set("Authorization", "Bearer "+secret)
+		w := httptest.NewRecorder()
+		server.handleAdminWorkers(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("rejects non-GET method with 405", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/admin/workers", nil)
+		req.Header.Set("Authorization", adminBearer(adminKey))
+		w := httptest.NewRecorder()
+		server.handleAdminWorkers(w, req)
+
+		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	})
+}

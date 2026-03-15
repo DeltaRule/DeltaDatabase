@@ -69,6 +69,28 @@ def _wait_for_port(host, port, timeout=30.0):
     return False
 
 
+def _wait_for_worker(url, admin_key, worker_id, timeout=30.0):
+    """Poll GET url until worker_id appears in the JSON list or timeout expires.
+
+    Uses the admin key directly as a Bearer token so it can be called before
+    a session token has been obtained.  Returns True when the worker is found,
+    False on timeout.
+    """
+    deadline = time.monotonic() + timeout
+    headers = {"Authorization": f"Bearer {admin_key}"}
+    while time.monotonic() < deadline:
+        try:
+            r = _requests.get(url, headers=headers, timeout=2)
+            if r.status_code == 200:
+                workers = r.json()
+                if any(w.get("worker_id") == worker_id for w in workers):
+                    return True
+        except _requests.RequestException:
+            pass
+        time.sleep(0.3)
+    return False
+
+
 @pytest.fixture(scope="session")
 def live_server(tmp_path_factory):
     # ── External deployment mode ─────────────────────────────────────────────
@@ -130,6 +152,7 @@ def live_server(tmp_path_factory):
             "token":          token,
             "admin_key":      ext_key,
             "log_path":       "",
+            "proc_worker_id": "",
         }
         return  # nothing to tear down — the container is managed by CI
 
@@ -169,11 +192,13 @@ def live_server(tmp_path_factory):
         log_fp.close()
         pytest.fail(f"main-worker did not start in time. See {log_file}")
 
+    proc_worker_id = "session-proc-1"
+
     proc_proc = subprocess.Popen(
         [
             "go", "run", "./cmd/proc-worker",
             f"-main-addr={main_grpc_addr}",
-            "-worker-id=session-proc-1",
+            f"-worker-id={proc_worker_id}",
             f"-grpc-addr={proc_grpc_addr}",
             f"-shared-fs={db_dir}",
         ],
@@ -188,6 +213,24 @@ def live_server(tmp_path_factory):
         main_proc.terminate()
         log_fp.close()
         pytest.fail(f"proc-worker did not start in time. See {log_file}")
+
+    # Wait for the proc-worker to complete its Subscribe handshake and appear
+    # in the Main Worker registry.  The gRPC port being open only means the
+    # proc-worker's own server started; the Subscribe call to main-worker runs
+    # in a separate goroutine and may finish slightly later.
+    if not _wait_for_worker(
+        rest_url + "/admin/workers",
+        "test-admin-key",
+        proc_worker_id,
+        timeout=30,
+    ):
+        proc_proc.terminate()
+        main_proc.terminate()
+        log_fp.close()
+        pytest.fail(
+            f"proc-worker '{proc_worker_id}' did not appear in the Main Worker "
+            f"registry within 30 s. See {log_file}"
+        )
 
     try:
         r = _requests.post(
@@ -211,6 +254,7 @@ def live_server(tmp_path_factory):
         "token": token,
         "admin_key": "test-admin-key",
         "log_path": str(log_file),
+        "proc_worker_id": proc_worker_id,
     }
 
     proc_proc.terminate()
@@ -236,6 +280,9 @@ def settings(pytestconfig, live_server):
         "token": live_server["token"],
         # admin_key can be used directly as a Bearer token — no /api/login needed.
         "admin_key": live_server["admin_key"],
+        # proc_worker_id is the worker ID of the proc-worker started by the
+        # live_server fixture (local mode).  Empty string in external mode.
+        "proc_worker_id": live_server.get("proc_worker_id", ""),
     }
 
 
