@@ -260,17 +260,23 @@ def live_main_worker_task8():
     rest_url = f"http://{rest_addr}"
     shared_fs = f"/tmp/task8_integration_fs_{grpc_port}"
 
-    proc = subprocess.Popen(
-        [
-            "go", "run", "./cmd/main-worker",
-            f"-grpc-addr={grpc_addr}",
-            f"-rest-addr={rest_addr}",
-            f"-shared-fs={shared_fs}",
-        ],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        proc = subprocess.Popen(
+            [
+                "go", "run", "./cmd/main-worker",
+                f"-grpc-addr={grpc_addr}",
+                f"-rest-addr={rest_addr}",
+                f"-shared-fs={shared_fs}",
+            ],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        pytest.skip(
+            "'go' binary not found; skipping integration tests that require "
+            "local Go workers. Run against a live deployment instead."
+        )
 
     if not _wait_for_http(rest_url + "/health", timeout=60):
         proc.terminate()

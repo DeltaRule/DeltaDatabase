@@ -135,6 +135,10 @@ jobs:
         run: |
           mkdir -p "${{ env.CI_SHARED_ROOT }}/db/files"
           mkdir -p "${{ env.CI_SHARED_ROOT }}/db/templates"
+          # The container runs as an unprivileged 'delta' user (UID differs from
+          # the runner's UID). Make the volume world-writable so the container
+          # can create data files and advisory lock files inside the mount.
+          chmod -R 777 "${{ env.CI_SHARED_ROOT }}"
 
       - name: Start test container
         run: |
@@ -211,7 +215,9 @@ jobs:
             echo "## Python E2E Tests"
             echo '```'
             if [ -f /tmp/e2e-${{ github.run_id }}.txt ]; then
-              cat /tmp/e2e-${{ github.run_id }}.txt
+              # Limit output to the last 500 lines so the summary stays within
+              # GitHub Actions' 1 MiB $GITHUB_STEP_SUMMARY size limit.
+              tail -n 500 /tmp/e2e-${{ github.run_id }}.txt
             else
               echo "_E2E tests did not run (dependency installation failed or tests were skipped)._"
             fi
