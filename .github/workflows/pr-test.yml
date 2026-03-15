@@ -18,10 +18,11 @@
 # Each run uses a unique container name and shared-filesystem path derived
 # from the run ID so concurrent PR builds cannot collide.
 #
-# Required on the self-hosted runner:
-#   - Go 1.25+  (already present - used by docker-publish.yml)
-#   - Docker    (already present - used by docker-publish.yml)
-#   - Python 3  with pip
+# Tool versions are installed by the workflow itself — no pre-installed tools
+# are assumed on the runner beyond Docker and a POSIX shell:
+#   - Go      installed via actions/setup-go@v5  (version read from go.mod)
+#   - Python  installed via actions/setup-python@v5  (3.x, latest patch)
+#   - Docker  must be present on the self-hosted runner
 
 name: PR Tests — Go · Deploy · Python E2E
 
@@ -44,6 +45,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
 
       - name: Run Go tests (race detector + coverage)
         run: |
@@ -104,7 +111,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── 2b. Build Docker image (local only — not pushed to Docker Hub) ────────
+      # ── 2b. Set up Python ─────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # ── 2c. Build Docker image (local only — not pushed to Docker Hub) ────────
       - name: Build all-in-one Docker image
         run: |
           docker build \
@@ -112,7 +125,7 @@ jobs:
             -t "${{ env.CI_IMAGE }}" \
             .
 
-      # ── 2c. Prepare shared filesystem and launch container ───────────────────
+      # ── 2d. Prepare shared filesystem and launch container ───────────────────
       - name: Prepare shared filesystem
         run: |
           mkdir -p "${{ env.CI_SHARED_ROOT }}/db/files"
@@ -143,7 +156,7 @@ jobs:
           echo "Main gRPC : 127.0.0.1:${MAIN_PORT}"
           echo "Proc gRPC : 127.0.0.1:${PROC_PORT}"
 
-      # ── 2d. Wait for health ───────────────────────────────────────────────────
+      # ── 2e. Wait for health ───────────────────────────────────────────────────
       - name: Wait for DeltaDatabase to be healthy
         run: |
           REST="http://127.0.0.1:${{ steps.ports.outputs.rest }}"
@@ -159,7 +172,7 @@ jobs:
           docker logs "${{ env.CI_CONTAINER }}" 2>&1 | tail -50
           exit 1
 
-      # ── 2e. Python E2E tests ──────────────────────────────────────────────────
+      # ── 2f. Python E2E tests ──────────────────────────────────────────────────
       - name: Install Python test dependencies
         run: pip install -q -r tests/requirements.txt
 
@@ -194,7 +207,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
           rm -f /tmp/e2e-${{ github.run_id }}.txt
 
-      # ── 2f. Benchmarks ────────────────────────────────────────────────────────
+      # ── 2g. Benchmarks ────────────────────────────────────────────────────────
       - name: Run benchmarks
         if: success()
         env:
@@ -229,12 +242,12 @@ jobs:
             /tmp/bench-${{ github.run_id }}.json \
             /tmp/bench-out-${{ github.run_id }}.txt
 
-      # ── 2g. Container logs on failure ─────────────────────────────────────────
+      # ── 2h. Container logs on failure ─────────────────────────────────────────
       - name: Show container logs on failure
         if: failure()
         run: docker logs "${{ env.CI_CONTAINER }}" 2>&1 | tail -100
 
-      # ── 2h. Tear down test deployment (always) ────────────────────────────────
+      # ── 2i. Tear down test deployment (always) ────────────────────────────────
       - name: Tear down test deployment
         if: always()
         run: |
