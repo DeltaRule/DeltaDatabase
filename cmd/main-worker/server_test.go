@@ -486,6 +486,198 @@ func TestHandleSchema(t *testing.T) {
 	})
 }
 
+func TestHandleSchemaDelete(t *testing.T) {
+	config := createTestConfigWithTempDir(t)
+	server, err := NewMainWorkerServer(config)
+	require.NoError(t, err)
+	require.NotNil(t, server.validator)
+
+	ct, err := server.tokenManager.GenerateClientToken("test-client", []string{"read", "write"})
+	require.NoError(t, err)
+	authHeader := "Bearer " + ct.Token
+
+	schemaJSON := `{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}`
+
+	// Pre-populate a schema to delete in these tests.
+	putReq := httptest.NewRequest(http.MethodPut, "/schema/todelete.v1", strings.NewReader(schemaJSON))
+	putReq.Header.Set("Authorization", authHeader)
+	putW := httptest.NewRecorder()
+	server.handleSchema(putW, putReq)
+	require.Equal(t, http.StatusOK, putW.Code)
+
+	t.Run("DELETE requires Authorization header", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/schema/todelete.v1", nil)
+		w := httptest.NewRecorder()
+		server.handleSchema(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("DELETE with write token removes schema", func(t *testing.T) {
+		// Re-create schema so we can delete it.
+		putReq2 := httptest.NewRequest(http.MethodPut, "/schema/todelete.v1", strings.NewReader(schemaJSON))
+		putReq2.Header.Set("Authorization", authHeader)
+		putW2 := httptest.NewRecorder()
+		server.handleSchema(putW2, putReq2)
+		require.Equal(t, http.StatusOK, putW2.Code)
+
+		req := httptest.NewRequest(http.MethodDelete, "/schema/todelete.v1", nil)
+		req.Header.Set("Authorization", authHeader)
+		w := httptest.NewRecorder()
+		server.handleSchema(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]string
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "ok", resp["status"])
+	})
+
+	t.Run("GET returns 404 after DELETE", func(t *testing.T) {
+		// Ensure schema is gone.
+		req := httptest.NewRequest(http.MethodGet, "/schema/todelete.v1", nil)
+		w := httptest.NewRecorder()
+		server.handleSchema(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("DELETE non-existent schema returns 404", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/schema/ghost.v99", nil)
+		req.Header.Set("Authorization", authHeader)
+		w := httptest.NewRecorder()
+		server.handleSchema(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("DELETE with read-only token is forbidden", func(t *testing.T) {
+		readCT, err := server.tokenManager.GenerateClientToken("reader", []string{"read"})
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodDelete, "/schema/todelete.v1", nil)
+		req.Header.Set("Authorization", "Bearer "+readCT.Token)
+		w := httptest.NewRecorder()
+		server.handleSchema(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("DELETE rejects path traversal schema id", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/schema/../etc/passwd", nil)
+		req.Header.Set("Authorization", authHeader)
+		w := httptest.NewRecorder()
+		server.handleSchema(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("admin schemas list excludes deleted schema", func(t *testing.T) {
+		// Put a schema, then delete it, then verify it is absent.
+		putReq3 := httptest.NewRequest(http.MethodPut, "/schema/listed.v1", strings.NewReader(schemaJSON))
+		putReq3.Header.Set("Authorization", authHeader)
+		putW3 := httptest.NewRecorder()
+		server.handleSchema(putW3, putReq3)
+		require.Equal(t, http.StatusOK, putW3.Code)
+
+		delReq := httptest.NewRequest(http.MethodDelete, "/schema/listed.v1", nil)
+		delReq.Header.Set("Authorization", authHeader)
+		delW := httptest.NewRecorder()
+		server.handleSchema(delW, delReq)
+		require.Equal(t, http.StatusOK, delW.Code)
+
+		listReq := httptest.NewRequest(http.MethodGet, "/admin/schemas", nil)
+		listW := httptest.NewRecorder()
+		server.handleAdminSchemas(listW, listReq)
+		require.Equal(t, http.StatusOK, listW.Code)
+		var schemas []string
+		require.NoError(t, json.Unmarshal(listW.Body.Bytes(), &schemas))
+		assert.NotContains(t, schemas, "listed.v1")
+	})
+}
+
+func TestProcessSchemaOperations(t *testing.T) {
+	config := createTestConfigWithTempDir(t)
+	server, err := NewMainWorkerServer(config)
+	require.NoError(t, err)
+	require.NotNil(t, server.validator)
+
+	// Get a valid worker token for Process calls.
+	_, pubKey, err := crypto.GenerateRSAKeyPair(2048)
+	require.NoError(t, err)
+	pubPEM, err := crypto.MarshalPublicKeyToPEM(pubKey)
+	require.NoError(t, err)
+	subResp, err := server.Subscribe(context.Background(), &proto.SubscribeRequest{
+		WorkerId: "test-worker",
+		Pubkey:   pubPEM,
+	})
+	require.NoError(t, err)
+	workerToken := subResp.Token
+
+	schemaJSON := []byte(`{"type":"object","properties":{"value":{"type":"number"}},"required":["value"]}`)
+
+	t.Run("SCHEMA_PUT saves schema", func(t *testing.T) {
+		resp, err := server.Process(context.Background(), &proto.ProcessRequest{
+			Operation: "SCHEMA_PUT",
+			SchemaId:  "grpc.v1",
+			Payload:   schemaJSON,
+			Token:     workerToken,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "OK", resp.Status)
+	})
+
+	t.Run("SCHEMA_GET retrieves saved schema", func(t *testing.T) {
+		resp, err := server.Process(context.Background(), &proto.ProcessRequest{
+			Operation: "SCHEMA_GET",
+			SchemaId:  "grpc.v1",
+			Token:     workerToken,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "OK", resp.Status)
+		assert.NotEmpty(t, resp.Result)
+	})
+
+	t.Run("SCHEMA_DELETE removes schema", func(t *testing.T) {
+		resp, err := server.Process(context.Background(), &proto.ProcessRequest{
+			Operation: "SCHEMA_DELETE",
+			SchemaId:  "grpc.v1",
+			Token:     workerToken,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "OK", resp.Status)
+	})
+
+	t.Run("SCHEMA_GET returns NotFound after delete", func(t *testing.T) {
+		_, err := server.Process(context.Background(), &proto.ProcessRequest{
+			Operation: "SCHEMA_GET",
+			SchemaId:  "grpc.v1",
+			Token:     workerToken,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "NotFound")
+	})
+
+	t.Run("SCHEMA_DELETE non-existent schema returns NotFound", func(t *testing.T) {
+		_, err := server.Process(context.Background(), &proto.ProcessRequest{
+			Operation: "SCHEMA_DELETE",
+			SchemaId:  "ghost.v99",
+			Token:     workerToken,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "NotFound")
+	})
+
+	t.Run("unknown operation returns InvalidArgument", func(t *testing.T) {
+		_, err := server.Process(context.Background(), &proto.ProcessRequest{
+			Operation: "BOGUS",
+			SchemaId:  "any",
+			Token:     workerToken,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "InvalidArgument")
+	})
+}
+
 func TestConcurrentSubscriptions(t *testing.T) {
 	config := createTestConfig()
 	server, err := NewMainWorkerServer(config)

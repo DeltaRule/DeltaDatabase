@@ -560,6 +560,56 @@ Create or replace a JSON Schema. Authentication required.
 | `400` | Invalid JSON or invalid JSON Schema |
 | `401` | Missing or invalid Bearer token |
 
+**Example:**
+
+```bash
+curl -s -X PUT http://127.0.0.1:8080/schema/product.v1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "product.v1",
+    "type": "object",
+    "properties": {
+      "name":  {"type": "string"},
+      "price": {"type": "number", "minimum": 0}
+    },
+    "required": ["name", "price"]
+  }'
+```
+
+---
+
+### `DELETE /schema/{schemaID}`
+
+Permanently delete a JSON Schema. Requires `write` permission.
+
+Existing entities stored under that schema ID are **not** affected. Future entity
+writes will proceed without validation until a new template is uploaded.
+
+**Path parameter:** `schemaID` — the schema identifier (e.g., `chat.v1`).
+
+**Response:**
+
+```json
+{ "status": "ok" }
+```
+
+**Error responses:**
+
+| HTTP code | Meaning |
+|-----------|---------|
+| `401` | Missing or invalid Bearer token |
+| `403` | Token lacks `write` permission |
+| `404` | Schema not found |
+
+**Example:**
+
+```bash
+curl -s -X DELETE http://127.0.0.1:8080/schema/product.v1 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ---
 
 ## JSON Schema Templates

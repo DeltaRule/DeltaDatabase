@@ -217,3 +217,104 @@ def test_put_schema_roundtrip(live_main_worker_schemas):
     get_r = requests.get(base + "/schema/roundtrip.v1", timeout=5)
     assert get_r.status_code == 200
     assert get_r.json()["properties"]["score"]["type"] == "number"
+
+
+def test_delete_schema_requires_auth(live_main_worker_schemas):
+    """DELETE /schema/{id} without a Bearer token must return 401."""
+    base = live_main_worker_schemas["rest_url"]
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
+
+    # Create the schema first so we know it exists.
+    requests.put(base + "/schema/delete_auth_test.v1",
+                 json={"type": "object"}, headers=headers, timeout=5)
+
+    r = requests.delete(base + "/schema/delete_auth_test.v1", timeout=5)
+    assert r.status_code == 401
+
+
+def test_delete_schema_with_auth_succeeds(live_main_worker_schemas):
+    """DELETE /schema/{id} with a valid Bearer token must return 200."""
+    base = live_main_worker_schemas["rest_url"]
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
+    schema_id = "to_delete.v1"
+
+    # Create it first.
+    put_r = requests.put(base + f"/schema/{schema_id}",
+                         json={"type": "object"}, headers=headers, timeout=5)
+    assert put_r.status_code == 200
+
+    # Now delete it.
+    del_r = requests.delete(base + f"/schema/{schema_id}",
+                             headers=headers, timeout=5)
+    assert del_r.status_code == 200
+    assert del_r.json().get("status") == "ok"
+
+
+def test_get_schema_returns_404_after_delete(live_main_worker_schemas):
+    """GET /schema/{id} must return 404 after the schema is deleted."""
+    base = live_main_worker_schemas["rest_url"]
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
+    schema_id = "get_after_delete.v1"
+
+    requests.put(base + f"/schema/{schema_id}",
+                 json={"type": "object"}, headers=headers, timeout=5)
+    requests.delete(base + f"/schema/{schema_id}",
+                    headers=headers, timeout=5)
+
+    r = requests.get(base + f"/schema/{schema_id}", timeout=5)
+    assert r.status_code == 404
+
+
+def test_delete_schema_not_found(live_main_worker_schemas):
+    """DELETE /schema/{id} for a non-existent schema must return 404."""
+    base = live_main_worker_schemas["rest_url"]
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
+    r = requests.delete(base + "/schema/does-not-exist-at-all.v99",
+                        headers=headers, timeout=5)
+    assert r.status_code == 404
+
+
+def test_admin_schemas_excludes_deleted_schema(live_main_worker_schemas):
+    """After DELETE, /admin/schemas must no longer include the schema ID."""
+    base = live_main_worker_schemas["rest_url"]
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
+    schema_id = "list_exclude.v1"
+
+    requests.put(base + f"/schema/{schema_id}",
+                 json={"type": "object"}, headers=headers, timeout=5)
+    listed_before = requests.get(base + "/admin/schemas", timeout=5).json()
+    assert schema_id in listed_before
+
+    requests.delete(base + f"/schema/{schema_id}",
+                    headers=headers, timeout=5)
+
+    listed_after = requests.get(base + "/admin/schemas", timeout=5).json()
+    assert schema_id not in listed_after
+
+
+def test_update_schema_roundtrip(live_main_worker_schemas):
+    """PUT (update) then GET must return the updated schema content."""
+    base = live_main_worker_schemas["rest_url"]
+    headers = {"Authorization": f"Bearer {live_main_worker_schemas['token']}"}
+    schema_id = "update_test.v1"
+
+    original = {"type": "object", "properties": {"name": {"type": "string"}},
+                "required": ["name"]}
+    updated = {"type": "object",
+               "properties": {"name": {"type": "string"},
+                               "age": {"type": "integer"}},
+               "required": ["name", "age"]}
+
+    requests.put(base + f"/schema/{schema_id}",
+                 json=original, headers=headers, timeout=5)
+
+    put_r = requests.put(base + f"/schema/{schema_id}",
+                         json=updated, headers=headers, timeout=5)
+    assert put_r.status_code == 200
+
+    get_r = requests.get(base + f"/schema/{schema_id}", timeout=5)
+    assert get_r.status_code == 200
+    data = get_r.json()
+    assert "age" in data.get("properties", {})
+    assert "age" in data.get("required", [])
+

@@ -370,6 +370,15 @@ input::placeholder, textarea::placeholder { color: var(--c-text-faint); }
 }
 .schema-list-item:hover { background: rgba(100,116,139,.1); color: var(--c-text); }
 .schema-list-item.active { background: rgba(56,189,248,.1); color: var(--c-accent-light); }
+.schema-list-row { display: flex; align-items: center; gap: .375rem; }
+.schema-list-btn {
+  flex: 1; display: flex; justify-content: space-between;
+  text-align: left; background: none; border: none;
+  padding: .375rem .25rem; cursor: pointer; color: inherit;
+  font-size: .825rem; font-family: monospace; color: var(--c-text-muted);
+}
+.schema-list-btn:hover { color: var(--c-text); }
+.muted-text { color: #64748b; margin-left: auto; }
 
 /* ── Explorer ──────────────────────────────────────────────────────── */
 .quick-btns { display: flex; flex-wrap: wrap; gap: .375rem; }

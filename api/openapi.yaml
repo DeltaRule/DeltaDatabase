@@ -661,6 +661,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+    delete:
+      operationId: deleteSchema
+      summary: Delete a JSON Schema
+      description: |
+        Permanently delete a JSON Schema document by its ID. Requires `write`
+        permission.
+
+        Once deleted, entities that were previously validated against this schema
+        are unaffected (they remain stored), but future `PUT` requests to the
+        same `schema_id` will no longer be validated until a new schema is
+        uploaded. To update a schema instead of deleting it, use `PUT`.
+
+        Schema IDs must not contain `/`, `\`, or `..` sequences.
+      tags: [schemas]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: schemaID
+          in: path
+          required: true
+          description: Schema identifier (e.g., `product.v1`).
+          schema:
+            type: string
+          example: product.v1
+      responses:
+        "200":
+          description: Schema deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOK"
+        "401":
+          description: Missing or invalid Bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Token lacks `write` permission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Schema not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   # ---------------------------------------------------------------------------
   # API Keys
   # ---------------------------------------------------------------------------
