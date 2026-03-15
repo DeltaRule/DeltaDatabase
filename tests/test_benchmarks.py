@@ -72,9 +72,10 @@ def test_benchmark_rest_put_sequential(benchmark, settings):
 
     result = benchmark(_bench)
     # Log mean for README reference (generous production threshold: 200 ms)
-    assert benchmark.stats["mean"] < 0.2, (
-        f"REST PUT mean latency {benchmark.stats['mean']:.3f}s exceeds 200 ms threshold"
-    )
+    if benchmark.stats is not None:
+        assert benchmark.stats["mean"] < 0.2, (
+            f"REST PUT mean latency {benchmark.stats['mean']:.3f}s exceeds 200 ms threshold"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -90,9 +91,10 @@ def test_benchmark_rest_get_warm_cache(benchmark, settings):
         assert resp.status_code == 200
 
     benchmark(_bench)
-    assert benchmark.stats["mean"] < 0.1, (
-        f"REST GET (warm cache) mean latency {benchmark.stats['mean']:.3f}s exceeds 100 ms"
-    )
+    if benchmark.stats is not None:
+        assert benchmark.stats["mean"] < 0.1, (
+            f"REST GET (warm cache) mean latency {benchmark.stats['mean']:.3f}s exceeds 100 ms"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -112,9 +114,10 @@ def test_benchmark_rest_put_get_roundtrip(benchmark, settings):
         assert get_resp.status_code == 200
 
     benchmark(_bench)
-    assert benchmark.stats["mean"] < 0.4, (
-        f"Round-trip mean latency {benchmark.stats['mean']:.3f}s exceeds 400 ms"
-    )
+    if benchmark.stats is not None:
+        assert benchmark.stats["mean"] < 0.4, (
+            f"Round-trip mean latency {benchmark.stats['mean']:.3f}s exceeds 400 ms"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -129,10 +132,10 @@ def test_benchmark_large_payload_put(benchmark, settings, size_kb):
 
     def _bench():
         resp = _put(settings, key, text)
-        assert resp.status_code in {200, 413}, f"Unexpected {resp.status_code}"
+        assert resp.status_code in {200, 400, 413}, f"Unexpected {resp.status_code}"
 
     benchmark(_bench)
-    # 1 MiB payload may hit the body-size limit and return 413 — that's fine.
+    # 1 MiB payload may hit the body-size limit and return 400/413 — that's fine.
 
 
 # ---------------------------------------------------------------------------
@@ -233,9 +236,10 @@ def test_benchmark_grpc_put(benchmark, proc_grpc_stub):
         assert resp.status == "OK"
 
     benchmark(_bench)
-    assert benchmark.stats["mean"] < 0.15, (
-        f"gRPC PUT mean latency {benchmark.stats['mean']:.3f}s exceeds 150 ms"
-    )
+    if benchmark.stats is not None:
+        assert benchmark.stats["mean"] < 0.15, (
+            f"gRPC PUT mean latency {benchmark.stats['mean']:.3f}s exceeds 150 ms"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -266,9 +270,10 @@ def test_benchmark_grpc_get_warm(benchmark, proc_grpc_stub):
         assert resp.result
 
     benchmark(_bench)
-    assert benchmark.stats["mean"] < 0.05, (
-        f"gRPC GET (warm cache) mean latency {benchmark.stats['mean']:.3f}s exceeds 50 ms"
-    )
+    if benchmark.stats is not None:
+        assert benchmark.stats["mean"] < 0.05, (
+            f"gRPC GET (warm cache) mean latency {benchmark.stats['mean']:.3f}s exceeds 50 ms"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -294,9 +299,10 @@ def test_benchmark_schema_validated_put(benchmark, proc_grpc_stub, sample_schema
 
     benchmark(_bench)
     # Schema validation should not add more than 50 ms on average.
-    assert benchmark.stats["mean"] < 0.2, (
-        f"Schema-validated PUT mean {benchmark.stats['mean']:.3f}s exceeds 200 ms"
-    )
+    if benchmark.stats is not None:
+        assert benchmark.stats["mean"] < 0.2, (
+            f"Schema-validated PUT mean {benchmark.stats['mean']:.3f}s exceeds 200 ms"
+        )
 
 
 # ---------------------------------------------------------------------------

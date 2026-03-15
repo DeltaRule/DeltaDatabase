@@ -103,17 +103,23 @@ def test_worker_token_expiry_enforced(proto_modules):
     grpc_addr = f"127.0.0.1:{grpc_port}"
     rest_addr = f"127.0.0.1:{rest_port}"
 
-    proc = subprocess.Popen(
-        [
-            "go", "run", "./cmd/main-worker",
-            f"-grpc-addr={grpc_addr}",
-            f"-rest-addr={rest_addr}",
-            "-worker-ttl=1s",
-        ],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        proc = subprocess.Popen(
+            [
+                "go", "run", "./cmd/main-worker",
+                f"-grpc-addr={grpc_addr}",
+                f"-rest-addr={rest_addr}",
+                "-worker-ttl=1s",
+            ],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        pytest.skip(
+            "'go' binary not found; skipping token-expiry integration test. "
+            "Run against a local Go build instead."
+        )
 
     try:
         if not _wait_for_http(f"http://{rest_addr}/health", timeout=120):

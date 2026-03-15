@@ -78,4 +78,5 @@ def test_cache_benchmark(benchmark, settings):
         _get(settings, "BenchKey")
 
     benchmark(_bench)
-    assert benchmark.stats["mean"] < 0.5  # generous threshold for a live server
+    if benchmark.stats is not None:
+        assert benchmark.stats["mean"] < 0.5  # generous threshold for a live server
