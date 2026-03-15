@@ -276,6 +276,105 @@ Content-Type: application/json
 | `401` | Missing or invalid Bearer token |
 | `403` | Token lacks `write` permission |
 
+**Example:**
+
+```bash
+curl -s -X PUT http://127.0.0.1:8080/schema/product.v1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "product.v1",
+    "type": "object",
+    "properties": {
+      "name":  {"type": "string"},
+      "price": {"type": "number", "minimum": 0}
+    },
+    "required": ["name", "price"]
+  }'
+```
+
+---
+
+### `DELETE /schema/{schemaID}`
+
+Permanently delete a JSON Schema. Requires `write` permission.
+
+Once deleted, entities that were previously validated against this schema are
+unaffected (they remain stored), but future `PUT /entity/{schema_id}` requests
+will no longer be validated until a new schema is uploaded. To update a schema
+instead, use `PUT /schema/{schemaID}`.
+
+**Path parameter:** `schemaID` — the schema identifier.
+
+**Request:**
+
+```http
+DELETE /schema/product.v1
+Authorization: Bearer <token>
+```
+
+**Response `200 OK`:**
+
+```json
+{"status": "ok"}
+```
+
+**Error responses:**
+
+| Code | Meaning |
+|------|---------|
+| `401` | Missing or invalid Bearer token |
+| `403` | Token lacks `write` permission |
+| `404` | Schema not found |
+
+**Example:**
+
+```bash
+curl -s -X DELETE http://127.0.0.1:8080/schema/product.v1 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### gRPC Schema Operations
+
+All three schema operations are also available via the gRPC `Process` RPC.
+Use the `operation` field of `ProcessRequest` with one of the schema-specific
+operation strings:
+
+| Operation | Equivalent REST | `schema_id` | `payload` |
+|-----------|-----------------|-------------|-----------|
+| `SCHEMA_GET` | `GET /schema/{id}` | schema identifier | — |
+| `SCHEMA_PUT` | `PUT /schema/{id}` | schema identifier | JSON Schema bytes |
+| `SCHEMA_DELETE` | `DELETE /schema/{id}` | schema identifier | — |
+
+**Example (Go pseudo-code):**
+
+```go
+// Retrieve a schema via gRPC
+resp, err := client.Process(ctx, &proto.ProcessRequest{
+    Operation: "SCHEMA_GET",
+    SchemaId:  "product.v1",
+    Token:     workerToken,
+})
+
+// Create / update a schema via gRPC
+resp, err := client.Process(ctx, &proto.ProcessRequest{
+    Operation: "SCHEMA_PUT",
+    SchemaId:  "product.v1",
+    Payload:   schemaJSON,
+    Token:     workerToken,
+})
+
+// Delete a schema via gRPC
+resp, err := client.Process(ctx, &proto.ProcessRequest{
+    Operation: "SCHEMA_DELETE",
+    SchemaId:  "product.v1",
+    Token:     workerToken,
+})
+```
+
 ---
 
 ## API Keys

@@ -277,6 +277,7 @@
               <div class="row mb-2" style="flex-wrap:wrap;gap:.375rem">
                 <button class="btn btn-ghost btn-sm" onclick="loadSchemaById()">Load</button>
                 <button class="btn btn-primary btn-sm" onclick="saveSchema()">Save</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteSchemaById()">🗑 Delete</button>
                 <button class="btn btn-sm" style="background:rgba(99,102,241,.2);color:#a5b4fc" onclick="exportPydantic()">🐍 Pydantic</button>
                 <button class="btn btn-sm" style="background:rgba(168,85,247,.2);color:#d8b4fe" onclick="exportTypeScript()">🔷 TypeScript</button>
               </div>
@@ -728,9 +729,12 @@
           wrap.innerHTML = '<div style="font-size:.8rem;color:#64748b;padding:.5rem 0">No templates yet</div>';
         } else {
           wrap.innerHTML = schemas.map(s => `
-            <button class="schema-list-item" onclick="document.getElementById('schemaId').value='${esc(s)}';loadSchemaById()">
-              <span>${esc(s)}</span><span style="color:#64748b">edit →</span>
-            </button>`).join('');
+            <div class="schema-list-row">
+              <button class="schema-list-btn" onclick="document.getElementById('schemaId').value='${esc(s)}';loadSchemaById()">
+                <span>${esc(s)}</span><span class="muted-text">edit →</span>
+              </button>
+              <button class="btn btn-danger btn-xs" onclick="deleteSchema('${esc(s)}')" title="Delete schema">🗑</button>
+            </div>`).join('');
         }
       }
     } catch {}
@@ -767,6 +771,37 @@
         showAlert(alertEl, 'error', d.error || 'Save failed.');
       }
     } catch { showAlert(alertEl, 'error', 'Network error.'); }
+  }
+
+  async function deleteSchema(id) {
+    if (!id) return;
+    if (!confirm('Permanently delete schema "' + id + '"?\n\nExisting entities are not affected.')) return;
+    const alertEl = document.getElementById('schemaAlert');
+    alertEl.classList.add('hidden');
+    try {
+      const r = await api('/schema/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (r.ok) {
+        // Clear editor if it was showing the deleted schema.
+        if (document.getElementById('schemaId').value === id) {
+          document.getElementById('schemaId').value = '';
+          document.getElementById('schemaBody').value = '';
+        }
+        showAlert(alertEl, 'success', 'Schema "' + id + '" deleted.');
+        await loadTemplates();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        showAlert(alertEl, 'error', d.error || 'Delete failed.');
+      }
+    } catch { showAlert(alertEl, 'error', 'Network error.'); }
+  }
+
+  function deleteSchemaById() {
+    const id = document.getElementById('schemaId').value.trim();
+    if (!id) {
+      showAlert(document.getElementById('schemaAlert'), 'error', 'Schema ID required.');
+      return;
+    }
+    deleteSchema(id);
   }
 
   function exportPydantic() {

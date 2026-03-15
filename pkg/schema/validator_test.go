@@ -487,6 +487,66 @@ func TestSaveTemplate(t *testing.T) {
 	})
 }
 
+func TestDeleteTemplate(t *testing.T) {
+	validator, templatesPath := setupTestValidator(t)
+
+	t.Run("deletes existing template from disk and cache", func(t *testing.T) {
+		schemaData := createUserSchema()
+		require.NoError(t, validator.SaveTemplate("user.del.v1", schemaData))
+
+		// Confirm it exists on disk and in cache.
+		templatePath := filepath.Join(templatesPath, "user.del.v1.json")
+		assert.FileExists(t, templatePath)
+		assert.Contains(t, validator.GetLoadedSchemas(), "user.del.v1")
+
+		err := validator.DeleteTemplate("user.del.v1")
+		assert.NoError(t, err)
+
+		// File must be gone.
+		assert.NoFileExists(t, templatePath)
+		// Cache must be cleared.
+		assert.NotContains(t, validator.GetLoadedSchemas(), "user.del.v1")
+	})
+
+	t.Run("returns error for non-existent template", func(t *testing.T) {
+		err := validator.DeleteTemplate("ghost.v99")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("returns error for empty schema ID", func(t *testing.T) {
+		err := validator.DeleteTemplate("")
+		assert.Error(t, err)
+	})
+
+	t.Run("returns error for path traversal schema ID", func(t *testing.T) {
+		err := validator.DeleteTemplate("../etc/passwd")
+		assert.Error(t, err)
+	})
+
+	t.Run("deleted schema is absent from ListAvailableTemplates", func(t *testing.T) {
+		require.NoError(t, validator.SaveTemplate("listed.del.v1", createUserSchema()))
+
+		listed, err := validator.ListAvailableTemplates()
+		require.NoError(t, err)
+		assert.Contains(t, listed, "listed.del.v1")
+
+		require.NoError(t, validator.DeleteTemplate("listed.del.v1"))
+
+		listed2, err := validator.ListAvailableTemplates()
+		require.NoError(t, err)
+		assert.NotContains(t, listed2, "listed.del.v1")
+	})
+
+	t.Run("validate returns error after template deleted", func(t *testing.T) {
+		require.NoError(t, validator.SaveTemplate("validate.del.v1", createUserSchema()))
+		require.NoError(t, validator.DeleteTemplate("validate.del.v1"))
+
+		_, err := validator.Validate("validate.del.v1", []byte(`{"id":"1","email":"a@b.com"}`))
+		assert.Error(t, err)
+	})
+}
+
 func TestChatSchemaValidation(t *testing.T) {
 	validator, templatesPath := setupTestValidator(t)
 

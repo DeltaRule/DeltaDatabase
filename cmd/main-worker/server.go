@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -318,11 +319,63 @@ func (s *MainWorkerServer) Process(ctx context.Context, req *proto.ProcessReques
 		return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
 	}
 
+	// ── Schema management operations ──────────────────────────────────────
+	// SCHEMA_GET / SCHEMA_PUT / SCHEMA_DELETE operate on the JSON Schema
+	// template registry, not on entity data.
+	switch op {
+	case "SCHEMA_GET":
+		if s.validator == nil {
+			s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+			return nil, status.Error(codes.Unavailable, "schema management unavailable")
+		}
+		data, err := s.validator.GetTemplateData(req.GetSchemaId())
+		if err != nil {
+			s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+			s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
+			return nil, status.Error(codes.NotFound, "schema not found")
+		}
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "success").Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "success").Observe(time.Since(start).Seconds())
+		return &proto.ProcessResponse{Status: "OK", Result: data}, nil
+
+	case "SCHEMA_PUT":
+		if s.validator == nil {
+			s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+			return nil, status.Error(codes.Unavailable, "schema management unavailable")
+		}
+		if err := s.validator.SaveTemplate(req.GetSchemaId(), req.GetPayload()); err != nil {
+			s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+			s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "success").Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "success").Observe(time.Since(start).Seconds())
+		return &proto.ProcessResponse{Status: "OK"}, nil
+
+	case "SCHEMA_DELETE":
+		if s.validator == nil {
+			s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+			return nil, status.Error(codes.Unavailable, "schema management unavailable")
+		}
+		if err := s.validator.DeleteTemplate(req.GetSchemaId()); err != nil {
+			s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
+			s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
+			if errors.Is(err, schema.ErrSchemaNotFound) {
+				return nil, status.Error(codes.NotFound, err.Error())
+			}
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "success").Inc()
+		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "success").Observe(time.Since(start).Seconds())
+		return &proto.ProcessResponse{Status: "OK"}, nil
+	}
+
+	// ── Entity operations ─────────────────────────────────────────────────
 	// Validate operation
 	if op != "GET" && op != "PUT" && op != "DELETE" {
 		s.metrics.ProcessRequestsTotal.WithLabelValues(op, "error").Inc()
 		s.metrics.ProcessDurationSeconds.WithLabelValues(op, "error").Observe(time.Since(start).Seconds())
-		return nil, status.Error(codes.InvalidArgument, "operation must be GET, PUT, or DELETE")
+		return nil, status.Error(codes.InvalidArgument, "operation must be GET, PUT, DELETE, SCHEMA_GET, SCHEMA_PUT, or SCHEMA_DELETE")
 	}
 
 	if op == "GET" {
@@ -779,10 +832,11 @@ func (s *MainWorkerServer) handleAdminSchemas(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(schemas) //nolint:errcheck
 }
 
-// handleSchema serves GET and PUT requests for /schema/{id}.
+// handleSchema serves GET, PUT, and DELETE requests for /schema/{id}.
 //
-//   GET  /schema/{id}  — retrieve a schema JSON (no authentication required).
-//   PUT  /schema/{id}  — create or replace a schema (authentication required).
+//   GET    /schema/{id}  — retrieve a schema JSON (no authentication required).
+//   PUT    /schema/{id}  — create or replace a schema (write permission required).
+//   DELETE /schema/{id}  — permanently delete a schema (write permission required).
 func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) {
 	schemaID := strings.TrimPrefix(r.URL.Path, "/schema/")
 	// Reject empty or path-traversal schema IDs.
@@ -823,6 +877,21 @@ func (s *MainWorkerServer) handleSchema(w http.ResponseWriter, r *http.Request) 
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
+
+	case http.MethodDelete:
+		if !s.requirePermission(w, r, auth.PermWrite) {
+			return
+		}
+		if err := s.validator.DeleteTemplate(schemaID); err != nil {
+			if errors.Is(err, schema.ErrSchemaNotFound) {
+				http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
+			} else {
+				http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusInternalServerError)
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) //nolint:errcheck
 
 	default:

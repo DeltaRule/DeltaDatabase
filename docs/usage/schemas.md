@@ -50,7 +50,7 @@ curl -s -X PUT http://127.0.0.1:8080/schema/chat.v1 \
 
 ### Via the Web UI
 
-Open **http://localhost:8080/** → **Schemas** tab → **New Schema** and paste your JSON Schema document.
+Open **http://localhost:8080/** → **Templates** tab → type a Schema ID, enter your JSON Schema, and click **Save**.
 
 ### Directly on Disk
 
@@ -74,6 +74,76 @@ The worker picks up the file automatically — no restart required.
 
 ---
 
+## Updating a Schema
+
+Use `PUT /schema/{schemaID}` to replace an existing schema with a new definition.
+The old schema is atomically overwritten; the in-memory cache is immediately
+refreshed. Requires `write` permission.
+
+```bash
+# Update chat.v1 to also require a session_id field
+curl -s -X PUT http://127.0.0.1:8080/schema/chat.v1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "chat.v1",
+    "type": "object",
+    "properties": {
+      "session_id": {"type": "string"},
+      "messages":   {"type": "array"}
+    },
+    "required": ["session_id", "messages"]
+  }'
+```
+
+> **Note:** Updating a schema does **not** re-validate existing stored entities.
+> Only future `PUT /entity/{schema_id}` requests are validated against the new
+> definition. Consider bumping the version (e.g., `chat.v2`) for breaking changes.
+
+**Via gRPC (`SCHEMA_PUT`):**
+
+```go
+resp, err := client.Process(ctx, &proto.ProcessRequest{
+    Operation: "SCHEMA_PUT",
+    SchemaId:  "chat.v1",
+    Payload:   updatedSchemaJSON,
+    Token:     workerToken,
+})
+```
+
+---
+
+## Deleting a Schema
+
+Use `DELETE /schema/{schemaID}` to permanently remove a schema template.
+Requires `write` permission.
+
+```bash
+curl -s -X DELETE http://127.0.0.1:8080/schema/chat.v1 \
+  -H "Authorization: Bearer $TOKEN"
+# → {"status":"ok"}
+```
+
+> **Note:** Deleting a schema does **not** delete the entities stored under that
+> schema ID. Existing data is unaffected. Future entity writes to the same
+> `schema_id` will succeed without validation until a new template is uploaded.
+
+**Via the Web UI:** open the **Templates** tab, click the schema you want to
+remove from the list, and click the **Delete** button.
+
+**Via gRPC (`SCHEMA_DELETE`):**
+
+```go
+resp, err := client.Process(ctx, &proto.ProcessRequest{
+    Operation: "SCHEMA_DELETE",
+    SchemaId:  "chat.v1",
+    Token:     workerToken,
+})
+```
+
+---
+
 ## Listing and Retrieving Schemas
 
 ```bash
@@ -82,6 +152,17 @@ curl http://127.0.0.1:8080/admin/schemas
 
 # Retrieve a specific schema
 curl http://127.0.0.1:8080/schema/chat.v1
+```
+
+**Via gRPC (`SCHEMA_GET`):**
+
+```go
+resp, err := client.Process(ctx, &proto.ProcessRequest{
+    Operation: "SCHEMA_GET",
+    SchemaId:  "chat.v1",
+    Token:     workerToken,
+})
+// resp.Result contains the raw JSON Schema bytes
 ```
 
 ---

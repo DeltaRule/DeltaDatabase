@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/xeipuuv/gojsonschema"
 )
+
+// ErrSchemaNotFound is returned when a requested schema template does not exist.
+var ErrSchemaNotFound = errors.New("schema template not found")
 
 // isValidSchemaID returns true when id is safe to use as a filename component.
 // It rejects empty strings, path separators (/ and \), and any string
@@ -84,7 +88,7 @@ func (v *Validator) LoadTemplate(schemaID string) error {
 
 	// Check if template file exists
 	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		return fmt.Errorf("schema template not found: %s", schemaID)
+		return fmt.Errorf("%w: %s", ErrSchemaNotFound, schemaID)
 	}
 
 	// Read template file
@@ -243,6 +247,31 @@ func (v *Validator) GetTemplateData(schemaID string) ([]byte, error) {
 	}
 	templatePath := filepath.Join(v.templatesPath, schemaID+".json")
 	return os.ReadFile(templatePath)
+}
+
+// DeleteTemplate removes a schema template from disk and the in-memory cache.
+// Returns an error if the schema ID is invalid or the template does not exist.
+func (v *Validator) DeleteTemplate(schemaID string) error {
+	if !isValidSchemaID(schemaID) {
+		return fmt.Errorf("invalid schema ID")
+	}
+
+	templatePath := filepath.Join(v.templatesPath, schemaID+".json")
+
+	// Remove from disk first; return a recognisable error if it is absent.
+	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
+		return fmt.Errorf("%w: %s", ErrSchemaNotFound, schemaID)
+	}
+	if err := os.Remove(templatePath); err != nil {
+		return fmt.Errorf("failed to delete template file: %w", err)
+	}
+
+	// Evict from the in-memory cache so stale data is never served.
+	v.mu.Lock()
+	delete(v.schemas, schemaID)
+	v.mu.Unlock()
+
+	return nil
 }
 
 // SaveTemplate saves a schema template to disk.
